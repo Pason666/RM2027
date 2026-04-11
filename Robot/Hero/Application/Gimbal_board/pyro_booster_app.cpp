@@ -13,8 +13,8 @@ using namespace pyro;
 extern float read_time;
 
 // 定义任务通知的位掩码 (Event Bits)
-constexpr uint32_t EVENT_BIT_FRIC_TOGGLE = (1 << 0);
-constexpr uint32_t EVENT_BIT_FIRE        = (1 << 1);
+constexpr uint32_t EVENT_BIT_FRIC_TOGGLE              = (1 << 0);
+constexpr uint32_t EVENT_BIT_FIRE                     = (1 << 1);
 
 static TaskHandle_t booster_task_handle               = nullptr;
 static pyro::quad_booster_t *quad_booster_ptr         = nullptr;
@@ -32,8 +32,8 @@ extern "C"
 
         if (pyro::sw_pos_t::DOWN == vrc.switches.right.current_pos)
         {
-            quad_booster_cmd_ptr->mode        = pyro::cmd_base_t::mode_t::PASSIVE;
-            quad_booster_cmd_ptr->fric_on     = false;
+            quad_booster_cmd_ptr->mode    = pyro::cmd_base_t::mode_t::PASSIVE;
+            quad_booster_cmd_ptr->fric_on = false;
             // 移除手动清零，交由底层状态机自动同步处理
             return;
         }
@@ -65,14 +65,14 @@ extern "C"
 
         if (pyro::sw_pos_t::UP == vrc.switches.gear.current_pos)
         {
-            quad_booster_cmd_ptr->mode        = pyro::cmd_base_t::mode_t::PASSIVE;
-            quad_booster_cmd_ptr->fric_on     = false;
+            quad_booster_cmd_ptr->mode    = pyro::cmd_base_t::mode_t::PASSIVE;
+            quad_booster_cmd_ptr->fric_on = false;
             // 移除手动清零，交由底层状态机自动同步处理
             return;
         }
 
         quad_booster_cmd_ptr->mode         = pyro::cmd_base_t::mode_t::ACTIVE;
-        quad_booster_cmd_ptr->target_speed = 11.7f; // 可调节
+        quad_booster_cmd_ptr->target_speed = 16.2f; // 可调节
         quad_booster_cmd_ptr->trig_target_spd = 14.0f * vrc.axes.rx;
 
         if (notify_val & EVENT_BIT_FRIC_TOGGLE)
@@ -125,14 +125,25 @@ extern "C"
         auto &vrc = pyro::rc_drv_t::read();
 
         // --- VT03 按键绑定 ---
-        pyro::btn_broker::subscribe(&vrc.buttons.fn_l, pyro::btn_event_t::PRESS_DOWN, booster_task_handle, EVENT_BIT_FRIC_TOGGLE);
-        pyro::btn_broker::subscribe(&vrc.keys.q, pyro::btn_event_t::PRESS_DOWN, booster_task_handle, EVENT_BIT_FRIC_TOGGLE);
-        pyro::btn_broker::subscribe(&vrc.buttons.trigger, pyro::btn_event_t::PRESS_DOWN, booster_task_handle, EVENT_BIT_FIRE);
-        pyro::btn_broker::subscribe(&vrc.buttons.press_l, pyro::btn_event_t::PRESS_DOWN, booster_task_handle, EVENT_BIT_FIRE);
+        pyro::btn_broker::subscribe(&vrc.buttons.fn_l,
+                                    pyro::btn_event_t::PRESS_DOWN,
+                                    booster_task_handle, EVENT_BIT_FRIC_TOGGLE);
+        pyro::btn_broker::subscribe(&vrc.keys.q, pyro::btn_event_t::PRESS_DOWN,
+                                    booster_task_handle, EVENT_BIT_FRIC_TOGGLE);
+        pyro::btn_broker::subscribe(&vrc.buttons.trigger,
+                                    pyro::btn_event_t::PRESS_DOWN,
+                                    booster_task_handle, EVENT_BIT_FIRE);
+        pyro::btn_broker::subscribe(&vrc.buttons.press_l,
+                                    pyro::btn_event_t::PRESS_DOWN,
+                                    booster_task_handle, EVENT_BIT_FIRE);
 
         // --- DR16 拨杆绑定 ---
-        pyro::sw_broker::subscribe(&vrc.switches.left, pyro::sw_event_t::UP_TO_MID, booster_task_handle, EVENT_BIT_FRIC_TOGGLE);
-        pyro::sw_broker::subscribe(&vrc.switches.left, pyro::sw_event_t::DOWN_TO_MID, booster_task_handle, EVENT_BIT_FIRE);
+        pyro::sw_broker::subscribe(&vrc.switches.left,
+                                   pyro::sw_event_t::UP_TO_MID,
+                                   booster_task_handle, EVENT_BIT_FRIC_TOGGLE);
+        pyro::sw_broker::subscribe(&vrc.switches.left,
+                                   pyro::sw_event_t::DOWN_TO_MID,
+                                   booster_task_handle, EVENT_BIT_FIRE);
 
         quad_booster_ptr->start();
         vTaskDelete(nullptr);
@@ -168,15 +179,19 @@ void deps_init()
 
     quad_deps_ptr->pid_deps.fric_pid[0] =
         new pid_t(6.415f, 0.02f, 0.02f, 2.5f, 20, 320, 80, 4);
+    // quad_deps_ptr->pid_deps.fric_pid[0] =
+    //     new pid_t(6.402f, 0.02f, 0.02f, 2.5f, 20, 320, 80, 4);
     quad_deps_ptr->pid_deps.fric_pid[1] =
         new pid_t(11.322f, 0.03f, 0.004f, 2.5f, 20, 240, 80, 4);
     quad_deps_ptr->pid_deps.fric_pid[2] =
         new pid_t(6.48f, 0.02f, 0.02f, 2.5f, 20, 320, 80, 4);
+    // quad_deps_ptr->pid_deps.fric_pid[2] =
+    //     new pid_t(6.442f, 0.02f, 0.02f, 2.5f, 20, 320, 80, 4);
     quad_deps_ptr->pid_deps.fric_pid[3] =
         new pid_t(11.315f, 0.03f, 0.004f, 2.5f, 20, 240, 80, 4);
 
     quad_deps_ptr->pid_deps.trigger_pos_pid =
-        new pid_t(14.0f, 0.03f, 0.0015f, 1.0f, 14.0f, 40, 20, 4);
+        new pid_t(14.0f, 0.03f, 0.0015f, 0.5f, 14.0f, 40, 20, 4);
     quad_deps_ptr->pid_deps.trigger_spd_pid =
-        new pid_t(0.6f, 0.02f, 0.0015f, 0.7f, 7.0f, 40, 20, 4);
+        new pid_t(0.6f, 0.02f, 0.0015f, 0.7f, 7.0f, 30, 20, 4);
 }

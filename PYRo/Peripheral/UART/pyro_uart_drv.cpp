@@ -103,7 +103,7 @@ status_t uart_drv_t::write(const uint8_t *p, const uint16_t size)
 }
 
 /* Reception Control Methods -------------------------------------------------*/
-status_t uart_drv_t::enable_rx_dma()
+__attribute__((section(".itcm_text"))) status_t uart_drv_t::enable_rx_dma()
 {
     if (!state.init_flag)
         return PYRO_ERROR;
@@ -234,8 +234,9 @@ uart_drv_t::unregister_callback(const HAL_UART_CallbackIDTypeDef CB_ID) const
 } // namespace pyro
 
 /* External HAL/ISR Callbacks ------------------------------------------------*/
-extern "C" void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart,
-                                           uint16_t Size)
+
+extern "C" __attribute__((section(".itcm_text"))) void
+HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size)
 {
     // Find the C++ driver instance by its hardware handle.
     // 通过硬件句柄查找 C++ 驱动实例。
@@ -270,7 +271,8 @@ extern "C" void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart,
     }
 }
 
-extern "C" void HAL_UART_ErrorCallback(UART_HandleTypeDef *huart)
+extern "C" __attribute__((section(".itcm_text"))) void
+HAL_UART_ErrorCallback(UART_HandleTypeDef *huart)
 {
     const auto it = pyro::uart_drv_t::uart_map().find(huart);
     if (it != pyro::uart_drv_t::uart_map().end() && it->second)

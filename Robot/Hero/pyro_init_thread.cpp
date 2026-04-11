@@ -19,18 +19,17 @@ extern "C"
 
     void pyro_init_thread(void *argument)
     {
-        dwt_drv_t::init(480); // Initialize DWT at 550 MHz
+        dwt_drv_t::init(480); // Initialize DWT at 480 MHz
 
-        can_hub_t::get_instance();
         can1_drv = new can_drv_t(&hfdcan1);
         can2_drv = new can_drv_t(&hfdcan2);
         can3_drv = new can_drv_t(&hfdcan3);
         can1_drv->init();
         can2_drv->init();
         can3_drv->init();
-        can1_drv->start();
-        can2_drv->start();
-        can3_drv->start();
+        can1_drv->start();// NOLINT
+        can2_drv->start();// NOLINT
+        can3_drv->start();// NOLINT
 
         ins_drv = ins_drv_t::get_instance();
         ins_drv->init();

@@ -1,77 +1,74 @@
 #include "pyro_can_drv.h"
 #include "main.h"
-
 #include <cstring>
-
-
 
 namespace pyro
 {
-can_msg_buffer_t::can_msg_buffer_t(uint32_t id)
-    : _id(id), _is_fresh(false), _last_update_time(0)
+// ==========================================
+// can_msg_buffer_t Implementation
+// ==========================================
+can_msg_buffer_t::can_msg_buffer_t(const uint32_t id)
+    : _id(id), _buffer{}, _is_fresh(false), _last_update_time(0)
 {
-    _buffer.fill(0);
-    //_mtx = xSemaphoreCreateMutex();
 }
 
-can_msg_buffer_t::~can_msg_buffer_t(void)
-{
-    // vSemaphoreDelete(_mtx);
-}
+can_msg_buffer_t::~can_msg_buffer_t() = default;
 
-uint32_t can_msg_buffer_t::get_id(void)
+uint32_t can_msg_buffer_t::get_id() const
 {
     return _id;
 }
 
-bool can_msg_buffer_t::is_fresh(void)
+bool can_msg_buffer_t::is_fresh() const
 {
     return _is_fresh;
 }
 
-void can_msg_buffer_t::mark_read(void)
+void can_msg_buffer_t::mark_read()
 {
-    // if(xSemaphoreTake(_mtx,portMAX_DELAY)==pdTRUE){
     _is_fresh = false;
-    // xSemaphoreGive(_mtx);
-    //}
 }
 
-void can_msg_buffer_t::update_data(const uint8_t *data) // Mutex or not
+TickType_t can_msg_buffer_t::get_last_update_time() const
 {
-    // if(xSemaphoreTake(_mtx,portMAX_DELAY)==pdTRUE){
+    return _last_update_time;
+}
+
+__attribute__((section(".itcm_text"))) void
+can_msg_buffer_t::update_data(const uint8_t *data)
+{
+    // [中断安全] 使用带 FROM_ISR 后缀的临界区宏
+    const UBaseType_t uxSavedInterruptStatus = taskENTER_CRITICAL_FROM_ISR();
+
     memcpy(_buffer.data(), data, 8);
     _last_update_time = xTaskGetTickCountFromISR();
     _is_fresh         = true;
-    // xSemaphoreGive(_mtx);
-    // }
+
+    taskEXIT_CRITICAL_FROM_ISR(uxSavedInterruptStatus);
 }
 
-bool can_msg_buffer_t::get_data(std::array<uint8_t, 8> &data)
+bool can_msg_buffer_t::get_data(std::array<uint8_t, 8> &data) const
 {
-    // if(xSemaphoreTake(_mtx,portMAX_DELAY)==pdTRUE){
+    // [任务安全] 防止在读取时被 CAN 接收中断打断导致脏数据
+    taskENTER_CRITICAL();
     memcpy(data.data(), _buffer.data(), 8);
-    // xSemaphoreGive(_mtx);
-    return true;
-    // }
-    // return false;
+    const bool fresh_status = _is_fresh;
+    taskEXIT_CRITICAL();
+
+    return fresh_status;
 }
 
-
-
-can_drv_t::can_drv_t(FDCAN_HandleTypeDef *hfdcan)
+// ==========================================
+// can_drv_t Implementation
+// ==========================================
+can_drv_t::can_drv_t(FDCAN_HandleTypeDef *hfdcan) : _hfdcan(hfdcan)
 {
-    _hfdcan = hfdcan;
     _registerlist.clear();
-    //_registermtx = xSemaphoreCreateMutex();
 }
 
-can_drv_t::~can_drv_t(void)
-{
-    // vSemaphoreDelete(_registermtx);
-}
+can_drv_t::~can_drv_t() = default;
 
-pyro::status_t can_drv_t::init(void)
+pyro::status_t can_drv_t::init()
 {
     FDCAN_FilterTypeDef fdcan_filter;
     fdcan_filter.IdType       = FDCAN_STANDARD_ID;
@@ -96,7 +93,7 @@ pyro::status_t can_drv_t::init(void)
     return pyro::PYRO_OK;
 }
 
-pyro::status_t can_drv_t::start(void)
+pyro::status_t can_drv_t::start() const
 {
     if (HAL_OK != HAL_FDCAN_Start(_hfdcan))
         return pyro::PYRO_ERROR;
@@ -106,14 +103,14 @@ pyro::status_t can_drv_t::start(void)
     return pyro::PYRO_OK;
 }
 
-pyro::status_t can_drv_t::send_msg(uint32_t id, uint8_t *data)
+pyro::status_t can_drv_t::send_msg(const uint32_t id, const uint8_t *data) const
 {
     FDCAN_TxHeaderTypeDef tx_header;
-    // if(xSemaphoreTake(_registermtx,portMAX_DELAY)==pdTRUE){
+
     tx_header.IdType              = FDCAN_STANDARD_ID;
     tx_header.Identifier          = id;
     tx_header.TxFrameType         = FDCAN_DATA_FRAME;
-    tx_header.DataLength          = 8;
+    tx_header.DataLength          = FDCAN_DLC_BYTES_8;
     tx_header.ErrorStateIndicator = FDCAN_ESI_ACTIVE;
     tx_header.BitRateSwitch       = FDCAN_BRS_OFF;
     tx_header.FDFormat            = FDCAN_CLASSIC_CAN;
@@ -122,85 +119,87 @@ pyro::status_t can_drv_t::send_msg(uint32_t id, uint8_t *data)
 
     if (HAL_OK != HAL_FDCAN_AddMessageToTxFifoQ(_hfdcan, &tx_header, data))
     {
-        // xSemaphoreGive(_registermtx);
         return pyro::PYRO_ERROR;
     }
 
-    // xSemaphoreGive(_registermtx);
     return pyro::PYRO_OK;
-    // }
-    // return pyro::PYRO_ERROR;
 }
 
 pyro::status_t can_drv_t::register_rx_msg(can_msg_buffer_t *msg_buffer)
 {
-    // if(xSemaphoreTake(_registermtx,portMAX_DELAY)==pdTRUE)
-    // {
-    uint32_t id = msg_buffer->get_id();
+    const uint32_t id = msg_buffer->get_id();
+
+    taskENTER_CRITICAL();
     if (this->_registerlist.exist(id))
     {
-        // xSemaphoreGive(_registermtx);
+        taskEXIT_CRITICAL();
         return pyro::PYRO_ERROR;
     }
     this->_registerlist[id] = msg_buffer;
-    // xSemaphoreGive(_registermtx);
+    taskEXIT_CRITICAL();
+
     return pyro::PYRO_OK;
-    // }
-    // return pyro::PYRO_ERROR;
 }
 
-pyro::status_t can_drv_t::handle_rx_msg(uint32_t id,
-                                        uint8_t *data) // mutex or not
+__attribute__((section(".itcm_text"))) pyro::status_t
+can_drv_t::handle_rx_msg(const uint32_t id, const uint8_t *data)
 {
-    // if(xSemaphoreTake(_registermtx,portMAX_DELAY)==pdTRUE)
-    // {
     if (!this->_registerlist.exist(id))
     {
-        // xSemaphoreGive(_registermtx);
         return pyro::PYRO_NOT_FOUND;
     }
+
     can_msg_buffer_t *msg = this->_registerlist[id];
     msg->update_data(data);
-    // xSemaphoreGive(_registermtx);
+
     return pyro::PYRO_OK;
-    // }
-    // return pyro::PYRO_ERROR;
 }
 
+// ==========================================
+// can_hub_t Implementation
+// ==========================================
 can_hub_t::can_hub_t() : _can_drv_map()
-{ // Log
+{
     this->_can_drv_map.clear();
 }
 
-can_hub_t *can_hub_t::_instancePtr = nullptr;
-can_hub_t *_instancePtr_copy       = nullptr;
-can_hub_t *can_hub_t::get_instance(void)
+can_hub_t *can_hub_t::get_instance()
 {
-    if (_instancePtr == nullptr) // Mutex
-    {
-        _instancePtr      = new can_hub_t();
-        _instancePtr_copy = _instancePtr;
-    }
-    return _instancePtr;
+    // [C++11] 局部静态变量初始化天生线程安全，杜绝内存泄漏
+    static can_hub_t instance;
+    return &instance;
 }
+
 pyro::status_t can_hub_t::hub_register_can_obj(FDCAN_HandleTypeDef *hfdcan,
                                                can_drv_t *can_drv)
 {
+    taskENTER_CRITICAL();
     if (this->_can_drv_map.exist(hfdcan))
+    {
+        taskEXIT_CRITICAL();
         return PYRO_ERROR;
+    }
     this->_can_drv_map[hfdcan] = can_drv;
+    taskEXIT_CRITICAL();
+
     return pyro::PYRO_OK;
 }
 
-status_t can_hub_t::hub_unregister_can_obj(FDCAN_HandleTypeDef *hfdcan)
+pyro::status_t can_hub_t::hub_unregister_can_obj(FDCAN_HandleTypeDef *hfdcan)
 {
+    taskENTER_CRITICAL();
     if (!this->_can_drv_map.exist(hfdcan))
+    {
+        taskEXIT_CRITICAL();
         return pyro::PYRO_ERROR;
+    }
     this->_can_drv_map.erase(hfdcan);
+    taskEXIT_CRITICAL();
+
     return pyro::PYRO_OK;
 }
 
-can_drv_t *can_hub_t::hub_get_can_obj(which_can which_can)
+can_drv_t *can_hub_t::hub_get_can_obj(const which_can which_can)
 {
     FDCAN_HandleTypeDef *hfdcan = nullptr;
     switch (which_can)
@@ -217,46 +216,50 @@ can_drv_t *can_hub_t::hub_get_can_obj(which_can which_can)
         default:
             return nullptr;
     }
+
     can_drv_t *can_drv = this->_can_drv_map[hfdcan];
     return can_drv;
 }
-//    pyro::status_t hub_unregister_can_client(which_can which_can,uint32_t id);
 
-pyro::status_t can_hub_t::hub_handle_callback(FDCAN_HandleTypeDef *hfdcan,
-                                              uint32_t identifier,
-                                              uint8_t *data)
+__attribute__((section(".itcm_text"))) pyro::status_t
+can_hub_t::hub_handle_callback(FDCAN_HandleTypeDef *hfdcan,
+                               const uint32_t identifier, const uint8_t *data)
 {
     if (!this->_can_drv_map.exist(hfdcan))
         return pyro::PYRO_ERROR;
-    // return this->_can_drv_map[hfdcan]->hub_handle_callback(hfdcan, data);
+
     return this->_can_drv_map[hfdcan]->handle_rx_msg(identifier, data);
 }
 
 }; // namespace pyro
 
-void can_global_handle(FDCAN_HandleTypeDef *hfdcan, uint32_t identifier,
-                       uint8_t *data)
+// ==========================================
+// Global Hardware Interruption Callbacks
+// ==========================================
+__attribute__((section(".itcm_text"))) void
+can_global_handle(FDCAN_HandleTypeDef *hfdcan, const uint32_t identifier,
+                  const uint8_t *data)
 {
     pyro::can_hub_t::get_instance()->hub_handle_callback(hfdcan, identifier,
                                                          data);
 }
 
-FDCAN_RxHeaderTypeDef rx_header;
-extern "C" void HAL_FDCAN_RxFifo0Callback(FDCAN_HandleTypeDef *hfdcan,
-                                          uint32_t RxFifo0ITs)
+extern "C" __attribute__((section(".itcm_text"))) void
+HAL_FDCAN_RxFifo0Callback(FDCAN_HandleTypeDef *hfdcan, uint32_t RxFifo0ITs)
 {
-
+    // [修复安全隐患] rx_header 作为局部变量分配在栈上，防止中断嵌套/并发覆盖
+    FDCAN_RxHeaderTypeDef rx_header;
     uint8_t data[8];
+
     if (HAL_OK !=
         HAL_FDCAN_GetRxMessage(hfdcan, FDCAN_RX_FIFO0, &rx_header, data))
     {
         return;
     }
+
     if (FDCAN_FRAME_CLASSIC == rx_header.RxFrameType &&
         FDCAN_STANDARD_ID == rx_header.IdType)
     {
-
-
         can_global_handle(hfdcan, rx_header.Identifier, data);
     }
 }

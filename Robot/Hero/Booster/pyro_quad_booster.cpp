@@ -130,7 +130,7 @@ void quad_booster_t::_speed_control()
                 _ctx.pid.ball_speed_pid->calculate(0.0f, signed_weighted_mse);
 
             // --- D. 累加到 fric1 的基础转速上 ---
-            _ctx.shoot_data.fric1_mps += speed_increment;
+            // _ctx.shoot_data.fric1_mps += speed_increment;
 
             // --- E. 安全限幅 (非常重要) ---
             // 避免闭环异常导致单侧摩擦轮转速过高或过低，导致卡弹或弹道严重偏斜
@@ -200,8 +200,8 @@ void quad_booster_t::_trigger_position_control()
         _ctx.data.target_trig_rad, _ctx.data.current_trig_rad);
 
     // --- 引入拨弹前馈补偿 ---
-    float ff_torque = 0.0f;
-    constexpr float TRIG_FF_SPEED_DEADBAND = 0.1f; // 速度死区 (rad/s)，防止在目标位置附近静止时产生力矩抖动
+    static float ff_torque = 0.0f;
+    constexpr float TRIG_FF_SPEED_DEADBAND = 1.0f; // 速度死区 (rad/s)，防止在目标位置附近静止时产生力矩抖动
     constexpr float TRIG_FF_TORQUE = 0.505f;       // 前馈力矩大小
 
     // 判断逻辑：目标速度为负（代表正往出拨弹），且超过速度死区
@@ -209,6 +209,10 @@ void quad_booster_t::_trigger_position_control()
     if (_ctx.data.target_trig_radps < -TRIG_FF_SPEED_DEADBAND)
     {
         ff_torque = -TRIG_FF_TORQUE;
+    }
+    else if (_ctx.data.target_trig_radps > 0.0f)
+    {
+        ff_torque = 0.0f;
     }
 
     _ctx.data.out_trig_torque = _ctx.pid.trigger_spd_pid->calculate(
@@ -221,7 +225,7 @@ void quad_booster_t::_trigger_speed_control()
 {
     // --- 引入拨弹前馈补偿 ---
     float ff_torque = 0.0f;
-    constexpr float TRIG_FF_SPEED_DEADBAND = 0.1f; // 速度死区 (rad/s)
+    constexpr float TRIG_FF_SPEED_DEADBAND = 0.5f; // 速度死区 (rad/s)
     constexpr float TRIG_FF_TORQUE = 0.505f;       // 前馈力矩大小
 
     // 判断逻辑：目标速度为负（代表正往出拨弹），且超过速度死区

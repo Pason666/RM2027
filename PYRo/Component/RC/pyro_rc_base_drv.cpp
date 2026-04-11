@@ -74,6 +74,7 @@ void rc_drv_t::disable()
     _rc_uart.remove_rx_event_callback(reinterpret_cast<uint32_t>(this));
 }
 
+__attribute__((section(".itcm_text")))
 bool rc_drv_t::rc_callback(const uint8_t *buf, const uint16_t len,
                            BaseType_t &xHigherPriorityTaskWoken)
 {

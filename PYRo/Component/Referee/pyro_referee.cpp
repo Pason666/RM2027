@@ -259,6 +259,7 @@ bool referee_drv_t::send_custom_info(const char *message)
 // RX Implementation
 // ==========================================================================
 
+__attribute__((section(".itcm_text")))
 bool referee_drv_t::rx_callback(uint8_t *p, const uint16_t size,
                                 BaseType_t task_woken)
 {

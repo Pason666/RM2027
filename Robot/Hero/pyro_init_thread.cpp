@@ -27,9 +27,9 @@ extern "C"
         can1_drv->init();
         can2_drv->init();
         can3_drv->init();
-        can1_drv->start();// NOLINT
-        can2_drv->start();// NOLINT
-        can3_drv->start();// NOLINT
+        can1_drv->start(); // NOLINT
+        can2_drv->start(); // NOLINT
+        can3_drv->start(); // NOLINT
 
         ins_drv = ins_drv_t::get_instance();
         ins_drv->init();
@@ -38,14 +38,14 @@ extern "C"
         dr16_drv_t::instance().start();
         dr16_drv_t::instance().enable();
         DR16_UART.reset(100000, UART_WORDLENGTH_9B, UART_STOPBITS_2,
-                UART_PARITY_EVEN);
+                        UART_PARITY_EVEN);
 #endif
 
 #ifdef VT03_UART
         vt03_drv_t::instance().start();
         vt03_drv_t::instance().enable();
         VT03_UART.reset(921600, UART_WORDLENGTH_8B, UART_STOPBITS_1,
-                UART_PARITY_NONE);
+                        UART_PARITY_NONE);
 #endif
 
 #ifdef REFEREE_UART
@@ -58,6 +58,11 @@ extern "C"
         SUPERCAP_UART.reset(115200, UART_WORDLENGTH_8B, UART_STOPBITS_1,
                             UART_PARITY_NONE);
         supercap_drv_t::get_instance()->start_rx();
+#endif
+
+#ifdef AUTOAIM_UART
+        AUTOAIM_UART.reset(921600, UART_WORDLENGTH_8B, UART_STOPBITS_1,
+                           UART_PARITY_NONE);
 #endif
 
         vTaskDelete(nullptr);

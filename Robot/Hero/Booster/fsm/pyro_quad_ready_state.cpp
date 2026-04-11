@@ -20,6 +20,10 @@ void quad_booster_t::fsm_active_t::state_ready_t::execute(owner *owner)
 
         owner->_ctx.data.signal_timer = dwt_drv_t::get_timeline_ms();
         owner->_ctx.data.target_trig_rad -= PI / 3.0f; // 每次拨弹60度
+
+        // 新增：每次改变目标值后立即归一化
+        owner->_ctx.data.target_trig_rad = quad_booster_t::_normalize_angle(owner->_ctx.data.target_trig_rad);
+
         request_switch(&owner->_state_active._busy_state);
     }
 

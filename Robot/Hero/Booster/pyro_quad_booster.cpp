@@ -130,7 +130,7 @@ void quad_booster_t::_speed_control()
                 _ctx.pid.ball_speed_pid->calculate(0.0f, signed_weighted_mse);
 
             // --- D. 累加到 fric1 的基础转速上 ---
-            // _ctx.shoot_data.fric1_mps += speed_increment;
+            _ctx.shoot_data.fric1_mps += speed_increment;
 
             // --- E. 安全限幅 (非常重要) ---
             // 避免闭环异常导致单侧摩擦轮转速过高或过低，导致卡弹或弹道严重偏斜
@@ -158,15 +158,16 @@ void quad_booster_t::_launch_delay_calculate()
 
     _ctx.data.fresh_timer++;
 
-    if (_ctx.shoot_data.fric1_mps - std::abs(_ctx.data.current_fric_mps[1]) > 1.15f &&
-        _ctx.shoot_data.fric1_mps - std::abs(_ctx.data.current_fric_mps[3]) > 1.15f &&
-        std::abs(_ctx.data.current_fric_torque[1]) > 5.5f &&
-        std::abs(_ctx.data.current_fric_torque[2]) > 5.5f &&
-        _ctx.data.fresh_timer > 1000)
+    if (_ctx.shoot_data.fric1_mps - std::abs(_ctx.data.current_fric_mps[1]) > 0.8f &&
+        _ctx.shoot_data.fric1_mps - std::abs(_ctx.data.current_fric_mps[3]) > 0.8f &&
+        std::abs(_ctx.data.current_fric_torque[1]) > 3.0f &&
+        std::abs(_ctx.data.current_fric_torque[2]) > 3.0f &&
+        _ctx.data.fresh_timer > 220)
     {
         _ctx.data.launch_delay_timer[2] = _ctx.data.launch_delay_timer[1];
         _ctx.data.launch_delay_timer[1] = _ctx.data.launch_delay_timer[0];
-        _ctx.data.launch_delay_timer[0] = dwt_drv_t::get_timeline_ms() - _ctx.data.signal_timer + 16;
+        _ctx.data.launch_delay_timer[0] = (dwt_drv_t::get_timeline_ms() - _ctx.data.signal_timer > 200.0f) ? _ctx.data.avg_launch_delay : (dwt_drv_t::get_timeline_ms() - _ctx.data.signal_timer + 20.0f);
+
         _ctx.data.avg_launch_delay = 0.7f * _ctx.data.launch_delay_timer[0] + 0.2f * _ctx.data.launch_delay_timer[1] + 0.1f * _ctx.data.launch_delay_timer[2];
         _ctx.data.fresh_timer = 0;
     }
@@ -183,21 +184,14 @@ void quad_booster_t::_fric_control()
 
 void quad_booster_t::_trigger_position_control()
 {
-    const float error = _ctx.data.target_trig_rad - _ctx.data.current_trig_rad;
-    // 处理过零点问题，选择最短路径
-    if (error > PI)
-    {
-        _ctx.data.target_trig_rad -= 2.0f * PI;
-    }
-    else if (error < -PI)
-    {
-        _ctx.data.target_trig_rad += 2.0f * PI;
-    }
+    // 1. 计算原始误差
+    float error = _ctx.data.target_trig_rad - _ctx.data.current_trig_rad;
 
-    // 拨弹 PID 计算
-    // 使用归一化后的 -PI~PI 角度进行控制
-    _ctx.data.target_trig_radps = _ctx.pid.trigger_pos_pid->calculate(
-        _ctx.data.target_trig_rad, _ctx.data.current_trig_rad);
+    // 2. 处理过零点问题，将误差归一化到 [-PI, PI]，选择最短路径
+    error = _normalize_angle(error);
+
+    // 3. 拨弹 PID 计算：以误差作为目标值，当前值设为 0
+    _ctx.data.target_trig_radps = _ctx.pid.trigger_pos_pid->calculate(error, 0.0f);
 
     // --- 引入拨弹前馈补偿 ---
     static float ff_torque = 0.0f;

@@ -72,7 +72,7 @@ extern "C"
         }
 
         quad_booster_cmd_ptr->mode         = pyro::cmd_base_t::mode_t::ACTIVE;
-        quad_booster_cmd_ptr->target_speed = 16.2f; // 可调节
+        quad_booster_cmd_ptr->target_speed = 11.7f; // 可调节
         quad_booster_cmd_ptr->trig_target_spd = 14.0f * vrc.axes.rx;
 
         if (notify_val & EVENT_BIT_FRIC_TOGGLE)

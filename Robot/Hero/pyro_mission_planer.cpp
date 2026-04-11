@@ -8,6 +8,7 @@ extern "C"
     extern void start_debug_task(void *arg);
     extern void hero_gimbal_init(void *argument);
     extern void hero_booster_init(void *argument);
+    extern void hero_autoaim_init(void *argument);
     extern void hero_chassis_init(void *argument);
 
 
@@ -21,6 +22,8 @@ extern "C"
         xTaskCreate(hero_gimbal_init, "pyro_gimbal_init", 512, nullptr,
                     configMAX_PRIORITIES - 2, nullptr);
         xTaskCreate(hero_booster_init, "pyro_booster_init", 512, nullptr,
+                    configMAX_PRIORITIES - 2, nullptr);
+        xTaskCreate(hero_autoaim_init, "pyro_autoaim_init", 512, nullptr,
                     configMAX_PRIORITIES - 2, nullptr);
 #elif BOARD == CHASSIS_BOARD
         xTaskCreate(hero_chassis_init, "pyro_chassis_init", 512, nullptr,

@@ -11,6 +11,7 @@
 #include "pyro_core_config.h"
 #include "pyro_core_dma_heap.h"
 #include "pyro_crc.h"
+#include "pyro_dwt_drv.h" // 新增：引入高精度定时器头文件
 #include <cstring>
 
 namespace pyro
@@ -54,7 +55,7 @@ autoaim_drv_t &autoaim_drv_t::get_instance()
 /* Constructor & Destructor --------------------------------------------------*/
 autoaim_drv_t::autoaim_drv_t(uart_drv_t *uart_handle)
     : _uart_drv(uart_handle), _task(nullptr), _tx_buffer(nullptr),
-      _rx_msg_buf(nullptr), _is_online(false)
+      _rx_msg_buf(nullptr), _is_online(false), _comm_interval_ms(0.0f), _last_rx_time_ms(0.0f)
 {
     // 初始化接收与发送缓存
     memset(&_latest_target, 0, sizeof(_latest_target));
@@ -142,6 +143,7 @@ void autoaim_drv_t::run_loop_impl()
                                   portMAX_DELAY) == sizeof(rx_packet_t))
         {
             _is_online = true;
+            _last_rx_time_ms = dwt_drv_t::get_timeline_ms(); // 首次连接记录起始时间
         }
 
         while (_is_online)
@@ -155,12 +157,22 @@ void autoaim_drv_t::run_loop_impl()
                 if (error_check(&pkt) == PYRO_OK)
                 {
                     unpack(&pkt);
+
+                    // --- 新增：计算并更新通信间隔 ---
+                    float current_time = dwt_drv_t::get_timeline_ms();
+                    if (_last_rx_time_ms > 0.0f)
+                    {
+                        _comm_interval_ms = current_time - _last_rx_time_ms;
+                    }
+                    _last_rx_time_ms = current_time;
                 }
             }
             else if (xReceivedBytes == 0)
             {
                 // Timeout -> PC Offline or Vision dropped
                 _is_online = false;
+                _comm_interval_ms = 0.0f; // 离线时通信间隔归零
+                _last_rx_time_ms = 0.0f;  // 重置时间戳防止重新上线时出现异常大的间隔
             }
         }
     }
@@ -185,7 +197,7 @@ status_t autoaim_drv_t::error_check(const rx_packet_t *buf)
 {
     // CRC16 Check: Matches your old code append logic which ignores the last byte '\n'
     if (!verify_crc16_check_sum(reinterpret_cast<uint8_t const *>(buf),
-                                sizeof(rx_packet_t) - 1))
+                                sizeof(rx_packet_t)))
     {
         return PYRO_ERROR;
     }
@@ -236,6 +248,12 @@ const autoaim_drv_t::rx_data_t &autoaim_drv_t::get_target_data() const
 bool autoaim_drv_t::check_online() const
 {
     return _is_online;
+}
+
+// --- 新增：获取通信间隔接口实现 ---
+float autoaim_drv_t::get_comm_interval() const
+{
+    return _comm_interval_ms;
 }
 
 } // namespace pyro

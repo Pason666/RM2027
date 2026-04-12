@@ -7,6 +7,7 @@
 #include "pyro_com_cantx.h"
 #include "pyro_quad_booster.h"
 #include "pyro_com_canrx.h"
+#include "pyro_autoaim_drv.h" // 新增：引入自瞄驱动头文件
 
 using namespace pyro;
 
@@ -52,7 +53,7 @@ extern "C"
         {
             if (notify_val & EVENT_BIT_FIRE)
             {
-                // [修改] 发射脉冲触发时，计数器自增
+                // 发射脉冲触发时，计数器自增
                 quad_booster_cmd_ptr->fire_count++;
             }
         }
@@ -63,27 +64,62 @@ extern "C"
         pyro::read_scope_lock lock(pyro::rc_drv_t::get_lock());
         auto &vrc = pyro::rc_drv_t::read();
 
+        static uint8_t last_pc_fire = 0; // 用于 PC 开火命令的边沿检测
+
         if (pyro::sw_pos_t::UP == vrc.switches.gear.current_pos)
         {
             quad_booster_cmd_ptr->mode    = pyro::cmd_base_t::mode_t::PASSIVE;
             quad_booster_cmd_ptr->fric_on = false;
+            last_pc_fire                  = 0;
             // 移除手动清零，交由底层状态机自动同步处理
             return;
         }
 
-        quad_booster_cmd_ptr->mode         = pyro::cmd_base_t::mode_t::ACTIVE;
-        quad_booster_cmd_ptr->target_speed = 11.7f; // 可调节
-        quad_booster_cmd_ptr->trig_target_spd = 14.0f * vrc.axes.rx;
+        quad_booster_cmd_ptr->mode = pyro::cmd_base_t::mode_t::ACTIVE;
 
         if (notify_val & EVENT_BIT_FRIC_TOGGLE)
         {
             quad_booster_cmd_ptr->fric_on = !quad_booster_cmd_ptr->fric_on;
         }
 
-        // 处理手柄与键鼠单发脉冲
+        // --- 新增：判断拨动到 DOWN (右侧) 时进入自瞄状态并解析自瞄数据 ---
+        if (pyro::sw_pos_t::DOWN == vrc.switches.gear.current_pos)
+        {
+            if (pyro::autoaim_drv_t::get_instance().check_online())
+            {
+                const auto &rx_data = pyro::autoaim_drv_t::get_instance().get_target_data();
+
+                // 覆盖弹速：若视觉下发了有效弹速则应用，否则兜底
+                // if (rx_data.avg_speed > 7.5f) {
+                //     quad_booster_cmd_ptr->target_speed = 11.7f;
+                // } else {
+                    quad_booster_cmd_ptr->target_speed = 11.7f;
+                // }
+
+                // 视觉开火信号边沿检测转换为内部拨弹计数器增量
+                if (rx_data.fire && !last_pc_fire)
+                {
+                    quad_booster_cmd_ptr->fire_count++;
+                }
+                last_pc_fire = rx_data.fire;
+            }
+            else // 视觉离线兜底
+            {
+                quad_booster_cmd_ptr->target_speed = 11.7f;
+                last_pc_fire = 0;
+            }
+        }
+        else // MID 档位为纯手动控制
+        {
+            quad_booster_cmd_ptr->target_speed = 11.7f; // 可调节
+            last_pc_fire = 0;
+        }
+
+        quad_booster_cmd_ptr->trig_target_spd = 14.0f * vrc.axes.rx;
+
+        // 处理手柄与键鼠单发脉冲 (允许手控补刀)
         if (notify_val & EVENT_BIT_FIRE)
         {
-            // [修改] 发射脉冲触发时，计数器自增
             quad_booster_cmd_ptr->fire_count++;
         }
     }
@@ -95,7 +131,6 @@ extern "C"
             uint32_t notify_val = 0;
             xTaskNotifyWait(0x00, UINT32_MAX, &notify_val, 0);
 
-            // [修改] 移除了 quad_booster_cmd_ptr->fire_enable = false;
             // 我们现在依赖计数器，无需每帧强制复位
 
             if (vt03_drv_t::instance().check_online())
@@ -195,3 +230,4 @@ void deps_init()
     quad_deps_ptr->pid_deps.trigger_spd_pid =
         new pid_t(0.6f, 0.02f, 0.0015f, 0.7f, 7.0f, 30, 20, 4);
 }
+

@@ -55,9 +55,7 @@ struct screw_gimbal_deps_t
         pid_t *yaw_relative_pos{nullptr}; // 吊射模式专用的相对位置 PID
         pid_t *yaw_relative_spd{nullptr}; // 吊射模式专用的相对速度 PID
 
-        // --- 新增：自瞄专用的全 IMU 串级 PID ---
-        pid_t *pitch_autoaim_pos{nullptr};
-        pid_t *pitch_autoaim_spd{nullptr};
+        // (移除了自瞄专用的 PID 指针)
     };
 
     motor_deps_t motor_deps{};
@@ -93,7 +91,7 @@ class screw_gimbal_t final
     // --- 私有辅助方法 ---
     void _gimbal_control();
     void _gimbal_sling_control();
-    void _gimbal_autoaim_control();
+    // (移除了 _gimbal_autoaim_control)
     static void _send_motor_command(gimbal_context_t *ctx);
     void _communicate_chassis();
     void _calculate_relative_angles();
@@ -133,6 +131,7 @@ class screw_gimbal_t final
         // --- 反馈 (含 Offset) ---
         float current_pitch_motor_rad{0};
         float current_pitch_motor_radps{0};
+        float current_pitch_motor_world{0};
 
         // 姿态反馈 (基于 IMU)
         float pitch_imu_rad{0};
@@ -149,8 +148,8 @@ class screw_gimbal_t final
 
         // 四元数与相对角反馈
         float current_chassis_pitch_rad{0};
-        float chassis_yaw_imu{
-            0}; // 基于四元数解算的底盘绝对航向(用于计算IMU动态限幅)
+        float chassis_yaw_imu{0}; // 基于四元数解算的底盘绝对航向(用于计算IMU动态限幅)
+        float chassis_pitch_rad{0}; // [新增] 基于四元数解算的底盘绝对俯仰角
         float chassis_q[4]{};
         float gimbal_q[4]{};
         float relative_pitch_rad{0};

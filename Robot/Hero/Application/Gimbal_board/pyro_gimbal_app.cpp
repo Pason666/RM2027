@@ -7,6 +7,7 @@
 #include "pyro_com_cantx.h"
 #include "pyro_dji_motor_drv.h"
 #include "pyro_dm_motor_drv.h"
+#include "pyro_autoaim_drv.h" // 新增：引入自瞄驱动头文件
 
 using namespace pyro;
 
@@ -169,27 +170,47 @@ void gimbal_vt032cmd()
         screw_gimbal_cmd_ptr->mode              = pyro::cmd_base_t::mode_t::PASSIVE;
         screw_gimbal_cmd_ptr->pitch_delta_angle = 0;
         screw_gimbal_cmd_ptr->yaw_delta_angle   = 0;
+        screw_gimbal_cmd_ptr->autoaim_mode      = false;
         return;
     }
 
     screw_gimbal_cmd_ptr->mode = pyro::cmd_base_t::mode_t::ACTIVE;
-    screw_gimbal_cmd_ptr->autoaim_mode = false; // 清除外部视觉依赖，仅走手控
 
-    if (is_sling_mode)
+    // --- 新增：判断拨动到 DOWN (右侧) 时进入自瞄状态 ---
+    if (pyro::sw_pos_t::DOWN == vrc.switches.gear.current_pos)
     {
-        // 吊射模式下：WASD 直接接管云台控制 (W/S控制Pitch, A/D控制Yaw)
-        float wasd_pitch = static_cast<float>(vrc.keys.w.current_level ? 1 : (vrc.keys.s.current_level ? -1 : 0));
-        float wasd_yaw   = static_cast<float>(vrc.keys.a.current_level ? 1 : (vrc.keys.d.current_level ? -1 : 0));
+        screw_gimbal_cmd_ptr->autoaim_mode = true;
 
-        // 步进系数设为 0.0025f，以保证手感相对平滑
-        screw_gimbal_cmd_ptr->pitch_delta_angle = -wasd_pitch * 0.00002f;
-        screw_gimbal_cmd_ptr->yaw_delta_angle   =  wasd_yaw * 0.00003835f;
+        if (pyro::autoaim_drv_t::get_instance().check_online())
+        {
+            // 解析并赋值 PC 下发的目标角度
+            const auto &rx_data = pyro::autoaim_drv_t::get_instance().get_target_data();
+            screw_gimbal_cmd_ptr->target_yaw   = rx_data.shoot_yaw;
+            screw_gimbal_cmd_ptr->target_pitch = -rx_data.shoot_pitch;
+            screw_gimbal_cmd_ptr->pitch_delta_angle = -vrc.axes.ry * 0.0025f - vrc.mouse_axes.y * 0.25f;
+            screw_gimbal_cmd_ptr->yaw_delta_angle   = -vrc.axes.rx * 0.0025f - vrc.mouse_axes.x * 0.6f;
+        }
     }
-    else
+    else // MID 档位为纯手动控制
     {
-        // 正常模式：遥控器拨杆或纯鼠标控制
-        screw_gimbal_cmd_ptr->pitch_delta_angle = -vrc.axes.ry * 0.0025f - vrc.mouse_axes.y * 0.25f;
-        screw_gimbal_cmd_ptr->yaw_delta_angle   = -vrc.axes.rx * 0.0025f - vrc.mouse_axes.x * 0.6f;
+        screw_gimbal_cmd_ptr->autoaim_mode = false; // 清除外部视觉依赖，仅走手控
+
+        if (is_sling_mode)
+        {
+            // 吊射模式下：WASD 直接接管云台控制 (W/S控制Pitch, A/D控制Yaw)
+            float wasd_pitch = static_cast<float>(vrc.keys.w.current_level ? 1 : (vrc.keys.s.current_level ? -1 : 0));
+            float wasd_yaw   = static_cast<float>(vrc.keys.a.current_level ? 1 : (vrc.keys.d.current_level ? -1 : 0));
+
+            // 步进系数设为 0.0025f，以保证手感相对平滑
+            screw_gimbal_cmd_ptr->pitch_delta_angle = -wasd_pitch * 0.00002f;
+            screw_gimbal_cmd_ptr->yaw_delta_angle   =  wasd_yaw * 0.00003835f;
+        }
+        else
+        {
+            // 正常模式：遥控器拨杆或纯鼠标控制
+            screw_gimbal_cmd_ptr->pitch_delta_angle = -vrc.axes.ry * 0.0025f - vrc.mouse_axes.y * 0.25f;
+            screw_gimbal_cmd_ptr->yaw_delta_angle   = -vrc.axes.rx * 0.0025f - vrc.mouse_axes.x * 0.6f;
+        }
     }
 }
 
@@ -290,6 +311,7 @@ void deps_init()
         new pid_t(22.0f, 0.102f, 0.014f, 1.0f, 20.0f, 20, 10,
                   4); // 输出限制匹配电机 Nm 级
 
+
     // Yaw 轴 (DJI GM6020，输出为电流值/电压值，通常量级较大，如 +/- 30000)
     // screw_gimbal_deps->pid_deps.yaw_pos =
     //     new pid_t(6.2f, 0.01f, 0.22f, 0.8f, 10.0f,100,50,4);
@@ -306,3 +328,4 @@ void deps_init()
         new pid_t(1.6f, 0.1f, 0.012f, 0.3f, 3.0f,10,5,4);
 
 }
+

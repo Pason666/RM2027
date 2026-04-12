@@ -87,6 +87,11 @@ class autoaim_drv_t
      */
     [[nodiscard]] bool check_online() const;
 
+    /**
+     * @brief 获取最新的 PC 视觉通信间隔 (ms)
+     */
+    [[nodiscard]] float get_comm_interval() const;
+
   private:
     /**
      * @brief Constructor.
@@ -132,6 +137,11 @@ class autoaim_drv_t
         uint8_t end; // '\n'
     };
 
+    struct rx_frame_tailer_t
+    {
+        uint16_t crc16;
+    };
+
     struct tx_packet_t
     {
         frame_header_t header;
@@ -143,7 +153,7 @@ class autoaim_drv_t
     {
         frame_header_t header;
         rx_data_t data;
-        frame_tailer_t tailer;
+        rx_frame_tailer_t tailer;
     };
 
 #pragma pack(pop)
@@ -157,6 +167,10 @@ class autoaim_drv_t
     tx_data_t _tx_payload{}; // 缓存用户修改的待发数据
     rx_data_t _latest_target{};
     bool _is_online;
+
+    // --- 新增：通信间隔与时间戳变量 ---
+    float _comm_interval_ms{0.0f};
+    float _last_rx_time_ms{0.0f};
 
     static constexpr uint8_t FRAME_SOF = 0xA5;
 

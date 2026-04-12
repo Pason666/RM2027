@@ -154,7 +154,7 @@ void ins_drv_t::__static_ins_task(void *argument)
 void ins_drv_t::__ins_task()
 {
     _dwt_cnt = 0;
-    IMU_QuaternionEKF_Init(10, 0.001, 10000000, 0.9996, 0.03f);
+    IMU_QuaternionEKF_Init(10, 0.001, 10000000, 0.9996, 0.004f);
 
     while (1)
     {

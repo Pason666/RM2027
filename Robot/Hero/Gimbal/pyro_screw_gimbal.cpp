@@ -151,12 +151,11 @@ void screw_gimbal_t::_gimbal_sling_control()
         _ctx.pid.yaw_relative_pos->calculate(0.0f,_ctx.data.relative_yaw_error_rad);
 
     // 速度环计算基础输出力矩 (使用电机的实际角速度反馈)
-    // _ctx.data.target_yaw_radps = _ctx.cmd->yaw_delta_angle;
     float yaw_pid_out = _ctx.pid.yaw_relative_spd->calculate(
         _ctx.data.target_yaw_radps, _ctx.data.relative_yaw_motor_radps);
 
     // ==========================================
-    // 新增：Yaw 轴摩擦力矩前馈补偿
+    // Yaw 轴摩擦力矩前馈补偿
     // ==========================================
     float yaw_friction_comp = 0.0f;
     const float yaw_velocity_deadband = 0.01f; // 速度死区，防止静止时力矩高频反转导致震荡
@@ -176,47 +175,8 @@ void screw_gimbal_t::_gimbal_sling_control()
     }
 
     // 最终力矩 = PID输出 + 摩擦力矩补偿
-    // _ctx.data.out_yaw_torque = yaw_pid_out;
     _ctx.data.out_yaw_torque = yaw_pid_out + yaw_friction_comp;
-
     _ctx.data.out_yaw_torque = std::clamp(_ctx.data.out_yaw_torque,-3.0f,3.0f);
-    // _ctx.data.out_yaw_torque = yaw_pid_out + yaw_friction_comp;
-    // _ctx.data.out_yaw_torque = yaw_friction_comp;
-    // _ctx.data.out_yaw_torque = yaw_friction_comp;
-}
-
-void screw_gimbal_t::_gimbal_autoaim_control()
-{
-    // --- Pitch 串级控制 (基于纯 IMU 数据) ---
-    // 1. 位置环：输入目标 IMU Pitch 和 当前 IMU Pitch
-    _ctx.data.target_pitch_radps = _ctx.pid.pitch_autoaim_pos->calculate(
-        _ctx.data.target_pitch_rad, _ctx.data.pitch_imu_rad);
-
-    // 2. 速度环：输入目标 IMU Pitch 速度 和 当前 IMU Pitch 速度
-    float pitch_pid_out = _ctx.pid.pitch_autoaim_spd->calculate(
-        _ctx.data.target_pitch_radps, _ctx.data.pitch_imu_radps);
-
-    // 3. 计算前馈补偿力矩 (基于真实的电机推杆构型)
-    float pitch_ff_torque = _calculate_pitch_compensation(
-        _ctx.data.current_pitch_motor_rad, _ctx.data.target_pitch_radps);
-
-    pitch_ff_torque =
-        std::clamp(pitch_ff_torque, -SCREW_MAX_TORQUE, SCREW_MAX_TORQUE);
-    float pid_torque_max = SCREW_MAX_TORQUE - pitch_ff_torque;
-    float pid_torque_min = -SCREW_MAX_TORQUE - pitch_ff_torque;
-
-    pitch_pid_out = std::clamp(pitch_pid_out, pid_torque_min, pid_torque_max);
-    _ctx.data.out_pitch_torque = pitch_pid_out + pitch_ff_torque;
-
-    // --- Yaw 串级控制 (与 Normal 模式一致，基于 IMU) ---
-    float raw_yaw_error     = _ctx.data.yaw_imu_rad - _ctx.data.target_yaw_rad;
-    _ctx.data.yaw_error_rad = pyro::loop_fp32_constrain(raw_yaw_error, -PI, PI);
-
-    _ctx.data.target_yaw_radps =
-        _ctx.pid.yaw_pos->calculate(0.0f, _ctx.data.yaw_error_rad);
-
-    _ctx.data.out_yaw_torque = _ctx.pid.yaw_spd->calculate(
-        _ctx.data.target_yaw_radps, _ctx.data.yaw_imu_radps);
 }
 
 screw_gimbal_t::gimbal_context_t screw_gimbal_t::get_ctx() const
@@ -260,6 +220,14 @@ void screw_gimbal_t::_calculate_relative_angles()
 
     // 赋值供上层动态限幅使用
     _ctx.data.chassis_yaw_imu   = chassis_yaw_imu;
+
+    // ==========================================
+    // [新增] 从底盘四元数中解算底盘世界 Pitch 角
+    // 公式: Pitch = asin(2 * (w*y - x*z))
+    // ==========================================
+    float sinp = 2.0f * (cw * cy - cx * cz);
+    sinp = std::clamp(sinp, -1.0f, 1.0f); // 防溢出保护
+    _ctx.data.chassis_pitch_rad = std::asin(sinp);
 
     // 计算当前的坐标系漂移误差 (去除了低通滤波，直接应用)
     float raw_yaw_error =

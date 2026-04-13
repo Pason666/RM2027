@@ -14,7 +14,8 @@ using namespace pyro;
 // 定义任务通知的位掩码 (Event Bits)
 constexpr uint32_t EVENT_BIT_TRACK_TOGGLE = (1 << 0);
 constexpr uint32_t EVENT_BIT_LEG_TOGGLE   = (1 << 1);
-constexpr uint32_t EVENT_BIT_SLING_TOGGLE = (1 << 2); // 新增：吊射模式切换标志位
+constexpr uint32_t EVENT_BIT_SLING_TOGGLE =
+    (1 << 2); // 新增：吊射模式切换标志位
 
 static TaskHandle_t gimbal_task_handle                = nullptr;
 static pyro::screw_gimbal_t *screw_gimbal_ptr         = nullptr;
@@ -22,7 +23,7 @@ static pyro::screw_gimbal_cmd_t *screw_gimbal_cmd_ptr = nullptr;
 static pyro::screw_gimbal_deps_t *screw_gimbal_deps   = nullptr;
 
 // 追踪当前是否处于吊射模式
-static bool is_sling_mode = false;
+static bool is_sling_mode                             = false;
 
 static void gimbal_dr162cmd();
 static void chassis_dr162cmd();
@@ -81,11 +82,16 @@ extern "C"
                     configMAX_PRIORITIES - 1, &gimbal_task_handle);
 
         auto &vrc = pyro::rc_drv_t::read();
-        pyro::btn_broker::subscribe(&vrc.buttons.pause, pyro::btn_event_t::PRESS_DOWN, gimbal_task_handle, EVENT_BIT_TRACK_TOGGLE);
-        pyro::btn_broker::subscribe(&vrc.buttons.fn_r, pyro::btn_event_t::PRESS_DOWN, gimbal_task_handle, EVENT_BIT_LEG_TOGGLE);
+        pyro::btn_broker::subscribe(&vrc.buttons.pause,
+                                    pyro::btn_event_t::PRESS_DOWN,
+                                    gimbal_task_handle, EVENT_BIT_TRACK_TOGGLE);
+        pyro::btn_broker::subscribe(&vrc.buttons.fn_r,
+                                    pyro::btn_event_t::PRESS_DOWN,
+                                    gimbal_task_handle, EVENT_BIT_LEG_TOGGLE);
 
         // 绑定键盘 R 键到吊射模式切换事件
-        pyro::btn_broker::subscribe(&vrc.keys.r, pyro::btn_event_t::PRESS_DOWN, gimbal_task_handle, EVENT_BIT_SLING_TOGGLE);
+        pyro::btn_broker::subscribe(&vrc.keys.r, pyro::btn_event_t::PRESS_DOWN,
+                                    gimbal_task_handle, EVENT_BIT_SLING_TOGGLE);
 
         vTaskDelete(nullptr);
     }
@@ -98,7 +104,7 @@ void gimbal_dr162cmd()
 
     if (pyro::sw_pos_t::MID != vrc.switches.right.current_pos)
     {
-        screw_gimbal_cmd_ptr->mode              = pyro::cmd_base_t::mode_t::PASSIVE;
+        screw_gimbal_cmd_ptr->mode = pyro::cmd_base_t::mode_t::PASSIVE;
         screw_gimbal_cmd_ptr->pitch_delta_angle = 0;
         screw_gimbal_cmd_ptr->yaw_delta_angle   = 0;
         return;
@@ -111,7 +117,7 @@ void gimbal_dr162cmd()
 void chassis_dr162cmd()
 {
     pyro::read_scope_lock lock(pyro::rc_drv_t::get_lock());
-    auto &vrc = pyro::rc_drv_t::read();
+    auto &vrc               = pyro::rc_drv_t::read();
 
     static int8_t vx        = 0;
     static int8_t vy        = 0;
@@ -122,7 +128,8 @@ void chassis_dr162cmd()
 
     pyro::can_tx_drv_t::clear(0x101);
 
-    // 在 DR16 控制下，如果开启了吊射模式 (暂无按键绑定，保留判断以防扩展) 或右拨杆处于 DOWN，底盘无力
+    // 在 DR16 控制下，如果开启了吊射模式 (暂无按键绑定，保留判断以防扩展)
+    // 或右拨杆处于 DOWN，底盘无力
     if (pyro::sw_pos_t::DOWN == vrc.switches.right.current_pos || is_sling_mode)
     {
         vx          = 0;
@@ -143,10 +150,10 @@ void chassis_dr162cmd()
         return;
     }
 
-    vx     = static_cast<int8_t>(vrc.axes.ly * 127);
-    vy     = static_cast<int8_t>(-vrc.axes.lx * 127);
-    wz     = 0;
-    active = true;
+    vx       = static_cast<int8_t>(vrc.axes.ly * 127);
+    vy       = static_cast<int8_t>(-vrc.axes.lx * 127);
+    wz       = 0;
+    active   = true;
     track_en = false;
 
     pyro::can_tx_drv_t::add_data(0x101, 8, vx);
@@ -167,7 +174,7 @@ void gimbal_vt032cmd()
 
     if (pyro::sw_pos_t::UP == vrc.switches.gear.current_pos)
     {
-        screw_gimbal_cmd_ptr->mode              = pyro::cmd_base_t::mode_t::PASSIVE;
+        screw_gimbal_cmd_ptr->mode = pyro::cmd_base_t::mode_t::PASSIVE;
         screw_gimbal_cmd_ptr->pitch_delta_angle = 0;
         screw_gimbal_cmd_ptr->yaw_delta_angle   = 0;
         screw_gimbal_cmd_ptr->autoaim_mode      = false;
@@ -184,32 +191,42 @@ void gimbal_vt032cmd()
         if (pyro::autoaim_drv_t::get_instance().check_online())
         {
             // 解析并赋值 PC 下发的目标角度
-            const auto &rx_data = pyro::autoaim_drv_t::get_instance().get_target_data();
+            const auto &rx_data =
+                pyro::autoaim_drv_t::get_instance().get_target_data();
             screw_gimbal_cmd_ptr->target_yaw   = rx_data.shoot_yaw;
             screw_gimbal_cmd_ptr->target_pitch = -rx_data.shoot_pitch;
-            screw_gimbal_cmd_ptr->pitch_delta_angle = -vrc.axes.ry * 0.0025f - vrc.mouse_axes.y * 0.25f;
-            screw_gimbal_cmd_ptr->yaw_delta_angle   = -vrc.axes.rx * 0.0025f - vrc.mouse_axes.x * 0.6f;
+            screw_gimbal_cmd_ptr->pitch_delta_angle =
+                -vrc.axes.ry * 0.0025f - vrc.mouse_axes.y * 0.25f;
+            screw_gimbal_cmd_ptr->yaw_delta_angle =
+                -vrc.axes.rx * 0.0025f - vrc.mouse_axes.x * 0.6f;
         }
     }
     else // MID 档位为纯手动控制
     {
-        screw_gimbal_cmd_ptr->autoaim_mode = false; // 清除外部视觉依赖，仅走手控
+        screw_gimbal_cmd_ptr->autoaim_mode =
+            false; // 清除外部视觉依赖，仅走手控
 
         if (is_sling_mode)
         {
             // 吊射模式下：WASD 直接接管云台控制 (W/S控制Pitch, A/D控制Yaw)
-            float wasd_pitch = static_cast<float>(vrc.keys.w.current_level ? 1 : (vrc.keys.s.current_level ? -1 : 0));
-            float wasd_yaw   = static_cast<float>(vrc.keys.a.current_level ? 1 : (vrc.keys.d.current_level ? -1 : 0));
+            float wasd_pitch = static_cast<float>(
+                vrc.keys.w.current_level ? 1
+                                         : (vrc.keys.s.current_level ? -1 : 0));
+            float wasd_yaw = static_cast<float>(
+                vrc.keys.a.current_level ? 1
+                                         : (vrc.keys.d.current_level ? -1 : 0));
 
             // 步进系数设为 0.0025f，以保证手感相对平滑
             screw_gimbal_cmd_ptr->pitch_delta_angle = -wasd_pitch * 0.00002f;
-            screw_gimbal_cmd_ptr->yaw_delta_angle   =  wasd_yaw * 0.00003835f;
+            screw_gimbal_cmd_ptr->yaw_delta_angle   = wasd_yaw * 0.00003835f;
         }
         else
         {
             // 正常模式：遥控器拨杆或纯鼠标控制
-            screw_gimbal_cmd_ptr->pitch_delta_angle = -vrc.axes.ry * 0.0025f - vrc.mouse_axes.y * 0.25f;
-            screw_gimbal_cmd_ptr->yaw_delta_angle   = -vrc.axes.rx * 0.0025f - vrc.mouse_axes.x * 0.6f;
+            screw_gimbal_cmd_ptr->pitch_delta_angle =
+                -vrc.axes.ry * 0.0025f - vrc.mouse_axes.y * 0.25f;
+            screw_gimbal_cmd_ptr->yaw_delta_angle =
+                -vrc.axes.rx * 0.0025f - vrc.mouse_axes.x * 0.6f;
         }
     }
 }
@@ -217,7 +234,7 @@ void gimbal_vt032cmd()
 void chassis_vt032cmd(uint32_t notify_val)
 {
     pyro::read_scope_lock lock(pyro::rc_drv_t::get_lock());
-    auto &vrc = pyro::rc_drv_t::read();
+    auto &vrc               = pyro::rc_drv_t::read();
 
     static int8_t vx        = 0;
     static int8_t vy        = 0;
@@ -234,7 +251,7 @@ void chassis_vt032cmd(uint32_t notify_val)
         vx          = 0;
         vy          = 0;
         wz          = 0;
-        active      = false;  // 底盘失能
+        active      = false; // 底盘失能
         track_en    = false;
         leg_retract = false;
         pyro::can_tx_drv_t::add_data(0x101, 8, vx);
@@ -304,11 +321,17 @@ void deps_init()
 
 
     // 3. 初始化串级 PID
+    // screw_gimbal_deps->pid_deps.pitch_pos =
+    //     new pid_t(11.5f, 0.108f, 0.01f, 0.5f, 10.0f, 40, 10,
+    //               4); // 位置环输出为 rad/s，限制在电机可接受范围内
+    // screw_gimbal_deps->pid_deps.pitch_spd =
+    //     new pid_t(22.0f, 0.102f, 0.014f, 1.0f, 20.0f, 20, 10,
+    //               4); // 输出限制匹配电机 Nm 级
     screw_gimbal_deps->pid_deps.pitch_pos =
         new pid_t(11.5f, 0.108f, 0.01f, 0.5f, 10.0f, 40, 10,
                   4); // 位置环输出为 rad/s，限制在电机可接受范围内
     screw_gimbal_deps->pid_deps.pitch_spd =
-        new pid_t(22.0f, 0.102f, 0.014f, 1.0f, 20.0f, 20, 10,
+        new pid_t(11000.0f, 51.0f, 7.0f, 500.0f, 10000.0f, 20, 10,
                   4); // 输出限制匹配电机 Nm 级
 
 
@@ -318,14 +341,12 @@ void deps_init()
     // screw_gimbal_deps->pid_deps.yaw_spd =
     //     new pid_t(4.0f, 0.0003f, 0.0001f, 0.2f, 3.0f,100,50,4);
     screw_gimbal_deps->pid_deps.yaw_pos =
-    new pid_t(8.2f, 0.01f, 0.22f, 0.8f, 10.0f,100,50,4);
+        new pid_t(8.2f, 0.01f, 0.22f, 0.8f, 10.0f, 100, 50, 4);
     screw_gimbal_deps->pid_deps.yaw_spd =
-        new pid_t(5.0f, 0.0003f, 0.0001f, 0.2f, 3.0f,100,50,4);
+        new pid_t(5.0f, 0.0003f, 0.0001f, 0.2f, 3.0f, 100, 50, 4);
 
     screw_gimbal_deps->pid_deps.yaw_relative_pos =
-        new pid_t(10.0f, 1.00f, 0.06f, 0.3f, 3.0f,50,20,4);
+        new pid_t(10.0f, 1.00f, 0.06f, 0.3f, 3.0f, 50, 20, 4);
     screw_gimbal_deps->pid_deps.yaw_relative_spd =
-        new pid_t(1.6f, 0.1f, 0.012f, 0.3f, 3.0f,10,5,4);
-
+        new pid_t(1.6f, 0.1f, 0.012f, 0.3f, 3.0f, 10, 5, 4);
 }
-

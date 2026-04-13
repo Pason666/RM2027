@@ -15,16 +15,12 @@ namespace pyro
 // =========================================================
 struct screw_gimbal_cmd_t final : public cmd_base_t
 {
-    float pitch_delta_angle; // 目标 Pitch 角度增量 (rad)
-    float yaw_delta_angle;   // 目标 Yaw 角度增量 (rad)
+    float pitch_delta_angle;
+    float yaw_delta_angle;
 
-    // 校准触发标志位 (外部传入，0->1 触发校准)
     bool trigger_calibration;
-
-    bool sling_mode; // 吊射模式标志位 (App层下发)
-
-    // 自瞄数据
-    bool autoaim_mode; // 自瞄模式标志位 (App层下发)
+    bool sling_mode;
+    bool autoaim_mode;
     float target_pitch;
     float target_yaw;
 
@@ -38,24 +34,20 @@ struct screw_gimbal_cmd_t final : public cmd_base_t
 
 struct screw_gimbal_deps_t
 {
-    // 电机句柄
     struct motor_deps_t
     {
         motor_base_t *pitch{nullptr};
         motor_base_t *yaw{nullptr};
     };
 
-    // 算法对象 (串级 PID)
     struct pid_deps_t
     {
         pid_t *pitch_pos{nullptr};
         pid_t *pitch_spd{nullptr};
         pid_t *yaw_pos{nullptr};
         pid_t *yaw_spd{nullptr};
-        pid_t *yaw_relative_pos{nullptr}; // 吊射模式专用的相对位置 PID
-        pid_t *yaw_relative_spd{nullptr}; // 吊射模式专用的相对速度 PID
-
-        // (移除了自瞄专用的 PID 指针)
+        pid_t *yaw_relative_pos{nullptr};
+        pid_t *yaw_relative_spd{nullptr};
     };
 
     motor_deps_t motor_deps{};
@@ -91,27 +83,23 @@ class screw_gimbal_t final
     // --- 私有辅助方法 ---
     void _gimbal_control();
     void _gimbal_sling_control();
-    // (移除了 _gimbal_autoaim_control)
     static void _send_motor_command(gimbal_context_t *ctx);
     void _communicate_chassis();
     void _calculate_relative_angles();
 
-    // --- 新增：核心运动学与校准方法 ---
+    // --- 核心运动学 (纯数学模型，需外部传入任意角度解算) ---
     bool _calibrate_pitch_offset();
     float _pitch_rad_to_motor_rad(float pitch_rad) const;
     float _motor_rad_to_pitch_rad(float motor_rad) const;
-    float _pitch_radps_to_motor_radps(float pitch_radps,
-                                      float current_pitch_rad) const;
-    float _motor_radps_to_pitch_radps(float motor_radps,
-                                      float current_motor_rad) const;
 
-    // --- 新增：摩擦与重力矩前馈补偿 ---
-    float _calculate_pitch_compensation(float current_pitch_rad,
-                                        float target_pitch_radps) const;
+    // 【修改点】修正命名歧义，使用通用形参名 pitch_rad
+    float _get_motor_to_pitch_jacobian(float pitch_rad) const;
+
+    // --- 业务控制逻辑 (无参化，完全依赖 _ctx.data 内部状态) ---
+    float _calculate_pitch_compensation() const;
 
     // --- 成员变量 ---
 
-    // 上电校准逻辑暂存
     uint32_t _calib_tick{0};
     float _calib_pitch_sum{0.0f};
 
@@ -133,6 +121,9 @@ class screw_gimbal_t final
         float current_pitch_motor_radps{0};
         float current_pitch_motor_world{0};
 
+        // 当前姿态下的传动比缓存 (dMotor / dPitch)
+        float current_jacobian{0};
+
         // 姿态反馈 (基于 IMU)
         float pitch_imu_rad{0};
         float pitch_imu_radps{0};
@@ -148,24 +139,24 @@ class screw_gimbal_t final
 
         // 四元数与相对角反馈
         float current_chassis_pitch_rad{0};
-        float chassis_yaw_imu{0}; // 基于四元数解算的底盘绝对航向(用于计算IMU动态限幅)
-        float chassis_pitch_rad{0}; // [新增] 基于四元数解算的底盘绝对俯仰角
+        float chassis_yaw_imu{0};
+        float chassis_pitch_rad{0};
         float chassis_q[4]{};
         float gimbal_q[4]{};
         float relative_pitch_rad{0};
         float relative_roll_rad{0};
-        float relative_yaw_motor_rad{0};   // 6020反馈计算得到(机械相对角)
-        float relative_yaw_motor_radps{0}; // 6020反馈速度(机械相对角速度)
+        float relative_yaw_motor_rad{0};
+        float relative_yaw_motor_radps{0};
 
         // 目标与误差
         float target_pitch_rad{0};
         float target_pitch_radps{0};
         float target_yaw_rad{0};
         float target_yaw_radps{0};
-        float yaw_error_rad{0}; // IMU 偏航角最短路径误差
+        float yaw_error_rad{0};
 
-        float target_relative_yaw_rad{0}; // 吊射模式专用的相对目标角
-        float relative_yaw_error_rad{0};  // 吊射模式专用的相对误差
+        float target_relative_yaw_rad{0};
+        float relative_yaw_error_rad{0};
 
         // 输出
         float out_pitch_torque{0};

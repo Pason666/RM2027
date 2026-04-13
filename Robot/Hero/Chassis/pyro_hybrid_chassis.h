@@ -68,8 +68,6 @@ class hybrid_chassis_t final
 {
     friend class module_base_t<hybrid_chassis_t, hybrid_cmd_t, hybrid_deps_t>;
 
-    struct motor_deps_t;
-    struct pid_deps_t;
     struct data_ctx_t;
     struct hybrid_context_t;
 

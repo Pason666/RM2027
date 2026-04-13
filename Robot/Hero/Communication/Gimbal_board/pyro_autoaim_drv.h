@@ -185,6 +185,6 @@ class autoaim_drv_t
     void unpack(const rx_packet_t *buf);
 };
 
-} // namespace pyro
+}
 
 #endif // __PYRO_AUTOAIM_DRV_H__

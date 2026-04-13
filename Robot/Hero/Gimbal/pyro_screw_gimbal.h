@@ -44,6 +44,11 @@ struct screw_gimbal_deps_t
     {
         pid_t *pitch_pos{nullptr};
         pid_t *pitch_spd{nullptr};
+
+        // 自瞄专用 PID 参数
+        pid_t *pitch_auto_pos{nullptr};
+        pid_t *pitch_auto_spd{nullptr};
+
         pid_t *yaw_pos{nullptr};
         pid_t *yaw_spd{nullptr};
         pid_t *yaw_relative_pos{nullptr};
@@ -82,32 +87,37 @@ class screw_gimbal_t final
 
     // --- 私有辅助方法 ---
     void _gimbal_control();
+    void _gimbal_autoaim_control();
     void _gimbal_sling_control();
     static void _send_motor_command(gimbal_context_t *ctx);
     void _communicate_chassis();
     void _calculate_relative_angles();
+    void _handle_dynamic_calibration();
 
     // --- 核心运动学 (纯数学模型，需外部传入任意角度解算) ---
     bool _calibrate_pitch_offset();
     float _pitch_rad_to_motor_rad(float pitch_rad) const;
     float _motor_rad_to_pitch_rad(float motor_rad) const;
-
-    // 【修改点】修正命名歧义，使用通用形参名 pitch_rad
     float _get_motor_to_pitch_jacobian(float pitch_rad) const;
 
     // --- 业务控制逻辑 (无参化，完全依赖 _ctx.data 内部状态) ---
-    float _calculate_pitch_compensation() const;
+    float _calculate_pitch_compensation(bool is_autoaim) const;
 
     // --- 成员变量 ---
 
     uint32_t _calib_tick{0};
     float _calib_pitch_sum{0.0f};
 
+    // 动态校准计时与均值缓存
+    uint32_t _dynamic_calib_timer{0};
+    float _dynamic_calib_sum{0.0f};
+
     // 运行时数据
     struct data_ctx_t
     {
         bool is_calibrating{false};
         bool has_initial_calibrated{false};
+        bool allow_dynamic_calib{true}; // 是否允许动态校准
 
         float pitch_motor_upper_limit{0};
         float pitch_motor_lower_limit{0};

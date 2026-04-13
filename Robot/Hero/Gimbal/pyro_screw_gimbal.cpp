@@ -88,9 +88,9 @@ void screw_gimbal_t::_update_feedback()
         _motor_rad_to_pitch_rad(_ctx.data.total_pitch_motor_rad);
 
     // 2. 提前计算并缓存雅可比(传动比)
-    // 【注意】这里传入的是当前的 pitch！PID 使用的雅可比来源非常正确
-    _ctx.data.current_jacobian =
-        _get_motor_to_pitch_jacobian(_ctx.data.current_pitch_motor_rad);
+    // 【关键修改】在自瞄模式下，采用 IMU 解算的 relative_pitch_rad 作为雅可比输入
+    float jacobian_input_rad = (_current_cmd.autoaim_mode) ? _ctx.data.relative_pitch_rad : _ctx.data.current_pitch_motor_rad;
+    _ctx.data.current_jacobian = _get_motor_to_pitch_jacobian(jacobian_input_rad);
 
     // 3. 速度反馈解算
     if (std::abs(_ctx.data.current_jacobian) > 0.001f) {
@@ -99,11 +99,14 @@ void screw_gimbal_t::_update_feedback()
     } else {
         _ctx.data.current_pitch_motor_radps = 0.0f;
     }
+
+    // 4. 动态实时校准 (抗编码器零漂)
+    _handle_dynamic_calibration();
 }
 
 void screw_gimbal_t::_gimbal_control()
 {
-    // --- Pitch 串级控制 ---
+    // --- Pitch 串级控制 (常规模式基于机械角) ---
     _ctx.data.target_pitch_radps = _ctx.pid.pitch_pos->calculate(
         _ctx.data.target_pitch_rad, _ctx.data.current_pitch_motor_rad);
 
@@ -112,12 +115,48 @@ void screw_gimbal_t::_gimbal_control()
 
     float pitch_pid_motor_torque = 0.0f;
     if (std::abs(_ctx.data.current_jacobian) > 0.001f) {
-        // 使用的已经是刚刚传入 current_pitch_motor_rad 算出来的雅可比
         pitch_pid_motor_torque = pitch_joint_torque / _ctx.data.current_jacobian;
     }
 
-    // 采用无参化设计，直接利用 _ctx.data 内缓存的状态
-    float pitch_ff_torque = _calculate_pitch_compensation();
+    // 常规模式，传入 false
+    float pitch_ff_torque = _calculate_pitch_compensation(false);
+
+    pitch_ff_torque =
+        std::clamp(pitch_ff_torque, -SCREW_MAX_TORQUE, SCREW_MAX_TORQUE);
+    float pid_torque_max = SCREW_MAX_TORQUE - pitch_ff_torque;
+    float pid_torque_min = -SCREW_MAX_TORQUE - pitch_ff_torque;
+
+    pitch_pid_motor_torque = std::clamp(pitch_pid_motor_torque, pid_torque_min, pid_torque_max);
+
+    _ctx.data.out_pitch_torque = pitch_pid_motor_torque + pitch_ff_torque;
+
+    // --- Yaw 串级控制 (基于 IMU) ---
+    float raw_yaw_error     = _ctx.data.yaw_imu_rad - _ctx.data.target_yaw_rad;
+    _ctx.data.yaw_error_rad = pyro::loop_fp32_constrain(raw_yaw_error, -PI, PI);
+
+    _ctx.data.target_yaw_radps =
+        _ctx.pid.yaw_pos->calculate(0.0f, _ctx.data.yaw_error_rad);
+
+    _ctx.data.out_yaw_torque = _ctx.pid.yaw_spd->calculate(
+        _ctx.data.target_yaw_radps, _ctx.data.yaw_imu_radps);
+}
+
+void screw_gimbal_t::_gimbal_autoaim_control()
+{
+    // --- Pitch 串级控制 (自瞄模式基于绝对 IMU 角度) ---
+    _ctx.data.target_pitch_radps = _ctx.pid.pitch_auto_pos->calculate(
+        _ctx.data.target_pitch_rad, _ctx.data.pitch_imu_rad);
+
+    float pitch_joint_torque = _ctx.pid.pitch_auto_spd->calculate(
+        _ctx.data.target_pitch_radps, _ctx.data.pitch_imu_radps);
+
+    float pitch_pid_motor_torque = 0.0f;
+    if (std::abs(_ctx.data.current_jacobian) > 0.001f) {
+        pitch_pid_motor_torque = pitch_joint_torque / _ctx.data.current_jacobian;
+    }
+
+    // 自瞄模式，传入 true 增大死区抵抗 IMU 高频噪声
+    float pitch_ff_torque = _calculate_pitch_compensation(true);
 
     pitch_ff_torque =
         std::clamp(pitch_ff_torque, -SCREW_MAX_TORQUE, SCREW_MAX_TORQUE);
@@ -153,8 +192,8 @@ void screw_gimbal_t::_gimbal_sling_control()
         pitch_pid_motor_torque = pitch_joint_torque / _ctx.data.current_jacobian;
     }
 
-    // 采用无参化设计
-    float pitch_ff_torque = _calculate_pitch_compensation();
+    // 吊射模式，传入 false
+    float pitch_ff_torque = _calculate_pitch_compensation(false);
 
     pitch_ff_torque =
         std::clamp(pitch_ff_torque, -SCREW_MAX_TORQUE, SCREW_MAX_TORQUE);
@@ -175,19 +214,50 @@ void screw_gimbal_t::_gimbal_sling_control()
         _ctx.data.target_yaw_radps, _ctx.data.relative_yaw_motor_radps);
 
     float yaw_friction_comp = 0.0f;
-    const float yaw_velocity_deadband = 0.01f;
 
-    if (_ctx.data.target_yaw_radps > yaw_velocity_deadband)
+    if (_ctx.data.target_yaw_radps > YAW_SLING_DEADBAND_RADPS)
     {
-        yaw_friction_comp = 0.35f;
+        yaw_friction_comp = YAW_SLING_FRICTION_TORQUE;
     }
-    else if (_ctx.data.target_yaw_radps < -yaw_velocity_deadband)
+    else if (_ctx.data.target_yaw_radps < -YAW_SLING_DEADBAND_RADPS)
     {
-        yaw_friction_comp = -0.35f;
+        yaw_friction_comp = -YAW_SLING_FRICTION_TORQUE;
     }
 
     _ctx.data.out_yaw_torque = yaw_pid_out + yaw_friction_comp;
-    _ctx.data.out_yaw_torque = std::clamp(_ctx.data.out_yaw_torque,-3.0f,3.0f);
+    _ctx.data.out_yaw_torque = std::clamp(_ctx.data.out_yaw_torque, -YAW_SLING_TORQUE_LIMIT, YAW_SLING_TORQUE_LIMIT);
+}
+
+void screw_gimbal_t::_handle_dynamic_calibration()
+{
+    // 如果处于吊射模式或尚未完成初始校准，则直接退出
+    if (!_ctx.data.allow_dynamic_calib || !_ctx.data.has_initial_calibrated) {
+        _dynamic_calib_timer = 0;
+        return;
+    }
+
+    // 严格校准条件 (使用配置常量)：
+    const bool condition = (std::abs(_ctx.data.pitch_imu_radps) < CALIB_PITCH_STILL_RADPS) &&
+                           (std::abs(_ctx.data.roll_imu_rad) < CALIB_ROLL_LEVEL_RAD) &&
+                           (std::abs(_ctx.data.pitch_imu_rad - _ctx.data.target_pitch_rad) < CALIB_PITCH_ERROR_RAD) &&
+                           (std::abs(_ctx.data.current_pitch_motor_radps) < CALIB_MOTOR_STILL_RADPS);
+
+    if (condition) {
+        _dynamic_calib_timer++;
+        _dynamic_calib_sum += _ctx.data.relative_pitch_rad; // 使用 IMU 四元数解算的相对角作为基准
+
+        if (_dynamic_calib_timer >= DYNAMIC_CALIB_WINDOW_TICKS) {
+            float avg_ref_pitch = _dynamic_calib_sum / static_cast<float>(DYNAMIC_CALIB_WINDOW_TICKS);
+            // 覆写当前电机累计值，消除编码器累积误差，不影响初始限位
+            _ctx.data.total_pitch_motor_rad = _pitch_rad_to_motor_rad(avg_ref_pitch);
+
+            _dynamic_calib_timer = 0;
+            _dynamic_calib_sum = 0.0f;
+        }
+    } else {
+        _dynamic_calib_timer = 0;
+        _dynamic_calib_sum = 0.0f;
+    }
 }
 
 screw_gimbal_t::gimbal_context_t screw_gimbal_t::get_ctx() const
@@ -270,13 +340,13 @@ void screw_gimbal_t::_calculate_relative_angles()
 bool screw_gimbal_t::_calibrate_pitch_offset()
 {
     _calib_tick++;
-    if (_calib_tick < 1000)
+    if (_calib_tick < PITCH_CALIB_DELAY_TICKS)
     {
         return false;
     }
     _calib_pitch_sum += _ctx.data.relative_pitch_rad;
 
-    if (_calib_tick >= PITCH_CALIB_MAX_TICKS + 1000)
+    if (_calib_tick >= PITCH_CALIB_MAX_TICKS + PITCH_CALIB_DELAY_TICKS)
     {
         const float avg_relative_pitch =
             _calib_pitch_sum / static_cast<float>(PITCH_CALIB_MAX_TICKS);
@@ -295,8 +365,6 @@ bool screw_gimbal_t::_calibrate_pitch_offset()
     return false;
 }
 
-// 纯数学模型：解算任意指定俯仰角下的雅可比
-// 【修改点】形参改为了更加准确且无歧义的 pitch_rad
 float screw_gimbal_t::_get_motor_to_pitch_jacobian(float pitch_rad) const
 {
     const float theta_rad = SCREW_THETA_ZERO_RAD + pitch_rad;
@@ -335,18 +403,14 @@ float screw_gimbal_t::_motor_rad_to_pitch_rad(float motor_rad) const
     return theta_rad - SCREW_THETA_ZERO_RAD;
 }
 
-// 业务控制逻辑：采用无参化设计，通过读取 _ctx.data 内缓存的状态执行计算
-float screw_gimbal_t::_calculate_pitch_compensation() const
+float screw_gimbal_t::_calculate_pitch_compensation(bool is_autoaim) const
 {
     static float equivalent_joint_friction = 0.0f;
     static bool is_init = false;
     if (!is_init)
     {
-        const float ref_pitch = -0.1f;
-        // 只有这里需要调用纯数学模型计算固定参考点的雅可比
-        const float ref_dMotor_dpitch = _get_motor_to_pitch_jacobian(ref_pitch);
-        const float ref_friction_torque = 3.0f;
-        equivalent_joint_friction = ref_friction_torque * ref_dMotor_dpitch;
+        const float ref_dMotor_dpitch = _get_motor_to_pitch_jacobian(PITCH_FRICTION_REF_ANGLE_RAD);
+        equivalent_joint_friction = PITCH_FRICTION_REF_TORQUE * ref_dMotor_dpitch;
         is_init = true;
     }
 
@@ -356,8 +420,10 @@ float screw_gimbal_t::_calculate_pitch_compensation() const
         current_friction_mag = equivalent_joint_friction / _ctx.data.current_jacobian;
     }
 
-    float dynamic_friction_comp   = 0.0f;
-    const float velocity_deadband = 0.01f;
+    float dynamic_friction_comp = 0.0f;
+
+    // 动态速度死区切换
+    float velocity_deadband = is_autoaim ? PITCH_DEADBAND_AUTOAIM_RADPS : PITCH_DEADBAND_NORMAL_RADPS;
 
     if (_ctx.data.target_pitch_radps > velocity_deadband)
     {

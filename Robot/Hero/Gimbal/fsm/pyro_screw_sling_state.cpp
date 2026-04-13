@@ -10,6 +10,9 @@ void screw_gimbal_t::fsm_active_t::sling_state_t::enter(owner *owner)
     // 切换到 Sling 模式时，对齐相对角目标
     owner->_ctx.data.target_yaw_rad = owner->_ctx.data.relative_yaw_motor_rad;
     owner->_ctx.data.target_pitch_rad = owner->_ctx.data.current_pitch_motor_rad;
+
+    // 【重要】吊射模式下禁止动态实时校准，确保角度绝对稳定，防止因大角度震动触发错误校准
+    owner->_ctx.data.allow_dynamic_calib = false;
 }
 
 void screw_gimbal_t::fsm_active_t::sling_state_t::execute(owner *owner)
@@ -32,5 +35,9 @@ void screw_gimbal_t::fsm_active_t::sling_state_t::execute(owner *owner)
     screw_gimbal_t::_send_motor_command(&owner->_ctx);
 }
 
-void screw_gimbal_t::fsm_active_t::sling_state_t::exit(owner *owner) {}
+void screw_gimbal_t::fsm_active_t::sling_state_t::exit(owner *owner)
+{
+    // 退出 Sling 模式后恢复动态校准
+    owner->_ctx.data.allow_dynamic_calib = true;
+}
 } // namespace pyro

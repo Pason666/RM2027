@@ -21,23 +21,25 @@ void screw_gimbal_t::fsm_active_t::autoaim_state_t::enter(owner *owner)
     // 清理 Yaw 环积分
     owner->_ctx.pid.yaw_pos->clear();
     owner->_ctx.pid.yaw_spd->clear();
+
+    owner->_ctx.data.allow_dynamic_calib = false;
 }
 
 void screw_gimbal_t::fsm_active_t::autoaim_state_t::execute(owner *owner)
 {
-    // // 自瞄模式下，直接读取外部传入的绝对目标角度并进行限幅
-    // if (fabs(owner->_ctx.cmd->target_pitch) < PI &&
-    //     fabs(owner->_ctx.cmd->target_yaw) < PI)
-    // {
-    //     owner->_ctx.data.target_pitch_rad = owner->_ctx.cmd->target_pitch;
-    //     owner->_ctx.data.target_yaw_rad   = owner->_ctx.cmd->target_yaw;
-    // }
-    // else
-    // {
-        // 视觉掉线或数据异常时的兜底步进
+    // 自瞄模式下，直接读取外部传入的绝对目标角度并进行限幅
+    if (fabs(owner->_ctx.cmd->target_pitch) < PI &&
+        fabs(owner->_ctx.cmd->target_yaw) < PI)
+    {
+        owner->_ctx.data.target_pitch_rad = owner->_ctx.cmd->target_pitch;
+        owner->_ctx.data.target_yaw_rad   = owner->_ctx.cmd->target_yaw;
+    }
+    else
+    {
+        //视觉掉线或数据异常时的兜底步进
         owner->_ctx.data.target_pitch_rad += owner->_ctx.cmd->pitch_delta_angle;
         owner->_ctx.data.target_yaw_rad   += owner->_ctx.cmd->yaw_delta_angle;
-    // }
+    }
 
     // ==========================================
     // 1. Pitch 绝对限幅 (使用 IMU 配置限幅阈值)
@@ -61,5 +63,6 @@ void screw_gimbal_t::fsm_active_t::autoaim_state_t::execute(owner *owner)
 
 void screw_gimbal_t::fsm_active_t::autoaim_state_t::exit(owner *owner)
 {
+    owner->_ctx.data.allow_dynamic_calib = true;
 }
 } // namespace pyro

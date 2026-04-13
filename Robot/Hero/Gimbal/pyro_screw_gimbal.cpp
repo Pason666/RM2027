@@ -239,7 +239,7 @@ void screw_gimbal_t::_handle_dynamic_calibration()
     // 严格校准条件 (使用配置常量)：
     const bool condition = (std::abs(_ctx.data.pitch_imu_radps) < CALIB_PITCH_STILL_RADPS) &&
                            (std::abs(_ctx.data.roll_imu_rad) < CALIB_ROLL_LEVEL_RAD) &&
-                           (std::abs(_ctx.data.pitch_imu_rad - _ctx.data.target_pitch_rad) < CALIB_PITCH_ERROR_RAD) &&
+                           (std::abs(_ctx.data.current_pitch_motor_rad - _ctx.data.target_pitch_rad) < CALIB_PITCH_ERROR_RAD) &&
                            (std::abs(_ctx.data.current_pitch_motor_radps) < CALIB_MOTOR_STILL_RADPS);
 
     if (condition) {
@@ -250,6 +250,9 @@ void screw_gimbal_t::_handle_dynamic_calibration()
             float avg_ref_pitch = _dynamic_calib_sum / static_cast<float>(DYNAMIC_CALIB_WINDOW_TICKS);
             // 覆写当前电机累计值，消除编码器累积误差，不影响初始限位
             _ctx.data.total_pitch_motor_rad = _pitch_rad_to_motor_rad(avg_ref_pitch);
+            float current_motor_rad = _motor_rad_to_pitch_rad(_ctx.data.total_pitch_motor_rad);
+            _ctx.data.target_pitch_rad = current_motor_rad - _ctx.data.current_pitch_motor_rad + _ctx.data.target_pitch_rad;
+            _ctx.data.current_pitch_motor_rad = current_motor_rad;
 
             _dynamic_calib_timer = 0;
             _dynamic_calib_sum = 0.0f;
@@ -407,6 +410,11 @@ float screw_gimbal_t::_calculate_pitch_compensation(bool is_autoaim) const
 {
     static float equivalent_joint_friction = 0.0f;
     static bool is_init = false;
+
+    // 新增静态变量用于记录施密特触发器的当前状态方向 (保持迟滞状态)
+    // 1: 正向摩擦力, -1: 反向摩擦力, 0: 无摩擦力
+    static int active_direction = 0;
+
     if (!is_init)
     {
         const float ref_dMotor_dpitch = _get_motor_to_pitch_jacobian(PITCH_FRICTION_REF_ANGLE_RAD);
@@ -420,19 +428,36 @@ float screw_gimbal_t::_calculate_pitch_compensation(bool is_autoaim) const
         current_friction_mag = equivalent_joint_friction / _ctx.data.current_jacobian;
     }
 
-    float dynamic_friction_comp = 0.0f;
-
-    // 动态速度死区切换
+    // 动态速度死区与缓冲区切换
     float velocity_deadband = is_autoaim ? PITCH_DEADBAND_AUTOAIM_RADPS : PITCH_DEADBAND_NORMAL_RADPS;
+    float velocity_buffer   = is_autoaim ? PITCH_BUFFER_AUTOAIM_RADPS : PITCH_BUFFER_NORMAL_RADPS;
 
-    if (_ctx.data.target_pitch_radps > velocity_deadband)
+    float target_radps = _ctx.data.target_pitch_radps;
+    float abs_radps = std::abs(target_radps);
+
+    // 施密特触发器阈值
+    float threshold_high = velocity_deadband + velocity_buffer;
+    float threshold_low  = velocity_deadband;
+
+    // 施密特触发器逻辑 (Hysteresis)
+    if (target_radps > threshold_high)
     {
-        dynamic_friction_comp = current_friction_mag;
+        // 向上越过 deadband + buffer，触发正向突变
+        active_direction = 1;
     }
-    else if (_ctx.data.target_pitch_radps < -velocity_deadband)
+    else if (target_radps < -threshold_high)
     {
-        dynamic_friction_comp = -current_friction_mag;
+        // 向下越过 -(deadband + buffer)，触发反向突变
+        active_direction = -1;
     }
+    else if (abs_radps < threshold_low)
+    {
+        // 绝对值回落至 deadband 以下，输出清零
+        active_direction = 0;
+    }
+    // else: 如果速度落在 [threshold_low, threshold_high] 的缓冲区内，active_direction 保持上一次的状态不变
+
+    float dynamic_friction_comp = active_direction * current_friction_mag;
 
     return dynamic_friction_comp;
 }

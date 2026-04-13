@@ -200,6 +200,13 @@ void gimbal_vt032cmd()
             screw_gimbal_cmd_ptr->yaw_delta_angle =
                 -vrc.axes.rx * 0.0025f - vrc.mouse_axes.x * 0.6f;
         }
+        else
+        {
+            screw_gimbal_cmd_ptr->pitch_delta_angle =
+                -vrc.axes.ry * 0.0025f - vrc.mouse_axes.y * 0.25f;
+            screw_gimbal_cmd_ptr->yaw_delta_angle =
+                -vrc.axes.rx * 0.0025f - vrc.mouse_axes.x * 0.6f;
+        }
     }
     else // MID 档位为纯手动控制
     {
@@ -332,6 +339,13 @@ void deps_init()
                   4); // 位置环输出为 rad/s，限制在电机可接受范围内
     screw_gimbal_deps->pid_deps.pitch_spd =
         new pid_t(11000.0f, 51.0f, 7.0f, 500.0f, 10000.0f, 20, 10,
+                  4); // 输出限制匹配电机 Nm 级
+
+    screw_gimbal_deps->pid_deps.pitch_auto_pos =
+        new pid_t(12.5f, 0.027f, 0.01f, 0.1f, 10.0f, 15, 5,
+                  4); // 位置环输出为 rad/s，限制在电机可接受范围内
+    screw_gimbal_deps->pid_deps.pitch_auto_spd =
+        new pid_t(11500.0f, 25.0f, 7.0f, 300.0f, 10000.0f, 10, 5,
                   4); // 输出限制匹配电机 Nm 级
 
 

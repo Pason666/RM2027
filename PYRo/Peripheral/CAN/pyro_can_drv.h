@@ -78,6 +78,6 @@ private:
 
     map_t<FDCAN_HandleTypeDef *, can_drv_t *> _can_drv_map;
 };
-}; // namespace pyro
+}
 
 #endif

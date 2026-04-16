@@ -5,6 +5,7 @@
 #include "pyro_ins.h"
 #include "pyro_supercap_drv.h"
 #include "pyro_referee.h"
+#include "pyro_sr04_drv.h"
 #include "pyro_vt03_rc_drv.h"
 
 namespace pyro
@@ -63,6 +64,12 @@ extern "C"
 #ifdef AUTOAIM_UART
         AUTOAIM_UART.reset(921600, UART_WORDLENGTH_8B, UART_STOPBITS_1,
                            UART_PARITY_NONE);
+#endif
+
+#ifdef SR04_UART
+        SR04_UART.reset(9600, UART_WORDLENGTH_8B, UART_STOPBITS_1, UART_PARITY_NONE);
+        sr04_drv::get_instance().init();
+        sr04_drv::get_instance().start();
 #endif
 
         vTaskDelete(nullptr);

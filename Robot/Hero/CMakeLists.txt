@@ -1,8 +1,8 @@
 # =========================================================================
 # 1. 显式定义当前编译的板子类型（在这里切换 GIMBAL_BOARD 或 CHASSIS_BOARD）
 # =========================================================================
-set(BOARD "GIMBAL_BOARD")
-#set(BOARD "CHASSIS_BOARD")
+#set(BOARD "GIMBAL_BOARD")
+set(BOARD "CHASSIS_BOARD")
 
 # =========================================================================
 # 2. 声明Hero目标文件库（OBJECT库，仅编译目标文件不链接，保留原工程逻辑）
@@ -65,7 +65,6 @@ if (BOARD STREQUAL "GIMBAL_BOARD")
             DR16_UART=PYRO_UART5
             VT03_UART=PYRO_UART1
             AUTOAIM_UART=PYRO_UART7
-            SR04_UART=PYRO_UART10
     )
 
 elseif (BOARD STREQUAL "CHASSIS_BOARD")
@@ -97,6 +96,7 @@ elseif (BOARD STREQUAL "CHASSIS_BOARD")
     target_compile_definitions(PYRo PUBLIC
             REFEREE_UART=PYRO_UART1
             SUPERCAP_UART=PYRO_UART7
+            SR04_UART=PYRO_UART10
     )
 endif ()
 

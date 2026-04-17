@@ -37,6 +37,11 @@ float mps_to_rpm(const float mps, const float radius)
     return (mps / radius) * 9.5492966f;
 }
 
+float rpm_to_mps(const float rpm, const float radius)
+{
+    return rpm * radius / 9.5492966f;
+}
+
 float loop_fp32_constrain(float val, const float min_val, const float max_val)
 {
     const float len = max_val - min_val;

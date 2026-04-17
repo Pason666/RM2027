@@ -68,6 +68,8 @@ class hybrid_chassis_t final
 {
     friend class module_base_t<hybrid_chassis_t, hybrid_cmd_t, hybrid_deps_t>;
 
+    struct motor_deps_t;
+    struct pid_deps_t;
     struct data_ctx_t;
     struct hybrid_context_t;
 
@@ -111,6 +113,11 @@ class hybrid_chassis_t final
         float current_yaw_rad{0};
         float target_pitch_rad{0};
         float target_yaw_rad{0};
+
+        // 逆解算速度
+        float real_vx{0};
+        float real_vy{0};
+        float real_wz{0};
 
         // 测距模块反馈
         uint16_t distance_mm{0};

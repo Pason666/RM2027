@@ -4,7 +4,7 @@
 #include "fdcan.h"
 #include "pyro_core_def.h"
 #include "FreeRTOS.h"
-#include "task.h" // 引入任务调度头文件以使用临界区宏
+#include "task.h"
 #include <array>
 #include <cmsis_os.h>
 

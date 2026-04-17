@@ -198,6 +198,7 @@ struct shoot_data_t
     uint8_t shooter_number;
     uint8_t launching_frequency;
     float initial_speed;
+    uint16_t launching_num;
 };
 
 // 0x0208

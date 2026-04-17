@@ -7,6 +7,10 @@
 #include "pyro_dji_motor_drv.h"
 #include "pyro_dm_motor_drv.h"
 #include "pyro_com_cantx.h"
+#include "pyro_referee.h" // 引入裁判系统头文件
+
+#include <stdint.h>
+#include <string.h>
 
 using namespace pyro;
 
@@ -18,6 +22,9 @@ static void chassis_rxcmd();
 static void chassis_dr162cmd();
 static void deps_init();
 static void quaternion_tx();
+static void shoot_tx(); // 声明 shoot_tx 函数
+
+__attribute__((section(".dma_heap"))) char shoot_speed[10]; // 从旧代码迁移：DMA 内存数组
 
 extern "C"
 {
@@ -26,6 +33,7 @@ extern "C"
         while (true)
         {
             chassis_rxcmd();
+            shoot_tx(); // 恢复：调用裁判系统和弹速发送逻辑
             // 如果后续希望由底盘板直接解算 RC，可以取消下面这行的注释
             // chassis_dr162cmd();
             quaternion_tx();
@@ -55,10 +63,11 @@ void chassis_rxcmd()
     std::array<uint8_t, 8> raw_data{};
     if (pyro::can_rx_drv_t::get_data(pyro::can_hub_t::which_can::can1, 0x101, raw_data))
     {
+        // 恢复旧代码的数值：将 1.2f 恢复为 1.0f
         hybrid_cmd_ptr->vx =
-            1.2f * static_cast<float>(static_cast<int8_t>(raw_data[0])) / 127.0f;
+            1.0f * static_cast<float>(static_cast<int8_t>(raw_data[0])) / 127.0f;
         hybrid_cmd_ptr->vy =
-            1.2f * static_cast<float>(static_cast<int8_t>(raw_data[1])) / 127.0f;
+            1.0f * static_cast<float>(static_cast<int8_t>(raw_data[1])) / 127.0f;
         hybrid_cmd_ptr->mode =
             static_cast<pyro::cmd_base_t::mode_t>(raw_data[3] & 0x01);
         hybrid_cmd_ptr->track_en    = true;
@@ -195,14 +204,91 @@ void deps_init()
         new pid_t(220.0f, 0.005f, 0.008f, 5.0f, 200.0f, 20, 10, 4);
     hybrid_deps_ptr->pid_deps.leg_vel_pid[1] =
         new pid_t(220.0f, 0.005f, 0.008f, 5.0f, 200.0f, 20, 10, 4);
-    // hybrid_deps_ptr->pid_deps.leg_pos_pid[0] =
-    // new pid_t(7.2f, 0.1f, 0.02f, 0.2f, 7.0f, 20, 10, 4);
-    // hybrid_deps_ptr->pid_deps.leg_pos_pid[1] =
-    //     new pid_t(7.2f, 0.1f, 0.02f, 0.2f, 7.0f, 20, 10, 4);
-    // hybrid_deps_ptr->pid_deps.leg_vel_pid[0] =
-    //     new pid_t(1000.0f, 2.0f, 0.2f, 2000.0f, 10000.0f, 20, 10, 4);
-    // hybrid_deps_ptr->pid_deps.leg_vel_pid[1] =
-    //     new pid_t(1000.0f, 2.0f, 0.2f, 2000.0f, 10000.0f, 20, 10, 4);
+}
+
+/**
+ * @brief 轻量级浮点数转字符函数（保留5位小数）
+ * @param value 要转换的浮点数
+ * @param buffer 输出的字符数组
+ * @param max_len 数组最大长度（防止越界）
+ */
+void float_to_char_5_decimals(float value, char* buffer, int max_len)
+{
+    int idx = 0;
+
+    // 1. 处理符号
+    if (value < 0) {
+        if (idx < max_len - 1) buffer[idx++] = '-';
+        value = -value;
+    }
+
+    // 2. 分离整数和小数部分
+    int int_part = (int)value;
+    // 加 0.5f 用于实现最后一位的四舍五入
+    int frac_part = (int)((value - (float)int_part) * 100000.0f + 0.5f);
+
+    // 处理四舍五入导致的进位
+    if (frac_part >= 100000) {
+        int_part++;
+        frac_part -= 100000;
+    }
+
+    // 3. 计算整数部分的位数
+    int temp = int_part;
+    int num_digits = 0;
+    do {
+        num_digits++;
+        temp /= 10;
+    } while (temp > 0);
+
+    // 4. 边界安全检查：符号位 + 整数位数 + 小数点(1) + 5位小数 + 结束符(1)
+    if (idx + num_digits + 1 + 5 + 1 > max_len) {
+        // 如果越界（例如弹速异常到了三位数），默认安全返回全0
+        buffer[0] = '0';
+        buffer[1] = '\0';
+        return;
+    }
+
+    // 5. 提取整数部分（逆序写入）
+    for (int i = num_digits - 1; i >= 0; i--) {
+        buffer[idx + i] = '0' + (int_part % 10);
+        int_part /= 10;
+    }
+    idx += num_digits;
+
+    // 6. 写入小数点
+    buffer[idx++] = '.';
+
+    // 7. 提取小数部分（固定提取5位）
+    for (int i = 4; i >= 0; i--) {
+        buffer[idx + i] = '0' + (frac_part % 10);
+        frac_part /= 10;
+    }
+    idx += 5;
+
+    // 8. 添加字符串结束符
+    buffer[idx] = '\0';
+}
+
+void shoot_tx()
+{
+    static uint16_t launching_num = 0;
+    float current_speed =
+        pyro::referee_drv_t::get_instance()->get_data().shoot.initial_speed;
+
+    if (launching_num != pyro::referee_drv_t::get_instance()->get_data().shoot.launching_num)
+    {
+        pyro::can_tx_drv_t::clear(0x135);
+        pyro::can_tx_drv_t::add_data(0x135, 32, current_speed);
+        pyro::can_tx_drv_t::send(0x135, pyro::can_hub_t::get_instance()->hub_get_can_obj(pyro::can_hub_t::can1));
+        launching_num = pyro::referee_drv_t::get_instance()->get_data().shoot.launching_num;
+
+        // ================= 逻辑修改处 =================
+        // 将浮点数转换为字符串并存入 DMA 堆内存中的 shoot_speed 数组
+        // float_to_char_5_decimals(current_speed, shoot_speed, sizeof(shoot_speed));
+        // ============================================
+        // last_speed = current_speed;
+    }
 }
 
 void quaternion_tx()
@@ -224,4 +310,3 @@ void quaternion_tx()
     can_tx_drv_t::send(
         0x103, can_hub_t::get_instance()->hub_get_can_obj(can_hub_t::can1));
 }
-

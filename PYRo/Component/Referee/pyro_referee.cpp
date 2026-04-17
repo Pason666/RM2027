@@ -420,6 +420,7 @@ void referee_drv_t::solve_data(const uint8_t *frame)
             break;
         case cmd_id::SHOOT_DATA:
             safe_copy(_data.shoot, frame + index, data_length);
+            _data.shoot.launching_num++;
             break;
         case cmd_id::BULLET_REMAINING:
             safe_copy(_data.allowance, frame + index, data_length);

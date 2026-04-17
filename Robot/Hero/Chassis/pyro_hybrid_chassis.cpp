@@ -4,6 +4,7 @@
 #include "pyro_dji_motor_drv.h"
 #include "pyro_com_cantx.h"
 #include "pyro_power_control_drv.h"
+#include "pyro_sr04_drv.h"
 
 namespace pyro
 {
@@ -81,19 +82,19 @@ void hybrid_chassis_t::_update_feedback()
 
     // 减去机械安装零点偏移
     raw_pitch -= PITCH_OFFSET_RAD;
-    raw_roll  -= ROLL_OFFSET_RAD;
+    raw_roll -= ROLL_OFFSET_RAD;
 
     // --- 一阶低通滤波 (LPF) ---
     // 为了快速验证，这里使用 static 变量保存上一次的滤波状态
     // 如果确认有效，建议将它们移到 _ctx.data 结构体中
     static float filtered_pitch = 0.0f;
     static float filtered_roll  = 0.0f;
-    static bool  is_first_run   = true;
+    static bool is_first_run    = true;
 
     // 滤波系数 alpha：(0, 1]
     // alpha = 1.0 表示完全不滤波；alpha 越小，抗噪声能力越强，但相位延迟越大。
     // 对于 500Hz~1000Hz 的控制循环，0.1f ~ 0.3f 通常是一个比较理想的甜点值。
-    const float LPF_ALPHA = 0.15f;
+    const float LPF_ALPHA       = 0.15f;
 
     if (is_first_run)
     {
@@ -105,14 +106,17 @@ void hybrid_chassis_t::_update_feedback()
     else
     {
         // 迭代滤波公式
-        filtered_pitch = LPF_ALPHA * raw_pitch + (1.0f - LPF_ALPHA) * filtered_pitch;
-        filtered_roll  = LPF_ALPHA * raw_roll  + (1.0f - LPF_ALPHA) * filtered_roll;
+        filtered_pitch =
+            LPF_ALPHA * raw_pitch + (1.0f - LPF_ALPHA) * filtered_pitch;
+        filtered_roll =
+            LPF_ALPHA * raw_roll + (1.0f - LPF_ALPHA) * filtered_roll;
     }
 
     // 将滤波后的平滑数据赋给上下文，供 VMC 和 PID 使用
     _ctx.data.current_yaw_rad   = raw_yaw; // Yaw 通常不参与重力补偿，可暂不滤波
     _ctx.data.current_pitch_rad = filtered_pitch;
     _ctx.data.current_roll_rad  = filtered_roll;
+    _ctx.data.distance_mm       = sr04_drv::get_instance().get_distance();
 
     // 3. 转换并记录电机转速与位置
     float current_angle =
@@ -129,19 +133,31 @@ void hybrid_chassis_t::_update_feedback()
         _ctx.data.wheel_online[i] = _ctx.motor.mecanum[i]->is_online();
     }
 
+    auto real_vel = _kinematics->forward_solve(
+        rpm_to_mps(_ctx.data.current_wheel_rpm[0], WHEEL_RADIUS),
+        rpm_to_mps(-_ctx.data.current_wheel_rpm[1], WHEEL_RADIUS),
+        rpm_to_mps(_ctx.data.current_wheel_rpm[2], WHEEL_RADIUS),
+        rpm_to_mps(-_ctx.data.current_wheel_rpm[3], WHEEL_RADIUS));
+
+    _ctx.data.real_vx = real_vel.vx;
+    _ctx.data.real_vy = real_vel.vy;
+    _ctx.data.real_wz = real_vel.wz;
+
     for (int i = 0; i < 2; i++)
         _ctx.data.current_track_rpm[i] =
             radps_to_rpm(_ctx.motor.track[i]->get_current_rotate());
 
     // 左右腿对称性修正：对右腿(leg[1])的读取数据取反，抹平机械差异
     // 左右腿对称性修正与机械零点 Offset 处理
-    // 【左腿】：原本是 (pos - offset)，现在电机反转，所以整体取反变成 -(pos - offset)
+    // 【左腿】：原本是 (pos - offset)，现在电机反转，所以整体取反变成 -(pos -
+    // offset)
     float left_leg_raw =
         -(_ctx.motor.leg[0]->get_current_position() - LEFT_LEG_OFFSET_RAD);
     _ctx.data.current_leg_rad[0]   = loop_fp32_constrain(left_leg_raw, -PI, PI);
     _ctx.data.current_leg_radps[0] = -_ctx.motor.leg[0]->get_current_rotate();
 
-    // 【右腿】：原本就是 -(pos - offset)，现在电机也反了，负负得正变成 (pos - offset)
+    // 【右腿】：原本就是 -(pos - offset)，现在电机也反了，负负得正变成 (pos -
+    // offset)
     float right_leg_raw =
         _ctx.motor.leg[1]->get_current_position() - RIGHT_LEG_OFFSET_RAD;
     _ctx.data.current_leg_rad[1] = loop_fp32_constrain(right_leg_raw, -PI, PI);
@@ -175,7 +191,7 @@ void hybrid_chassis_t::_kinematics_solve()
         _ctx.pid.follow_yaw_pid->calculate(0.0f, _ctx.data.current_yaw_error);
 
     // 最终角速度 = 跟随产生的角速度 + 选手手动输入的角速度(小陀螺/微调)
-    float final_wz      = follow_wz;
+    float final_wz          = follow_wz;
 
     // -------------------------------------------------------------
     // 2. 矢量旋转 (将云台坐标系速度转换到底盘坐标系)
@@ -193,20 +209,20 @@ void hybrid_chassis_t::_kinematics_solve()
     //                                              final_wz,
     //                                              _ctx.cmd->track_en);
 
-    const float theta   = _ctx.data.current_yaw_error;
+    const float theta       = _ctx.data.current_yaw_error;
     // const float theta   = 0;
 
-    const float c_theta = arm_cos_f32(theta);
-    const float s_theta = arm_sin_f32(theta);
+    const float c_theta     = arm_cos_f32(theta);
+    const float s_theta     = arm_sin_f32(theta);
 
     // 旋转矩阵公式 (逆时针旋转 theta)
-    float vx_chassis    = _ctx.cmd->vx * c_theta + _ctx.cmd->vy * s_theta;
-    float vy_chassis    = -_ctx.cmd->vx * s_theta + _ctx.cmd->vy * c_theta;
+    float vx_chassis        = _ctx.cmd->vx * c_theta + _ctx.cmd->vy * s_theta;
+    float vy_chassis        = -_ctx.cmd->vx * s_theta + _ctx.cmd->vy * c_theta;
 
 
 
-    int offline_count   = 0;
-    auto missing_wheel  = hybrid_kin_t::missing_mec_e::NONE;
+    int offline_count       = 0;
+    auto missing_wheel      = hybrid_kin_t::missing_mec_e::NONE;
 
     // // 根据数组索引对应找出具体离线的轮子 (0:FL, 1:FR, 2:BL, 3:BR)
     // if (!_ctx.data.wheel_online[0])
@@ -295,7 +311,7 @@ void hybrid_chassis_t::_power_control()
     // else
     // {
     power_control_drv_t::get_instance().calculate_restricted_torques(
-        _ctx.power_motor_data, 4, 240,60);
+        _ctx.power_motor_data, 4, 240, 60);
     // }
     for (int i = 0; i < 4; i++)
         _ctx.data.out_mecanum_torque[i] =
@@ -492,9 +508,9 @@ void hybrid_chassis_t::_leg_length_control()
         }
 
         // 7. 物理限幅与最终输出
-        float tau_total = tau_pid + tau_wall + tau_gravity_ff;
+        float tau_total             = tau_pid + tau_wall + tau_gravity_ff;
         // float tau_total = tau_gravity_ff;
-        tau_total = fminf(fmaxf(tau_total, -LEG_MAX_TORQUE), LEG_MAX_TORQUE);
+        tau_total                   = fminf(fmaxf(tau_total, -8.0f), 8.0f);
 
         // 针对右腿作符号反转映射
         // _ctx.data.out_leg_torque[i] = (i == 0 ? 1.0f : -1.0f) * tau_total;
@@ -562,9 +578,7 @@ void hybrid_chassis_t::_send_motor_command() const
     }
     // 腿部电机：保持原频率控制 (VMC 和腿长控制通常需要高频以维持稳定性)
     for (int i = 0; i < 2; i++)
-        _ctx.motor.leg[i]->send_torque(0);
-
-
+        _ctx.motor.leg[i]->send_torque(_ctx.data.out_leg_torque[i]);
 }
 // =========================================================
 // 核心运行时与状态机

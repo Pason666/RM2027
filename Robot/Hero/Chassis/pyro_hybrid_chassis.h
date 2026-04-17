@@ -190,6 +190,11 @@ class hybrid_chassis_t final
           private:
             track_climbing_state_t track_climbing_state;
             leg_retraction_state_t leg_retraction_state;
+
+            // --- 新增：施密特触发器及自动收腿状态变量 ---
+            float _filtered_distance{0.0f};         // 滤波后的距离
+            bool  _is_guide_wheel_suspended{false}; // 施密特高位状态标志
+            bool  _auto_retract_flag{false};        // 自动收腿触发标志
         };
 
         // FSM Hooks

@@ -57,4 +57,10 @@ inline float LEFT_LEG_OFFSET_RAD =
 inline float RIGHT_LEG_OFFSET_RAD =
   -1.33137178f; // 右腿位置偏移 (rad)，正值表示向前偏移
 
+// ================= 新增：自动越障收腿配置参数 =================
+constexpr float CLIMB_DIST_LPF_ALPHA   = 0.1f;   // 测距模块低通滤波系数
+constexpr float CLIMB_DIST_THRES_HIGH  = 200.0f; // 导轮悬空距离上限判定 (mm)
+constexpr float CLIMB_DIST_THRES_LOW   = 60.0f;  // 导轮搭上台阶距离下限判定 (mm)
+constexpr float CLIMB_VEL_X_THRES      = 0.2f;   // 触发自动收腿的底盘最小真实前推速度 (m/s)
+
 #endif

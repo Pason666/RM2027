@@ -51,8 +51,12 @@ void hybrid_chassis_t::fsm_active_t::climbing_fsm_t::on_execute(owner *owner)
     }
     else if (_filtered_distance < CLIMB_DIST_THRES_LOW)
     {
+        if (_is_guide_wheel_suspended && owner->_ctx.data.real_vx < -CLIMB_VEL_X_BACK_THRES)
+        {
+            _is_guide_wheel_suspended = false;
+        }
         // a. 进入自动收腿的判定
-        if (_is_guide_wheel_suspended && owner->_ctx.data.real_vx > CLIMB_VEL_X_THRES)
+        else if (_is_guide_wheel_suspended && owner->_ctx.data.real_vx > CLIMB_VEL_X_FRONT_THRES)
         {
             _auto_retract_flag = true; // 锁存自动收腿信号
             _is_guide_wheel_suspended = false; // 触发后复位悬空状态

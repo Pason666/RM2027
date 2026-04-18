@@ -5,6 +5,7 @@
 #include "pyro_com_cantx.h"
 #include "pyro_power_control_drv.h"
 #include "pyro_sr04_drv.h"
+#include <algorithm>
 
 namespace pyro
 {
@@ -218,6 +219,11 @@ void hybrid_chassis_t::_kinematics_solve()
     // 旋转矩阵公式 (逆时针旋转 theta)
     float vx_chassis        = _ctx.cmd->vx * c_theta + _ctx.cmd->vy * s_theta;
     float vy_chassis        = -_ctx.cmd->vx * s_theta + _ctx.cmd->vy * c_theta;
+
+    if (_ctx.cmd->crossing_en)
+    {
+        vx_chassis = std::clamp(vx_chassis,-0.7f,0.7f);
+    }
 
 
 
@@ -510,7 +516,7 @@ void hybrid_chassis_t::_leg_length_control()
         // 7. 物理限幅与最终输出
         float tau_total             = tau_pid + tau_wall + tau_gravity_ff;
         // float tau_total = tau_gravity_ff;
-        tau_total                   = fminf(fmaxf(tau_total, -8.0f), 8.0f);
+        tau_total                   = fminf(fmaxf(tau_total, -18.0f), 18.0f);
 
         // 针对右腿作符号反转映射
         // _ctx.data.out_leg_torque[i] = (i == 0 ? 1.0f : -1.0f) * tau_total;

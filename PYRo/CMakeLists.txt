@@ -58,6 +58,7 @@ target_sources(PYRo PRIVATE
         Component/RC/pyro_vt03_rc_drv.cpp
         Component/Referee/fifo.c
         Component/Referee/pyro_referee.cpp
+        Component/Image/pyro_image_drv.cpp
         Component/INS/pyro_ins.cpp
         Component/Supercap/pyro_supercap_drv.cpp
         Component/SR/pyro_sonic_base_drv.cpp
@@ -127,6 +128,7 @@ target_include_directories(PYRo PUBLIC
         Component/Shoot
         Component/Supercap
         Component/SR
+        Component/Image
 
         # --- Module ---
         Module

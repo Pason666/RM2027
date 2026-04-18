@@ -201,9 +201,9 @@ void deps_init()
     hybrid_deps_ptr->pid_deps.leg_pos_pid[1] =
         new pid_t(11.2f, 0.005f, 0.008f, 0.01f, 0.5f, 20, 10, 4);
     hybrid_deps_ptr->pid_deps.leg_vel_pid[0] =
-        new pid_t(220.0f, 0.005f, 0.008f, 5.0f, 200.0f, 20, 10, 4);
+        new pid_t(260.0f, 0.005f, 0.008f, 5.0f, 200.0f, 20, 10, 4);
     hybrid_deps_ptr->pid_deps.leg_vel_pid[1] =
-        new pid_t(220.0f, 0.005f, 0.008f, 5.0f, 200.0f, 20, 10, 4);
+        new pid_t(260.0f, 0.005f, 0.008f, 5.0f, 200.0f, 20, 10, 4);
 }
 
 /**

@@ -170,8 +170,7 @@ bool referee_drv_t::_send_interaction_packet_base(const uint16_t sub_cmd_id,
     if (len + sizeof(interaction_header_t) > 119)
         return false;
 
-    // @brief 后来加的static
-    static uint8_t buffer[128]; // Use stack buffer
+    uint8_t buffer[128]; // Use stack buffer
     auto *p_header        = reinterpret_cast<interaction_header_t *>(buffer);
 
     p_header->data_cmd_id = sub_cmd_id;
@@ -206,7 +205,7 @@ bool referee_drv_t::send_robot_interaction(const uint16_t receiver_id,
 bool referee_drv_t::send_ui_interaction(const uint16_t sub_cmd_id,
                                         const void *data)
 {
-    static uint8_t len = 0;
+    uint8_t len = 0;
     switch (sub_cmd_id)
     {
         case static_cast<uint16_t>(interaction_sub_cmd::UI_CMD_DELETE):

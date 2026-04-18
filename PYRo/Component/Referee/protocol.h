@@ -89,6 +89,8 @@ struct frame_header_t
 
 /* ----------------- Structure Definitions ----------------- */
 
+/* ----------------- Structure Definitions ----------------- */
+
 // 0x0001
 struct game_status_t
 {
@@ -117,10 +119,21 @@ struct game_robot_hp_t
     uint16_t base_hp;
 };
 
-// 0x0101
+// 0x0101 场地事件数据 (重构为位域，精准贴合 RM 常规机制)
 struct event_data_t
 {
-    uint32_t event_type;
+    uint32_t supply_heal_zone_1     : 1; // bit 0: 己方补血点 1 占领状态 (1为已占领)
+    uint32_t supply_heal_zone_2     : 1; // bit 1: 己方补血点 2 占领状态
+    uint32_t supply_heal_zone_3     : 1; // bit 2: 己方补血点 3 占领状态
+    uint32_t energy_mechanism_small : 1; // bit 3: 己方小能量机关激活状态
+    uint32_t energy_mechanism_big   : 1; // bit 4: 己方大能量机关激活状态
+    uint32_t circular_high_ground_2 : 1; // bit 5: 己方 2 号环形高地占领状态
+    uint32_t circular_high_ground_3 : 1; // bit 6: 己方 3 号环形高地占领状态
+    uint32_t circular_high_ground_4 : 1; // bit 7: 己方 4 号环形高地占领状态
+    uint32_t base_virtual_shield    : 1; // bit 8: 己方基地虚拟护盾状态 (1为有护盾)
+    uint32_t outpost_survival       : 1; // bit 9: 己方前哨战存活状态 (1为存活)
+    uint32_t energy_mechanism_hit   : 1; // bit 10: 己方能量机关是否有击打条件
+    uint32_t reserved               : 21;// bit 11-31: 保留
 };
 
 // 0x0104
@@ -131,14 +144,15 @@ struct referee_warning_t
     uint8_t count;
 };
 
-// 0x0105
+// 0x0105 飞镖信息
 struct dart_info_t
 {
     uint8_t dart_remaining_time;
-    uint16_t dart_info;
+    uint16_t dart_aim_target : 2;  // bit 0-1: 最近一次飞镖的打击目标 (1:前哨战, 2:基地)
+    uint16_t reserved        : 14; // bit 2-15: 保留
 };
 
-// 0x0201
+// 0x0201 机器人状态数据 (增加 reserved 补齐字节对齐)
 struct robot_status_t
 {
     uint8_t robot_id;
@@ -148,9 +162,10 @@ struct robot_status_t
     uint16_t shooter_barrel_cooling_value;
     uint16_t shooter_barrel_heat_limit;
     uint16_t chassis_power_limit;
-    uint8_t power_management_gimbal_output  : 1;
-    uint8_t power_management_chassis_output : 1;
-    uint8_t power_management_shooter_output : 1;
+    uint8_t power_management_gimbal_output  : 1; // bit 0: 云台电源输出情况
+    uint8_t power_management_chassis_output : 1; // bit 1: 底盘电源输出情况
+    uint8_t power_management_shooter_output : 1; // bit 2: 发射机构电源输出情况
+    uint8_t reserved                        : 5; // bit 3-7: 保留，补齐1字节
 };
 
 // 0x0202
@@ -210,10 +225,20 @@ struct projectile_allowance_t
     uint16_t projectile_allowance_fortress;
 };
 
-// 0x0209
+// 0x0209 机器人 RFID 状态 (重构为位域)
 struct rfid_status_t
 {
-    uint32_t rfid_status;
+    uint32_t base_buff             : 1; // bit 0: 基地增益点 RFID 状态
+    uint32_t circular_high_ground  : 1; // bit 1: 环形高地增益点 RFID 状态
+    uint32_t enemy_circular_high   : 1; // bit 2: 对方环形高地增益点 RFID 状态
+    uint32_t friendly_outpost      : 1; // bit 3: 己方前哨站增益点 RFID 状态
+    uint32_t friendly_heal_zone    : 1; // bit 4: 己方补血点增益点 RFID 状态
+    uint32_t sentry_patrol_zone    : 1; // bit 5: 哨兵巡逻区 RFID 状态
+    uint32_t enemy_outpost         : 1; // bit 6: 对方前哨站增益点 RFID 状态
+    uint32_t friendly_heal_zone_in : 1; // bit 7: 己方补血点内部 RFID 状态
+    uint32_t center_buff           : 1; // bit 8: 中心增益点 RFID 状态
+    uint32_t reserved              : 23;// bit 9-31: 保留
+
     uint8_t rfid_status_2;
 };
 

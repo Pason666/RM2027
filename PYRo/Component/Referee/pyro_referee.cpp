@@ -170,7 +170,8 @@ bool referee_drv_t::_send_interaction_packet_base(const uint16_t sub_cmd_id,
     if (len + sizeof(interaction_header_t) > 119)
         return false;
 
-    uint8_t buffer[128]; // Use stack buffer
+    // @brief 后来加的static
+    static uint8_t buffer[128]; // Use stack buffer
     auto *p_header        = reinterpret_cast<interaction_header_t *>(buffer);
 
     p_header->data_cmd_id = sub_cmd_id;

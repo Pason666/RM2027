@@ -1,4 +1,3 @@
-// ReSharper disable CppExpressionWithoutSideEffects
 #include "pyro_com_canrx.h"
 #include "pyro_module_base.h"
 #include "pyro_referee.h"

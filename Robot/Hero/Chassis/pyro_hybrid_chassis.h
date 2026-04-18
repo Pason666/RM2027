@@ -22,11 +22,11 @@ struct hybrid_cmd_t : cmd_base_t
     float wz;          // z轴角速度 rad/s (通常跟随模式下该值为0，除非做小陀螺)
     float delta_pitch; // 腿部目标位置相对于当前的增量 rad
     float delta_yaw;
-    bool track_en;    // 是否启用履带 (true: 履带 + 麦轮混合驱动, false: 仅麦轮)
-    bool leg_retract; // 是否进入腿部收回状态 (仅在 track_en=true 时有效)
+    bool crossing_en; // 是否启用履带 (true: 履带 + 麦轮混合驱动, false: 仅麦轮)
+    bool leg_retract; // 是否进入腿部收回状态 (仅在 crossing_en=true 时有效)
 
     hybrid_cmd_t()
-        : vx(0), vy(0), wz(0), delta_pitch(0), delta_yaw(0), track_en(false),
+        : vx(0), vy(0), wz(0), delta_pitch(0), delta_yaw(0), crossing_en(false),
           leg_retract(false)
     {
     }
@@ -181,6 +181,8 @@ class hybrid_chassis_t final
                 void enter(owner *owner) override;
                 void execute(owner *owner) override;
                 void exit(owner *owner) override;
+
+
             };
 
             void on_enter(owner *owner) override;
@@ -192,9 +194,10 @@ class hybrid_chassis_t final
             leg_retraction_state_t leg_retraction_state;
 
             // --- 新增：施密特触发器及自动收腿状态变量 ---
-            float _filtered_distance{0.0f};         // 滤波后的距离
-            bool  _is_guide_wheel_suspended{false}; // 施密特高位状态标志
-            bool  _auto_retract_flag{false};        // 自动收腿触发标志
+            float _filtered_distance{0.0f};        // 滤波后的距离
+            bool _is_guide_wheel_suspended{false}; // 施密特高位状态标志
+            bool _auto_retract_flag{false}; // 自动收腿触发标志
+            uint32_t _retract_hold_tick{0};
         };
 
         // FSM Hooks

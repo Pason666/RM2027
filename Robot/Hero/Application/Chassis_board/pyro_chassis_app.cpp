@@ -70,7 +70,7 @@ void chassis_rxcmd()
             1.0f * static_cast<float>(static_cast<int8_t>(raw_data[1])) / 127.0f;
         hybrid_cmd_ptr->mode =
             static_cast<pyro::cmd_base_t::mode_t>(raw_data[3] & 0x01);
-        hybrid_cmd_ptr->track_en    = true;
+        hybrid_cmd_ptr->crossing_en    = (raw_data[3] & 0x02) != 0;
         hybrid_cmd_ptr->leg_retract = (raw_data[3] & 0x04) != 0;
     }
 }
@@ -98,7 +98,7 @@ void chassis_dr162cmd()
 
         if (pyro::sw_pos_t::DOWN != vrc.switches.left.current_pos)
         {
-            hybrid_cmd_ptr->track_en = true;
+            hybrid_cmd_ptr->crossing_en = true;
             if (pyro::sw_pos_t::MID == vrc.switches.left.current_pos)
             {
                 hybrid_cmd_ptr->leg_retract = true;
@@ -110,7 +110,7 @@ void chassis_dr162cmd()
         }
         else
         {
-            hybrid_cmd_ptr->track_en = false;
+            hybrid_cmd_ptr->crossing_en = false;
         }
     }
 }

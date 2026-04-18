@@ -259,7 +259,7 @@ void hybrid_chassis_t::_kinematics_solve()
     // 4. 运动学解算 (带入缺失轮枚举)
     // -------------------------------------------------------------
     const auto wheel_speeds = _kinematics->solve(
-        vx_chassis, vy_chassis, final_wz, _ctx.cmd->track_en, missing_wheel);
+        vx_chassis, vy_chassis, final_wz, _ctx.cmd->crossing_en, missing_wheel);
 
     // 麦轮转速分配 (右侧反转视底层驱动而定，此处按常规处理)
     _ctx.data.target_wheel_rpm[0] =
@@ -272,7 +272,7 @@ void hybrid_chassis_t::_kinematics_solve()
         -mps_to_rpm(wheel_speeds.mec_br, WHEEL_RADIUS);
 
     // 履带分配 (差速模型)
-    if (_ctx.cmd->track_en)
+    if (_ctx.cmd->crossing_en)
     {
         _ctx.data.target_track_rpm[0] =
             mps_to_rpm(wheel_speeds.track_l, TRACK_RADIUS);

@@ -1,195 +1,107 @@
 /**
- * @file: pyro_power_control_drv.h
- * @brief: 功率控制驱动头文件
- * 
- * 该文件包含功率控制驱动类 power_control_drv_t 的声明，
- * 提供多电机功率输出管理与限制功能。定义了电机系数结构体、车轮数据结构体，
- * 以及功率预测、电流限制相关的函数原型。类采用单例模式设计，
- * 确保应用中全局唯一实例。
- * @namespace: pyro
- * 
- * @authors: Butterbutterfly0（架构）、Pason（实现）
- * @date: 2025-11-26
- * @version: 1.0
+ * @file: pyro_power_control.h
+ * @brief: 功率控制驱动头文件（终极灰盒拟合版）
+ * @note: 本模块参数无需关注物理单位，k1~k5 通过 MATLAB 直接对原始下发指令与反馈转速拟合得出。
  */
-#ifndef __PYRO__POWER_CONTROL_DRV_H__
-#define __PYRO__POWER_CONTROL_DRV_H__
+#ifndef __PYRO__POWER_CONTROL_H__
+#define __PYRO__POWER_CONTROL_H__
 
 #include <vector>
+#include <cmath>
+#include <algorithm>
 
 namespace pyro
 {
 
-/**
- * @brief 功率控制驱动类
- *
- * 该类用于管理和限制多个电机的功率输出。它通过预测电机功率消耗，并根据给定的功率限制
- * 来调整电机的电流指令，以防止功率过载。支持多电机配置，并提供了线程安全的单例模式。
- */
-class power_control_drv_t
+class PowerController
 {
 public:
     /**
-     * @brief 电机系数结构体
-     *
-     * 存储用于电机功率预测的多项式系数。这些系数通常通过系统辨识或校准获得。
-     * 功率预测公式为: P = k1*tau*gyro + k2*|gyro| + k3*tau^2 + k4
+     * @brief 灰盒拟合参数 (由 MATLAB cftool 或 lsqcurvefit 跑出)
+     * 模型: P = max(0, k1*cmd*w) + k2*(1+alpha*dT)*cmd^2 + k3*w^2 + k4*|w| + k5
      */
-    struct motor_coefficient_t
-    {
-        float k1; ///< 电流-角速度交叉项系数
-        float k2; ///< 角速度绝对值项系数
-        float k3; ///< 电流平方项系数
-        float k4; ///< 常数项系数
+    struct FitParams {
+        float k1;    ///< 机械功率系数 (对应 cmd * w)
+        float k2;    ///< 铜损/热损耗系数 (对应 cmd^2)
+        float k3;    ///< 高频损耗系数，如涡流/粘滞摩擦 (对应 w^2)
+        float k4;    ///< 低频损耗系数，如磁滞/库仑摩擦 (对应 |w|)
+        float k5;    ///< 静态基础功耗 (零输入零转速时的裁判系统功率)
+        float alpha; ///< 电阻温度系数 (铜通常为 0.00393)
+
+        FitParams() : k1(0), k2(0), k3(0), k4(0), k5(1.0f), alpha(0.00393f) {}
     };
 
     /**
-     * @brief 电机数据结构体
-     *
-     * 作为 `calculate_restricted_torques` 函数的输入和输出参数，
-     * 包含了单个电机的电流指令、状态和限制后结果。
+     * @brief 缓冲能量 PID 闭环参数
      */
-    struct motor_data_t
-    {
-        float torque_cmd;        ///< 输入: 当前期望电流指令
-        float last_torque;       ///< 输入/输出: 上一次的限制后电流（用于滤波）
-        float gyro;              ///< 输入: 电机的角速度 (rad/s)
-        float power_predict;     ///< 输入: 外部预测的功率值
-        float restricted_torque; ///< 输出: 经过功率限制后的最终电流指令
+    struct BufferPidParams {
+        float kp, ki, kd;
+        float safe_energy;  ///< 期望维持的安全缓冲能量 (如 40J)
+
+        BufferPidParams() : kp(1.5f), ki(0.01f), kd(0.1f), safe_energy(40.0f) {}
     };
-    
-    /**
-     * @brief 删除拷贝构造函数
-     * 防止通过拷贝创建新实例，确保单例模式的唯一性。
-     */
-    power_control_drv_t(const power_control_drv_t&) = delete;
-    
-    /**
-     * @brief 删除赋值运算符
-     * 防止实例间的赋值，确保单例模式的唯一性。
-     */
-    power_control_drv_t& operator=(const power_control_drv_t&) = delete;
 
     /**
-     * @brief 获取单例实例
-     *
-     * 这是获取类实例的唯一方法。如果实例不存在，将使用指定的电机数量创建一个新实例。
-     * 后续调用将返回同一个实例，忽略电机数量参数。
-     *
-     * @param motor_num 电机的数量。
-     * @return power_control_drv_t& 返回单例实例的引用。
+     * @brief 单个电机的数据交互结构体
      */
-    static power_control_drv_t& get_instance(int motor_num)
-    {
-        static power_control_drv_t instance(motor_num);
-        return instance;
-    }
+    struct MotorData {
+        // --- 输入区 (每次计算前更新) ---
+        float cmd;           ///< 拟发送的原始指令 (如 -16384 ~ 16384)
+        float rpm;           ///< 原始反馈转速 (如 RPM)
+        float temp;          ///< 当前电机温度 (℃)
+
+        // --- 内部状态区 ---
+        float last_cmd;      ///< 内部维护的上一拍指令(用于低通滤波)
+
+        // --- 输出区 (计算后读取) ---
+        float safe_cmd;      ///< 经过功率限制后的安全发送指令
+        float power_predict; ///< 当前电机预测耗电功率 (W)
+
+        MotorData() : cmd(0), rpm(0), temp(20.0f), last_cmd(0), safe_cmd(0), power_predict(0) {}
+    };
 
     /**
-     * @brief 获取单例实例（默认参数）
-     *
-     * 重载版本，使用默认电机数量（0）获取实例。主要用于首次创建实例后，
-     * 或不确定电机数量时获取实例。
-     *
-     * @return power_control_drv_t& 返回单例实例的引用。
+     * @brief 获取单例实例 (假设底盘默认 4 个电机)
      */
-    static power_control_drv_t& get_instance()
-    {
-        return get_instance(0);
-    }
+    static PowerController& getInstance(size_t motor_num = 4);
 
-    /**
-     * @brief 设置电机的功率系数
-     *
-     * 为指定索引的电机设置功率预测模型的系数。
-     *
-     * @param motor_index 电机的索引 (从 1 开始？请参见cpp实现)。
-     * @param coefficient 包含四个系数的结构体。
-     */
-    void set_motor_coefficient(int motor_index, const motor_coefficient_t& coefficient);    
+    // --- 配置接口 ---
+    void setMotorParams(size_t motor_index, const FitParams& params);
+    void setBufferPid(const BufferPidParams& pid_params);
 
+    // --- 核心计算接口 ---
     /**
-     * @brief 预测电机功率
-     *
-     * 使用预存的电机系数和当前的电流、角速度计算预测的电机功率消耗。
-     *
-     * @param motor_index 电机的索引。
-     * @param tau 当前的电流指令（通过电流值代替 A）。
-     * @param gyro 当前的角速度 (rad/s)。
-     * @return float 预测的功率值 (W)。如果索引无效，返回 0.0f。
+     * @brief 执行功率限制计算
+     * @param motors 电机数据数组引用
+     * @param referee_power_limit 裁判系统允许的最大功率
+     * @param current_buffer_energy 裁判系统反馈的当前缓冲能量
+     * @param power_ratios (可选) 功率分配比例，若为空则按各轮需求等比缩放
      */
-    float motor_power_predict(int motor_index, float tau, float gyro) const;
+    void solve(std::vector<MotorData>& motors,
+               float referee_power_limit,
+               float current_buffer_energy,
+               const std::vector<float>* power_ratios = nullptr);
 
+    // --- 遥测接口 (用于给 MATLAB 喂数据) ---
     /**
-     * @brief 批量计算多个电机的限制后电流
-     *
-     * 这是核心功能函数。它会遍历所有电机数据，根据总功率限制 `power_limit`
-     * 和可选的功率分配比例 `power_ratios`，为每个电机计算并设置限制后的电流。
-     *
-     * @param motor_data 指向 motor_data_t 结构体数组的指针。
-     * @param motor_num 电机的数量。
-     * @param power_limit 总的可用功率限制。
+     * @brief 获取整车预测总功率 (可与裁判系统真实功率对比验证模型准确性)
      */
-    void calculate_restricted_torques(
-        motor_data_t* motor_data,
-        int motor_num,
-        float power_limit,
-        float buf_engy
-    ) const;
-
-    /**
-     * @brief 批量计算多个电机的限制后电流（带功率分配）
-     *
-     * 这是 `calculate_restricted_torques` 的重载版本。它允许你通过 `power_ratios`
-     * 参数为不同的电机分配不同比例的总功率。
-     *
-     * @param motor_data 指向 motor_data_t 结构体数组的指针。
-     * @param motor_num 电机的数量。
-     * @param power_limit 总的可用功率限制。
-     * @param power_ratios 指向浮点数数组的指针，每个元素代表对应电机的功率分配比例。
-     */
-    void calculate_restricted_torques(
-        motor_data_t* motor_data,
-        int motor_num,
-        float power_limit,
-        float buf_engy,
-        const float* power_ratios
-    ) const;
+    float getTotalPredictedPower() const { return _last_total_predict; }
 
 private:
-    /**
-     * @brief 私有构造函数
-     *
-     * 构造函数被声明为私有，以强制通过 `get_instance` 方法来创建和获取实例。
-     *
-     * @param motor_num 电机的数量，用于初始化内部数据结构。
-     */
-    explicit power_control_drv_t(int motor_num);
-    
-    /**
-     * @brief 私有析构函数
-     */
-    ~power_control_drv_t()
-    {
-    }
+    explicit PowerController(size_t motor_num);
+    ~PowerController() = default;
 
-    /**
-     * @brief 计算限制后电流
-     *
-     * 给定一个期望电流和功率限制，通过解二次方程计算出最大允许的电流，
-     * 以确保电机功率不超过 `restricted_power`。
-     *
-     * @param motor_index 电机的索引。
-     * @param origin_torque 原始的、未受限制的电流指令。
-     * @param gyro 当前的角速度。
-     * @param restricted_power 允许的最大功率。
-     * @return float 计算出的限制后电流。
-     */
-    float _motor_power_restrict_torque(int motor_index, float origin_torque, float gyro, float restricted_power) const;
+    float updateDynamicLimit(float referee_limit, float buffer_energy);
 
-    std::vector<motor_coefficient_t> _motor_coefficients; ///< 存储每个电机的功率系数
+    std::vector<FitParams> _params;
+    BufferPidParams _pid_params;
+
+    float _integral_err;
+    float _last_err;
+    float _last_total_predict;
 };
 
-}
+} // namespace pyro
 
 #endif

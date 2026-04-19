@@ -2,6 +2,7 @@
 #include "pyro_can_drv.h"
 #include "pyro_dr16_rc_drv.h"
 #include "pyro_dwt_drv.h"
+#include "pyro_image_drv.h"
 #include "pyro_ins.h"
 #include "pyro_supercap_drv.h"
 #include "pyro_referee.h"
@@ -66,8 +67,21 @@ extern "C"
                            UART_PARITY_NONE);
 #endif
 
+#ifdef IMAGE_UART
+        // IMAGE_UART.reset(921600, UART_WORDLENGTH_8B, UART_STOPBITS_1,
+        //                  UART_PARITY_NONE);
+        image_drv_t::get_instance().start();
+        image_drv_t::get_instance().init();
+#endif
+
+#ifdef CUSTOM_UART
+        CUSTOM_UART.reset(921600, UART_WORDLENGTH_8B, UART_STOPBITS_1,
+                          UART_PARITY_NONE);
+#endif
+
 #ifdef SR04_UART
-        SR04_UART.reset(9600, UART_WORDLENGTH_8B, UART_STOPBITS_1, UART_PARITY_NONE);
+        SR04_UART.reset(9600, UART_WORDLENGTH_8B, UART_STOPBITS_1,
+                        UART_PARITY_NONE);
         sr04_drv::get_instance().init();
         sr04_drv::get_instance().start();
 #endif

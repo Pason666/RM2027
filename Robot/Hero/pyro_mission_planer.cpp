@@ -9,6 +9,7 @@ extern "C"
     extern void hero_gimbal_init(void *argument);
     extern void hero_booster_init(void *argument);
     extern void hero_autoaim_init(void *argument);
+    extern void hero_custom_init(void *argument);
     extern void hero_chassis_init(void *argument);
 
 
@@ -17,19 +18,24 @@ extern "C"
 
         xTaskCreate(pyro_init_thread, "pyro_init_thread", 512, nullptr,
                     configMAX_PRIORITIES - 1, nullptr);
+        // vTaskDelay(10);
 
 #if BOARD == GIMBAL_BOARD
         xTaskCreate(hero_gimbal_init, "pyro_gimbal_init", 512, nullptr,
                     configMAX_PRIORITIES - 2, nullptr);
+        vTaskDelay(10);
         xTaskCreate(hero_booster_init, "pyro_booster_init", 512, nullptr,
                     configMAX_PRIORITIES - 2, nullptr);
+        vTaskDelay(10);
         xTaskCreate(hero_autoaim_init, "pyro_autoaim_init", 512, nullptr,
                     configMAX_PRIORITIES - 2, nullptr);
+        vTaskDelay(10);
+        xTaskCreate(hero_custom_init, "pyro_custom_init", 512, nullptr,
+                    configMAX_PRIORITIES - 3, nullptr);
 #elif BOARD == CHASSIS_BOARD
         xTaskCreate(hero_chassis_init, "pyro_chassis_init", 512, nullptr,
                     configMAX_PRIORITIES - 2, nullptr);
 #endif
         vTaskDelete(nullptr);
-
     }
 }

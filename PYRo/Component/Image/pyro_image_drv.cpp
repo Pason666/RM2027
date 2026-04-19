@@ -4,6 +4,9 @@
  */
 
 #include "pyro_image_drv.h"
+
+#include "pyro_bsp_uart.h"
+#include "pyro_core_config.h"
 #include "pyro_crc.h"
 #include "pyro_dwt_drv.h"
 #include "pyro_core_dma_heap.h"

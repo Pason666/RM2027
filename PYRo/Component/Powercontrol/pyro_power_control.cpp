@@ -10,18 +10,17 @@ power_controller_t &power_controller_t::get_instance()
 }
 
 power_controller_t::power_controller_t()
-    : _registered_count(0), 
-      _safe_energy_ref(40.0f),
-      _buffer_pid(1.5f, 0.01f, 0.1f, 50.0f, 100.0f), 
-      _last_total_predict(0.0f)
+    : _registered_count(0), _safe_energy_ref(40.0f),
+      _buffer_pid(1.5f, 0.01f, 0.1f, 50.0f, 100.0f), _last_total_predict(0.0f)
 {
 }
 
-power_node_t *power_controller_t::register_motor(const power_fit_params_t &params)
+power_node_t *
+power_controller_t::register_motor(const power_fit_params_t &params)
 {
     if (_registered_count >= MAX_MOTORS)
     {
-        return nullptr; 
+        return nullptr;
     }
     power_node_t *node = &_nodes[_registered_count++];
     node->params       = params;
@@ -41,18 +40,22 @@ void power_controller_t::solve(const float referee_power_limit,
                                const float current_buffer_energy)
 {
     // 1. [复用 PID] 计算动态功率补偿
-    float p_adjust = _buffer_pid.calculate(_safe_energy_ref, current_buffer_energy);
+    float p_adjust =
+        _buffer_pid.calculate(_safe_energy_ref, current_buffer_energy);
 
     // 极端危险状态的强力惩罚机制，强行从上限中抠出功率回血
     if (current_buffer_energy < DANGER_ENERGY_THRESH)
     {
-        p_adjust -= (DANGER_ENERGY_THRESH - current_buffer_energy) * DANGER_PENALTY_FACTOR;
+        p_adjust -= (DANGER_ENERGY_THRESH - current_buffer_energy) *
+                    DANGER_PENALTY_FACTOR;
     }
 
     float dyn_limit = referee_power_limit + p_adjust;
 
     // 限制范围: 不能小于0，最大允许一定程度超发利用电容
-    dyn_limit = std::clamp(dyn_limit, 0.0f, referee_power_limit * DYN_LIMIT_MULTIPLIER + DYN_LIMIT_OFFSET);
+    dyn_limit       = std::clamp(dyn_limit, 0.0f,
+                                 referee_power_limit * DYN_LIMIT_MULTIPLIER +
+                                     DYN_LIMIT_OFFSET);
 
     // 如果能量见底，绝对不允许消耗功率
     if (current_buffer_energy < DEAD_ENERGY_THRESH)
@@ -67,13 +70,16 @@ void power_controller_t::solve(const float referee_power_limit,
     for (size_t i = 0; i < _registered_count; ++i)
     {
         power_node_t *m = &_nodes[i];
-        if (!m->is_active) continue;
+        if (!m->is_active)
+            continue;
 
         // 温度修正系数 (限制下限防传感器断连)
-        const float temp_factor = std::max(1.0f + m->params.alpha * (m->temp - DEFAULT_TEMP), MIN_TEMP_FACTOR);
+        const float temp_factor = std::max(
+            1.0f + m->params.alpha * (m->temp - DEFAULT_TEMP), MIN_TEMP_FACTOR);
 
         // 二次项 A (铜损)
-        const float a_i = m->params.k2 * temp_factor * m->target_cmd * m->target_cmd;
+        const float a_i =
+            m->params.k2 * temp_factor * m->target_cmd * m->target_cmd;
         A += a_i;
 
         // 一次项 B (机械功，不考虑动能回收)
@@ -104,7 +110,8 @@ void power_controller_t::solve(const float referee_power_limit,
             if (A > 1e-6f)
             {
                 const float delta = B * B - 4.0f * A * c_term;
-                k = (delta >= 0.0f) ? ((-B + std::sqrt(delta)) / (2.0f * A)) : 0.0f;
+                k = (delta >= 0.0f) ? ((-B + std::sqrt(delta)) / (2.0f * A))
+                                    : 0.0f;
             }
             else if (B > 1e-6f)
             {
@@ -118,10 +125,12 @@ void power_controller_t::solve(const float referee_power_limit,
     for (size_t i = 0; i < _registered_count; ++i)
     {
         power_node_t *m = &_nodes[i];
-        if (!m->is_active) continue;
+        if (!m->is_active)
+            continue;
 
         const float target_cmd = m->target_cmd * k;
-        m->safe_cmd = FILTER_ALPHA * target_cmd + (1.0f - FILTER_ALPHA) * m->last_cmd;
+        m->safe_cmd =
+            FILTER_ALPHA * target_cmd + (1.0f - FILTER_ALPHA) * m->last_cmd;
         m->last_cmd = m->safe_cmd;
     }
 }

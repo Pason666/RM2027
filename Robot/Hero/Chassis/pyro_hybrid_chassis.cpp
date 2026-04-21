@@ -3,7 +3,7 @@
 #include <arm_math.h> // 引入 CMSIS-DSP 库
 #include "pyro_dji_motor_drv.h"
 #include "pyro_com_cantx.h"
-#include "pyro_power_control_drv.h"
+#include "pyro_power_control.h"
 #include "pyro_sr04_drv.h"
 #include <algorithm>
 
@@ -39,24 +39,7 @@ status_t hybrid_chassis_t::_init()
 
 void hybrid_chassis_t::_power_control_init()
 {
-    power_control_drv_t::motor_coefficient_t coef[4];
 
-    for (auto &[k1, k2, k3, k4] : coef)
-    {
-        // k1 = 0.0160f;//0.0155//0.0260
-        // k2 = 0.0250f;//1.6000//0.0460
-        // k3 = 0.1742f;//0.0010//0.1066
-        // k4 = 0.5815f;//0.7500//0.7500
-        k1 = 0.0260f; // 0.0155
-        k2 = 0.0460f; // 1.6000
-        k3 = 0.1100f; // 0.0010
-        k4 = 0.7500f; // 0.7500
-    }
-
-    power_control_drv_t::get_instance(4).set_motor_coefficient(1, coef[0]);
-    power_control_drv_t::get_instance(4).set_motor_coefficient(2, coef[1]);
-    power_control_drv_t::get_instance(4).set_motor_coefficient(3, coef[2]);
-    power_control_drv_t::get_instance(4).set_motor_coefficient(4, coef[3]);
 }
 
 
@@ -296,32 +279,7 @@ void hybrid_chassis_t::_kinematics_solve()
 
 void hybrid_chassis_t::_power_control()
 {
-    for (int i = 0; i < 4; i++)
-    {
-        _ctx.power_motor_data[i].gyro       = _ctx.data.current_wheel_rpm[i];
-        _ctx.power_motor_data[i].torque_cmd = _ctx.data.out_mecanum_torque[i];
-        _ctx.power_motor_data[i].power_predict =
-            power_control_drv_t::get_instance().motor_power_predict(
-                i, _ctx.power_motor_data[i].torque_cmd,
-                _ctx.power_motor_data[i].gyro);
-    }
-    // if (_ctx.cap_feedback.vot_cap >= 1800)
-    // {
-    //     power_control_drv_t::get_instance().calculate_restricted_torques(
-    //         _ctx.power_motor_data, 4,
-    //         static_cast<float>(referee_drv_t::get_instance()
-    //                                ->get_data()
-    //                                .robot_status.chassis_power_limit) +
-    //             100.0f);
-    // }
-    // else
-    // {
-    power_control_drv_t::get_instance().calculate_restricted_torques(
-        _ctx.power_motor_data, 4, 240, 60);
-    // }
-    for (int i = 0; i < 4; i++)
-        _ctx.data.out_mecanum_torque[i] =
-            _ctx.power_motor_data[i].restricted_torque;
+
 }
 
 

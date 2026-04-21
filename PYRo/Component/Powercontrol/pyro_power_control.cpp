@@ -11,7 +11,7 @@ power_controller_t &power_controller_t::get_instance()
 
 power_controller_t::power_controller_t()
     : _registered_count(0), _safe_energy_ref(40.0f),
-      _buffer_pid(1.5f, 0.01f, 0.1f, 50.0f, 100.0f), _last_total_predict(0.0f)
+      _buffer_pid(0.5f, 0.0f, 0.0f, 0.0f, 20.0f), _last_total_predict(0.0f)
 {
 }
 
@@ -37,9 +37,10 @@ void power_controller_t::config_buffer_pid(const float safe_energy,
 }
 
 void power_controller_t::solve(const float referee_power_limit,
-                               const float current_buffer_energy)
+                               const float current_buffer_energy,
+                               const float cap_extra_power)
 {
-    // 1. [复用 PID] 计算动态功率补偿
+    // 1. [裁判系统端] 仅根据缓冲能量计算基础的功率补偿
     float p_adjust =
         _buffer_pid.calculate(_safe_energy_ref, current_buffer_energy);
 
@@ -50,18 +51,23 @@ void power_controller_t::solve(const float referee_power_limit,
                     DANGER_PENALTY_FACTOR;
     }
 
-    float dyn_limit = referee_power_limit + p_adjust;
+    // 纯裁判系统视角的动态功率限制
+    float referee_dyn_limit = referee_power_limit + p_adjust;
 
-    // 限制范围: 不能小于0，最大允许一定程度超发利用电容
-    dyn_limit       = std::clamp(dyn_limit, 0.0f,
-                                 referee_power_limit * DYN_LIMIT_MULTIPLIER +
-                                     DYN_LIMIT_OFFSET);
-
-    // 如果能量见底，绝对不允许消耗功率
+    // 如果缓冲能量见底，绝对不允许消耗【裁判系统】的功率
     if (current_buffer_energy < DEAD_ENERGY_THRESH)
     {
-        dyn_limit = 0.0f;
+        referee_dyn_limit = 0.0f;
     }
+    else
+    {
+        // 限制裁判系统端不能输出负功率
+        referee_dyn_limit = std::max(referee_dyn_limit, 0.0f);
+    }
+
+    // [核心解耦] 最终总动态功率限制 = 裁判系统允许功率 + 电容端提供的额外功率
+    float dyn_limit = referee_dyn_limit + cap_extra_power;
+    dyn_limit = std::max(dyn_limit, 0.0f); // 兜底保护，总功率不为负
 
     // 2. 遍历内部节点，计算预测功率与二次方程系数
     float A = 0.0f, B = 0.0f, C = 0.0f;
@@ -75,7 +81,7 @@ void power_controller_t::solve(const float referee_power_limit,
 
         // 温度修正系数 (限制下限防传感器断连)
         const float temp_factor = std::max(
-            1.0f + m->params.alpha * (m->temp - DEFAULT_TEMP), MIN_TEMP_FACTOR);
+            1.0f + m->params.alpha * (m->temp - TEMP_OFFSET), MIN_TEMP_FACTOR);
 
         // 二次项 A (铜损)
         const float a_i =

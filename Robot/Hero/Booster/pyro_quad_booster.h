@@ -132,7 +132,7 @@ class quad_booster_t final
     {
         float ball_speed[3]{};
         float avg_ball_speed = 11.7f;
-        float fric1_mps = 11.5f;
+        float fric1_mps = 15.5f;
         float fric2_mps = 8.0f;
     };
 

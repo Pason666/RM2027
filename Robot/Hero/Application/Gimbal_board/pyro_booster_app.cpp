@@ -93,7 +93,7 @@ extern "C"
                 // if (rx_data.avg_speed > 7.5f) {
                 //     quad_booster_cmd_ptr->target_speed = 11.7f;
                 // } else {
-                    quad_booster_cmd_ptr->target_speed = 11.7f;
+                    quad_booster_cmd_ptr->target_speed = 16.2f;
                 // }
 
                 // 视觉开火信号边沿检测转换为内部拨弹计数器增量
@@ -105,13 +105,13 @@ extern "C"
             }
             else // 视觉离线兜底
             {
-                quad_booster_cmd_ptr->target_speed = 11.7f;
+                quad_booster_cmd_ptr->target_speed = 16.2f;
                 last_pc_fire = 0;
             }
         }
         else // MID 档位为纯手动控制
         {
-            quad_booster_cmd_ptr->target_speed = 11.7f; // 可调节
+            quad_booster_cmd_ptr->target_speed = 16.2f; // 可调节
             last_pc_fire = 0;
         }
 

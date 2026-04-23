@@ -184,7 +184,13 @@ status_t image_drv_t::send_controller_data()
 
     append_crc16_check_sum(reinterpret_cast<uint8_t *>(_tx_controller_pkt), sizeof(tx_controller_packet_t));
 
-    return _uart->write(reinterpret_cast<uint8_t *>(_tx_controller_pkt), sizeof(tx_controller_packet_t));
+    auto ret = _uart->write(reinterpret_cast<uint8_t *>(_tx_controller_pkt), sizeof(tx_controller_packet_t));
+    if (ret != PYRO_OK)
+    {
+        _send_seq--;
+    }
+
+    return ret;
 }
 
 status_t image_drv_t::send_client_data()
@@ -202,7 +208,12 @@ status_t image_drv_t::send_client_data()
 
     append_crc16_check_sum(reinterpret_cast<uint8_t *>(_tx_client_pkt), sizeof(tx_client_packet_t));
 
-    return _uart->write(reinterpret_cast<uint8_t *>(_tx_client_pkt), sizeof(tx_client_packet_t));
+    status_t ret = _uart->write(reinterpret_cast<uint8_t *>(_tx_client_pkt), sizeof(tx_client_packet_t));
+    if (ret != PYRO_OK)
+    {
+        _send_seq--;
+    }
+    return ret;
 }
 
 } // namespace pyro

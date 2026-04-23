@@ -35,16 +35,18 @@ custom_drv_t &custom_drv_t::get_instance()
 
 custom_drv_t::custom_drv_t(uart_drv_t *uart_handle)
     : _uart_drv(uart_handle), _task(nullptr), _tx_buffer(nullptr),
-      _rx_msg_buf(nullptr), _is_online(false), _has_new_data(false),
+      _rx_msg_buf(nullptr), _rx_data_queue(nullptr), _is_online(false),
       _first_frame(true), _last_seq(0)
 {
-    memset(&_latest_data, 0, sizeof(_latest_data));
     memset(&_tx_payload, 0, sizeof(_tx_payload));
 
     constexpr size_t buf_size = sizeof(tx_packet_t);
     _tx_buffer = static_cast<tx_packet_t *>(pvPortDmaMalloc(buf_size));
 
     if (_tx_buffer) memset(_tx_buffer, 0, buf_size);
+
+    // 创建能容纳 15 包数据的队列，作为重发和缓冲池
+    _rx_data_queue = xQueueCreate(15, sizeof(rx_data_t));
 
     _task = new custom_task_t(this);
 }
@@ -55,6 +57,7 @@ custom_drv_t::~custom_drv_t()
     if (_uart_drv) _uart_drv->remove_rx_event_callback(reinterpret_cast<uint32_t>(this));
     if (_tx_buffer) { vPortFree(_tx_buffer); _tx_buffer = nullptr; }
     if (_rx_msg_buf) { vMessageBufferDelete(_rx_msg_buf); _rx_msg_buf = nullptr; }
+    if (_rx_data_queue) { vQueueDelete(_rx_data_queue); _rx_data_queue = nullptr; }
 }
 
 void custom_drv_t::start_rx() const
@@ -64,7 +67,8 @@ void custom_drv_t::start_rx() const
 
 void custom_drv_t::init_impl()
 {
-    if (_rx_msg_buf == nullptr) _rx_msg_buf = xMessageBufferCreate(1024);
+    // 将 Buffer 容量从 1024 扩大到 4096，防止 ISR 层突发溢出丢包
+    if (_rx_msg_buf == nullptr) _rx_msg_buf = xMessageBufferCreate(4096);
     if (_rx_msg_buf == nullptr) return;
 
     _uart_drv->add_rx_event_callback(
@@ -88,7 +92,7 @@ void custom_drv_t::run_loop_impl()
 
         while (_is_online)
         {
-            xReceivedBytes = xMessageBufferReceive(_rx_msg_buf, &pkt, sizeof(pkt), pdMS_TO_TICKS(100));
+            xReceivedBytes = xMessageBufferReceive(_rx_msg_buf, &pkt, sizeof(pkt), pdMS_TO_TICKS(1000));
 
             if (xReceivedBytes == sizeof(rx_packet_t))
             {
@@ -103,7 +107,7 @@ void custom_drv_t::run_loop_impl()
             else if (xReceivedBytes == 0)
             {
                 _is_online = false;
-                _first_frame = true; // 掉线后重置首次标志，以便重新上线时直接接收第一包
+                _first_frame = true; // 掉线后重置首次标志
                 _comm_interval_ms = 0.0f;
                 _last_rx_time_ms = 0.0f;
             }
@@ -113,16 +117,6 @@ void custom_drv_t::run_loop_impl()
 
 bool custom_drv_t::rx_callback(const uint8_t *p_data, uint16_t size, BaseType_t &xHigherPriorityTaskWoken) const
 {
-    // ================== 调试专用代码开始 ==================
-    static float debug_rx_intervals_ms[20] = {0.0f};
-    static uint8_t debug_rx_idx = 0;
-    static uint32_t last_rx_ticks = dwt_drv_t::get_current_ticks();
-
-    float interval_ms = dwt_drv_t::get_delta_t(&last_rx_ticks) * 1000.0f;
-    debug_rx_intervals_ms[debug_rx_idx] = interval_ms;
-    debug_rx_idx = (debug_rx_idx + 1) % 20;
-    // ================== 调试专用代码结束 ==================
-
     if (size == sizeof(rx_packet_t) && p_data[0] == FRAME_SOF)
     {
         xMessageBufferSendFromISR(_rx_msg_buf, p_data, sizeof(rx_packet_t), &xHigherPriorityTaskWoken);
@@ -143,28 +137,28 @@ void custom_drv_t::unpack(const rx_packet_t *buf)
     uint16_t current_seq = buf->payload.seq;
 
     auto seq_diff = static_cast<int16_t>(static_cast<uint16_t>(current_seq - _last_seq));
-    static uint64_t ab = 0;
-    static uint64_t ac = 0;
-
-    if (seq_diff > 1)
-    {
-        ab++;
-    }
-    if (seq_diff < 0)
-    {
-        ac++;
-    }
-
 
     if (_first_frame || seq_diff > 0)
     {
         _first_frame = false;
         _last_seq = current_seq;
 
-        // 拷贝并设置新数据标志位
-        memcpy(&_latest_data, &buf->payload, sizeof(rx_data_t));
-        _has_new_data = true;
+        // 将新数据推入队列
+        if (_rx_data_queue != nullptr) {
+            // 如果队列已满，丢弃最老的一包以保证实时性
+            if (uxQueueSpacesAvailable(_rx_data_queue) == 0) {
+                rx_data_t dummy;
+                xQueueReceive(_rx_data_queue, &dummy, 0);
+            }
+            xQueueSend(_rx_data_queue, &buf->payload, 0);
+        }
     }
+}
+
+bool custom_drv_t::pop_rx_data(rx_data_t &out_data) const
+{
+    if (_rx_data_queue == nullptr) return false;
+    return xQueueReceive(_rx_data_queue, &out_data, 0) == pdTRUE;
 }
 
 custom_drv_t::tx_data_t &custom_drv_t::get_tx_data() { return _tx_payload; }
@@ -182,7 +176,6 @@ status_t custom_drv_t::send_data() const
     return _uart_drv->write(reinterpret_cast<uint8_t *>(_tx_buffer), sizeof(tx_packet_t));
 }
 
-const custom_drv_t::rx_data_t &custom_drv_t::get_rx_data() const { return _latest_data; }
 bool custom_drv_t::check_online() const { return _is_online; }
 float custom_drv_t::get_comm_interval() const { return _comm_interval_ms; }
 

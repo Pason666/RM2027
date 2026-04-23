@@ -6,6 +6,7 @@
  * 1. 组合模式内部维护 Task
  * 2. MessageBuffer 传递变长或定长包
  * 3. DMA 零拷贝发送
+ * 4. 增加 Queue 队列缓存，防止高频突发流量丢包
  */
 
 #ifndef __PYRO_CUSTOM_DRV_H__
@@ -15,6 +16,7 @@
 #include "pyro_uart_drv.h"
 #include "pyro_core_def.h"
 #include "message_buffer.h"
+#include "queue.h"
 
 namespace pyro
 {
@@ -66,9 +68,11 @@ class custom_drv_t
     status_t send_data() const;
 
     /**
-     * @brief 获取 PC 发来的最新透传数据
+     * @brief 从队列中获取一包新的 PC 数据
+     * @param out_data 输出数据引用
+     * @return true 如果成功获取到数据
      */
-    [[nodiscard]] const rx_data_t &get_rx_data() const;
+    [[nodiscard]] bool pop_rx_data(rx_data_t &out_data) const;
 
     /**
      * @brief 检查 PC 是否在线
@@ -79,16 +83,6 @@ class custom_drv_t
      * @brief 获取最新通信间隔 (ms)
      */
     [[nodiscard]] float get_comm_interval() const;
-
-    /**
-     * @brief 检查是否收到新的 PC 数据（基于序列号更新）
-     */
-    [[nodiscard]] bool has_new_data() const { return _has_new_data; }
-
-    /**
-     * @brief 清除新数据标志位（应用层取走数据后调用）
-     */
-    void clear_new_data_flag() { _has_new_data = false; }
 
   private:
     explicit custom_drv_t(uart_drv_t *uart_handle);
@@ -134,12 +128,11 @@ class custom_drv_t
     custom_task_t *_task;
     tx_packet_t *_tx_buffer; // DMA buffer
     MessageBufferHandle_t _rx_msg_buf;
+    QueueHandle_t _rx_data_queue; // 接收数据缓存队列
 
     tx_data_t _tx_payload{};
-    rx_data_t _latest_data{};
 
     bool _is_online;
-    bool _has_new_data;     // 新数据标志位
     bool _first_frame;      // 用于初始化序列号检测
     uint16_t _last_seq;     // 记录上一次成功接收的序列号
 

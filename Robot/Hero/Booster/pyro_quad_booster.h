@@ -15,13 +15,14 @@ namespace pyro
 struct quad_booster_cmd_t final : public cmd_base_t
 {
     bool fric_on;       // 摩擦轮开启
+    bool sling_mode;
+
     uint8_t fire_count; // 拨弹计数器，替代 fire_enable
-    float target_speed;
 
     float trig_target_spd; // 新增：拨弹盘目标速度
 
     quad_booster_cmd_t()
-        : fric_on(false), fire_count(0), target_speed(0.0f), trig_target_spd(0.0f)
+        : fric_on(false), sling_mode(false), fire_count(0), trig_target_spd(0.0f)
     {
     }
 };
@@ -130,10 +131,11 @@ class quad_booster_t final
 
     struct shoot_data_t
     {
+        const float target_speed{};
+        float fric1_mps{};
+        float fric2_mps{};
         float ball_speed[3]{};
-        float avg_ball_speed = 11.7f;
-        float fric1_mps = 15.5f;
-        float fric2_mps = 8.0f;
+        float avg_ball_speed = target_speed;
     };
 
     struct booster_ctx_t
@@ -141,7 +143,8 @@ class quad_booster_t final
         quad_deps_t::motor_deps_t motor;
         quad_deps_t::pid_deps_t pid;
         data_ctx_t data;
-        shoot_data_t shoot_data{};
+        shoot_data_t shoot_normal_data{11.7f, 11.3f, 8.0f};
+        shoot_data_t shoot_sling_data{16.2f,15.5f,8.0f};
         quad_booster_cmd_t *cmd{};
     };
 

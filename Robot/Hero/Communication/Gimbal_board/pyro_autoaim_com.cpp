@@ -109,7 +109,7 @@ static void update_and_send_feedback()
     tx_data.curr_pitch = -gimbal_ctx.data.pitch_imu_rad;
 
     // 4. 填充发弹数据与发弹预测延迟
-    tx_data.curr_speed = booster_ctx.shoot_data.avg_ball_speed;
+    tx_data.curr_speed = booster_ctx.shoot_normal_data.avg_ball_speed;
     tx_data.shoot_delay = static_cast<uint16_t>(booster_ctx.data.avg_launch_delay);
 
     // 5. 填充标志位

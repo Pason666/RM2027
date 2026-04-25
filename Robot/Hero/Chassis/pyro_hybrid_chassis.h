@@ -7,7 +7,7 @@
 #include "pyro_motor_base.h"
 #include "pyro_ins.h" // 新增 IMU 依赖
 #include "hybrid_config.h"
-#include "pyro_power_control_drv.h"
+#include "pyro_power_control.h"
 
 namespace pyro
 {
@@ -140,7 +140,7 @@ class hybrid_chassis_t final
         hybrid_deps_t::motor_deps_t motor;
         hybrid_deps_t::pid_deps_t pid;
         data_ctx_t data;
-        power_control_drv_t::motor_data_t power_motor_data[4]{};
+        power_node_t *power_motor_data[6]{};
         hybrid_cmd_t *cmd{};
     };
 

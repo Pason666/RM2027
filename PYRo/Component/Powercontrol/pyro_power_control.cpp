@@ -28,13 +28,19 @@ power_controller_t::register_motor(const power_fit_params_t &params)
     return node;
 }
 
-void power_controller_t::config_buffer_pid(const float safe_energy,
+void power_controller_t::config_buffer_loop(const float safe_energy,
                                            const float kp, const float ki,
                                            const float kd)
 {
     _safe_energy_ref = safe_energy;
     _buffer_pid.set_gains(kp, ki, kd);
 }
+
+void power_controller_t::config_buffer_loop(float safe_energy)
+{
+    config_buffer_loop(safe_energy, 0.5f, 0.0f, 0.0f);
+}
+
 
 void power_controller_t::solve(const float referee_power_limit,
                                const float current_buffer_energy,

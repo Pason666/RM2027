@@ -6,6 +6,9 @@
 #include "pyro_power_control.h"
 #include "pyro_sr04_drv.h"
 #include <algorithm>
+#include "pyro_referee.h"
+#include "pyro_sr05_drv.h"
+#include "pyro_us100_drv.h"
 
 namespace pyro
 {
@@ -21,25 +24,64 @@ hybrid_chassis_t::hybrid_chassis_t() : module_base_t("hybrid")
 
 status_t hybrid_chassis_t::_init()
 {
-    _ctx.motor  = _module_deps.motor_deps;
-    _ctx.pid    = _module_deps.pid_deps;
+    _ctx.motor      = _module_deps.motor_deps;
+    _ctx.pid        = _module_deps.pid_deps;
 
-    // 使用 config.h 中的参数初始化运动学模型
-    _kinematics = new hybrid_kin_t(TRACK_SPACING,
-                                   (MEC_FRONT_TRACK_WIDTH + MEC_WHEELBASE) / 2,
-                                   (MEC_FRONT_TRACK_WIDTH + MEC_WHEELBASE) / 2,
-                                   (MEC_REAR_TRACK_WIDTH + MEC_WHEELBASE) / 2,
-                                   (MEC_REAR_TRACK_WIDTH + MEC_WHEELBASE) / 2);
+    // 使用 config.h 中的参数初始化运动学模型xssx
+    _kinematics     = new hybrid_kin_t(TRACK_SPACING,
+                                       (MEC_FRONT_TRACK_WIDTH + MEC_WHEELBASE) / 2,
+                                       (MEC_FRONT_TRACK_WIDTH + MEC_WHEELBASE) / 2,
+                                       (MEC_REAR_TRACK_WIDTH + MEC_WHEELBASE) / 2,
+                                       (MEC_REAR_TRACK_WIDTH + MEC_WHEELBASE) / 2);
     // float x = 0.15f;
     // _kinematics = new hybrid_kin_t(TRACK_SPACING,
     //                            0.15f + x,0.15f + x,0.66f - x, 0.66f - x);
+
+    _ctx.powermeter = new powermeter_drv_t(0x212, can_hub_t::can2);
+    _ctx.powermeter->init();
+
+    _power_control_init();
 
     return PYRO_OK;
 }
 
 void hybrid_chassis_t::_power_control_init()
 {
+    power_fit_params_t params;
 
+    // 麦轮（3508）功控参数
+    // 四组参数取平均后的结果
+    params.k1    = 0.03912453f; // 机械功率项系数
+    params.k2    = 0.06985056f; // 铜损/热损耗系数
+    params.k3    = 0.00001723f; // 高频摩擦系数 (转速平方项)
+    params.k4    = 0.00917522f; // 库仑摩擦系数 (摩擦损耗项)
+    params.k5    = 0.75000000f; // 静态基础功耗 (强制固定)
+    params.alpha = 0.00393f;    // 默认电阻温度系数
+
+    // 注册 4 个麦轮电机
+    for (int i = 0; i < 4; i++)
+    {
+        _ctx.power_motor_data[i] =
+            power_controller_t::get_instance().register_motor(params);
+    }
+
+    // 履带 （dm4310p）功控参数
+    params.k1    = 0.10707706f; // 机械功率项系数
+    params.k2    = 0.60690610f; // 铜损/热损耗系数
+    params.k3    = 0.00001238f; // 高频摩擦系数
+    params.k4    = 0.00000000f; // 库仑摩擦系数
+    params.k5    = 0.85000000f; // 静态基础功耗 (强制固定)
+    params.alpha = 0.00393f;    // 默认电阻温度系数
+
+    // 注册 2 个履带电机
+    for (int i = 0; i < 2; i++)
+    {
+        _ctx.power_motor_data[i + 4] =
+            power_controller_t::get_instance().register_motor(params);
+    }
+
+    // 初始化缓冲能量 PID (安全缓冲参考值设为 60J,pid默认值)
+    power_controller_t::get_instance().config_buffer_loop(60.0f);
 }
 
 
@@ -114,6 +156,10 @@ void hybrid_chassis_t::_update_feedback()
         _ctx.data.current_wheel_rpm[i] =
             radps_to_rpm(_ctx.motor.mecanum[i]->get_current_rotate() *
                          dji_m3508_motor_drv_t::reciprocal_reduction_ratio);
+        _ctx.data.current_mecanum_torque[i] =
+            _ctx.motor.mecanum[i]->get_current_torque();
+        _ctx.data.current_mecanum_temp[i] =
+            _ctx.motor.mecanum[i]->get_temperature();
         _ctx.data.wheel_online[i] = _ctx.motor.mecanum[i]->is_online();
     }
 
@@ -128,8 +174,14 @@ void hybrid_chassis_t::_update_feedback()
     _ctx.data.real_wz = real_vel.wz;
 
     for (int i = 0; i < 2; i++)
+    {
         _ctx.data.current_track_rpm[i] =
             radps_to_rpm(_ctx.motor.track[i]->get_current_rotate());
+        _ctx.data.current_track_torque[i] =
+            _ctx.motor.track[i]->get_current_torque();
+        _ctx.data.current_track_temp[i] =
+            _ctx.motor.track[i]->get_temperature();
+    }
 
     // 左右腿对称性修正：对右腿(leg[1])的读取数据取反，抹平机械差异
     // 左右腿对称性修正与机械零点 Offset 处理
@@ -146,6 +198,13 @@ void hybrid_chassis_t::_update_feedback()
         _ctx.motor.leg[1]->get_current_position() - RIGHT_LEG_OFFSET_RAD;
     _ctx.data.current_leg_rad[1] = loop_fp32_constrain(right_leg_raw, -PI, PI);
     _ctx.data.current_leg_radps[1] = _ctx.motor.leg[1]->get_current_rotate();
+
+
+    _ctx.powermeter->get_data(_ctx.powermeter_feedback);
+
+    _ctx.data.total_predicted_power = power_controller_t::get_instance().get_total_predicted_power();
+
+    _ctx.data.buf_energy = referee_drv_t::get_instance()->get_data().power_heat.buffer_energy;
 }
 
 // =========================================================
@@ -175,7 +234,7 @@ void hybrid_chassis_t::_kinematics_solve()
         _ctx.pid.follow_yaw_pid->calculate(0.0f, _ctx.data.current_yaw_error);
 
     // 最终角速度 = 跟随产生的角速度 + 选手手动输入的角速度(小陀螺/微调)
-    float final_wz          = follow_wz;
+    float final_wz      = follow_wz;
 
     // -------------------------------------------------------------
     // 2. 矢量旋转 (将云台坐标系速度转换到底盘坐标系)
@@ -193,19 +252,19 @@ void hybrid_chassis_t::_kinematics_solve()
     //                                              final_wz,
     //                                              _ctx.cmd->track_en);
 
-    const float theta       = _ctx.data.current_yaw_error;
+    const float theta   = _ctx.data.current_yaw_error;
     // const float theta   = 0;
 
-    const float c_theta     = arm_cos_f32(theta);
-    const float s_theta     = arm_sin_f32(theta);
+    const float c_theta = arm_cos_f32(theta);
+    const float s_theta = arm_sin_f32(theta);
 
     // 旋转矩阵公式 (逆时针旋转 theta)
-    float vx_chassis        = _ctx.cmd->vx * c_theta + _ctx.cmd->vy * s_theta;
-    float vy_chassis        = -_ctx.cmd->vx * s_theta + _ctx.cmd->vy * c_theta;
+    float vx_chassis    = _ctx.cmd->vx * c_theta + _ctx.cmd->vy * s_theta;
+    float vy_chassis    = -_ctx.cmd->vx * s_theta + _ctx.cmd->vy * c_theta;
 
     if (_ctx.cmd->crossing_en)
     {
-        vx_chassis = std::clamp(vx_chassis,-0.7f,0.7f);
+        vx_chassis = std::clamp(vx_chassis, -0.7f, 0.7f);
     }
 
 
@@ -279,7 +338,52 @@ void hybrid_chassis_t::_kinematics_solve()
 
 void hybrid_chassis_t::_power_control()
 {
+    // 1. 将底层反馈与 PID 输出的期望扭矩传入功率控制节点
+    for (int i = 0; i < 4; i++)
+    {
+        if (_ctx.power_motor_data[i] != nullptr)
+        {
+            _ctx.power_motor_data[i]->target_cmd =
+                _ctx.data.out_mecanum_torque[i];
+            _ctx.power_motor_data[i]->rpm  = _ctx.data.current_wheel_rpm[i];
+            _ctx.power_motor_data[i]->temp = _ctx.data.current_mecanum_temp[i];
+        }
+    }
 
+    for (int i = 0; i < 2; i++)
+    {
+        if (_ctx.power_motor_data[i + 4] != nullptr)
+        {
+            _ctx.power_motor_data[i + 4]->target_cmd =
+                _ctx.data.out_track_torque[i];
+            _ctx.power_motor_data[i + 4]->rpm = _ctx.data.current_track_rpm[i];
+            _ctx.power_motor_data[i + 4]->temp =
+                _ctx.data.current_track_temp[i];
+        }
+    }
+
+    // 2. 调用核心求解器进行动态功率限制
+
+    power_controller_t::get_instance().solve(referee_drv_t::get_instance()->get_data().robot_status.chassis_power_limit
+        ,referee_drv_t::get_instance()->get_data().power_heat.buffer_energy , 0);
+
+    // 3. 将解算后的安全指令写回到底盘数据上下文中，等待发送
+    for (int i = 0; i < 4; i++)
+    {
+        if (_ctx.power_motor_data[i] != nullptr)
+        {
+            _ctx.data.out_mecanum_torque[i] =
+                _ctx.power_motor_data[i]->safe_cmd;
+        }
+    }
+
+    for (int i = 0; i < 2; i++)
+    {
+        if (_ctx.power_motor_data[i + 4] != nullptr)
+        {
+            _ctx.data.out_track_torque[i] = _ctx.power_motor_data[i + 4]->safe_cmd;
+        }
+    }
 }
 
 

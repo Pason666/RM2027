@@ -14,7 +14,7 @@
 
 using namespace pyro;
 
-static pyro::hybrid_chassis_t *hybrid_chassis_ptr       = nullptr;
+pyro::hybrid_chassis_t *hybrid_chassis_ptr       = nullptr;
 static pyro::hybrid_cmd_t *hybrid_cmd_ptr               = nullptr;
 static pyro::hybrid_deps_t *hybrid_deps_ptr             = nullptr;
 
@@ -65,9 +65,9 @@ void chassis_rxcmd()
     {
         // 恢复旧代码的数值：将 1.2f 恢复为 1.0f
         hybrid_cmd_ptr->vx =
-            1.0f * static_cast<float>(static_cast<int8_t>(raw_data[0])) / 127.0f;
+            2.0f * static_cast<float>(static_cast<int8_t>(raw_data[0])) / 127.0f;
         hybrid_cmd_ptr->vy =
-            1.0f * static_cast<float>(static_cast<int8_t>(raw_data[1])) / 127.0f;
+            2.0f * static_cast<float>(static_cast<int8_t>(raw_data[1])) / 127.0f;
         hybrid_cmd_ptr->mode =
             static_cast<pyro::cmd_base_t::mode_t>(raw_data[3] & 0x01);
         hybrid_cmd_ptr->crossing_en    = (raw_data[3] & 0x02) != 0;
@@ -171,13 +171,13 @@ void deps_init()
     // NOLINTEND(cppcoreguidelines-pro-type-static-cast-downcast)
 
     hybrid_deps_ptr->pid_deps.mecanum_pid[0] =
-        new pid_t(0.35f, 0.0008f, 0.0002f, 1.0f, 20.0f, 20, 10, 4);
+        new pid_t(0.3f, 0.0008f, 0.0002f, 1.0f, 20.0f, 20, 10, 4);
     hybrid_deps_ptr->pid_deps.mecanum_pid[1] =
-        new pid_t(0.35f, 0.0008f, 0.0002f, 1.0f, 20.0f, 20, 10, 4);
+        new pid_t(0.3f, 0.0008f, 0.0002f, 1.0f, 20.0f, 20, 10, 4);
     hybrid_deps_ptr->pid_deps.mecanum_pid[2] =
-        new pid_t(0.35f, 0.0008f, 0.0002f, 1.0f, 20.0f, 20, 10, 4);
+        new pid_t(0.3f, 0.0008f, 0.0002f, 1.0f, 20.0f, 20, 10, 4);
     hybrid_deps_ptr->pid_deps.mecanum_pid[3] =
-        new pid_t(0.35f, 0.0008f, 0.0002f, 1.0f, 20.0f, 20, 10, 4);
+        new pid_t(0.3f, 0.0008f, 0.0002f, 1.0f, 20.0f, 20, 10, 4);
 
     hybrid_deps_ptr->pid_deps.follow_yaw_pid =
         new pid_t(5.0f, 0.0f, 0.1f, 0.0f, 10.0f, 200, 100, 4);

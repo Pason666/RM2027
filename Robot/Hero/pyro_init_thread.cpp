@@ -7,6 +7,8 @@
 #include "pyro_supercap_drv.h"
 #include "pyro_referee.h"
 #include "pyro_sr04_drv.h"
+#include "pyro_sr05_drv.h"
+#include "pyro_us100_drv.h"
 #include "pyro_vt03_rc_drv.h"
 
 namespace pyro
@@ -85,6 +87,21 @@ extern "C"
         sr04_drv::get_instance().init();
         sr04_drv::get_instance().start();
 #endif
+
+#ifdef US100_UART
+        US100_UART.reset(9600, UART_WORDLENGTH_8B, UART_STOPBITS_1,
+                         UART_PARITY_NONE);
+        us100_drv::get_instance().init();
+        us100_drv::get_instance().start();
+#endif
+
+#ifdef SR05_UART
+        SR05_UART.reset(9600, UART_WORDLENGTH_8B, UART_STOPBITS_1,
+                                UART_PARITY_NONE);
+        sr05_drv::get_instance().init();
+        sr05_drv::get_instance().start();
+#endif
+
 
         vTaskDelete(nullptr);
     }

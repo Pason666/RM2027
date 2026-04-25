@@ -36,6 +36,11 @@ extern "C"
         xTaskCreate(hero_chassis_init, "pyro_chassis_init", 512, nullptr,
                     configMAX_PRIORITIES - 2, nullptr);
 #endif
+
+#if DEBUG_MODE
+        xTaskCreate(start_debug_task, "start_debug_task", 512, nullptr,
+                    configMAX_PRIORITIES - 3, nullptr);
+#endif
         vTaskDelete(nullptr);
     }
 }

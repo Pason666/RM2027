@@ -1,4 +1,7 @@
 #include "pyro_us100_drv.h"
+
+#include "pyro_bsp_uart.h"
+#include "pyro_core_config.h"
 #include "pyro_core_dma_heap.h"
 
 namespace pyro

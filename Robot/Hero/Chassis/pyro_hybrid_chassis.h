@@ -8,6 +8,7 @@
 #include "pyro_ins.h" // 新增 IMU 依赖
 #include "hybrid_config.h"
 #include "pyro_power_control.h"
+#include "pyro_powermeter.h"
 
 namespace pyro
 {
@@ -68,6 +69,8 @@ class hybrid_chassis_t final
 {
     friend class module_base_t<hybrid_chassis_t, hybrid_cmd_t, hybrid_deps_t>;
 
+    friend class jcom_drv_t;
+
     struct motor_deps_t;
     struct pid_deps_t;
     struct data_ctx_t;
@@ -87,7 +90,7 @@ class hybrid_chassis_t final
     void _fsm_execute() override;
 
     // --- 派生方法 ---
-    static void _power_control_init();
+    void _power_control_init();
     void _kinematics_solve();
     void _power_control();
     void _mecanum_control();
@@ -133,6 +136,14 @@ class hybrid_chassis_t final
         float out_mecanum_torque[4]{};
         float out_track_torque[2]{};
         float out_leg_torque[2]{};
+
+        // 电机功率相关反馈
+        float current_mecanum_torque[4]{};
+        float current_mecanum_temp[4]{};
+        float current_track_torque[2]{};
+        float current_track_temp[2]{};
+        float total_predicted_power{};
+        float buf_energy{};
     };
 
     struct hybrid_context_t
@@ -140,6 +151,8 @@ class hybrid_chassis_t final
         hybrid_deps_t::motor_deps_t motor;
         hybrid_deps_t::pid_deps_t pid;
         data_ctx_t data;
+        powermeter_drv_t *powermeter{nullptr};
+        powermeter_data powermeter_feedback;
         power_node_t *power_motor_data[6]{};
         hybrid_cmd_t *cmd{};
     };

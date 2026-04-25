@@ -99,8 +99,11 @@ elseif (BOARD STREQUAL "CHASSIS_BOARD")
 
     target_compile_definitions(PYRo PUBLIC
             REFEREE_UART=PYRO_UART1
-            SUPERCAP_UART=PYRO_UART7
+#            SUPERCAP_UART=PYRO_UART7
+#            US100_UART=PYRO_UART10
+#            SR05_UART=PYRO_UART5
             SR04_UART=PYRO_UART10
+            JCOM_DEBUG_PORT=PYRO_UART7
     )
 endif ()
 

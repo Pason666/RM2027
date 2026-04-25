@@ -35,6 +35,8 @@ void hybrid_chassis_t::fsm_active_t::climbing_fsm_t::on_execute(owner *owner)
     // 2. 履带速度环控制 (履带正式介入，提供主要越障/爬坡推进力)
     owner->_track_control();
 
+    owner->_power_control();
+
 
     // ================= 自动收腿：施密特触发器逻辑 =================
 

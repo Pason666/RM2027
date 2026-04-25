@@ -59,7 +59,8 @@ class power_controller_t
     power_controller_t &operator=(const power_controller_t &) = delete;
 
     power_node_t *register_motor(const power_fit_params_t &params);
-    void config_buffer_pid(float safe_energy, float kp, float ki, float kd);
+    void config_buffer_loop(float safe_energy, float kp, float ki, float kd);
+    void config_buffer_loop(float safe_energy);
 
     // 核心修改：新增 cap_extra_power 参数，默认值为 0.0f 兼容无电容状态
     void solve(float referee_power_limit, float current_buffer_energy,

@@ -14,7 +14,7 @@ namespace pyro
 // =========================================================
 struct quad_booster_cmd_t final : public cmd_base_t
 {
-    bool fric_on;       // 摩擦轮开启
+    bool fric_on; // 摩擦轮开启
     bool sling_mode;
 
     uint8_t fire_count; // 拨弹计数器，替代 fire_enable
@@ -22,7 +22,8 @@ struct quad_booster_cmd_t final : public cmd_base_t
     float trig_target_spd; // 新增：拨弹盘目标速度
 
     quad_booster_cmd_t()
-        : fric_on(false), sling_mode(false), fire_count(0), trig_target_spd(0.0f)
+        : fric_on(false), sling_mode(false), fire_count(0),
+          trig_target_spd(0.0f)
     {
     }
 };
@@ -51,9 +52,9 @@ struct quad_deps_t
 // 2. 四轮发射机构类
 // =========================================================
 class quad_booster_t final
-    : public module_base_t<quad_booster_t, quad_booster_cmd_t,quad_deps_t>
+    : public module_base_t<quad_booster_t, quad_booster_cmd_t, quad_deps_t>
 {
-    friend class module_base_t<quad_booster_t, quad_booster_cmd_t,quad_deps_t>;
+    friend class module_base_t<quad_booster_t, quad_booster_cmd_t, quad_deps_t>;
     friend class jcom_drv_t;
 
     struct motor_ctx_t;
@@ -108,7 +109,7 @@ class quad_booster_t final
 
         float launch_delay_timer[3]{}; // 发射延时计时器
         float signal_timer{0};         // 信号持续时间计时器
-        float avg_launch_delay{0};      // 平均发射延时
+        float avg_launch_delay{0};     // 平均发射延时
         uint32_t fresh_timer{0};       // 发弹延迟计算的刷新计时器
 
         // 反馈
@@ -143,8 +144,8 @@ class quad_booster_t final
         quad_deps_t::motor_deps_t motor;
         quad_deps_t::pid_deps_t pid;
         data_ctx_t data;
-        shoot_data_t shoot_normal_data{11.7f, 11.3f, 8.0f};
-        shoot_data_t shoot_sling_data{16.2f,15.5f,8.0f};
+        shoot_data_t shoot_normal_data{16.2f, 15.5f,10.0f};
+        shoot_data_t shoot_sling_data{16.2f, 15.5f, 10.0f};
         quad_booster_cmd_t *cmd{};
     };
 
@@ -161,7 +162,7 @@ class quad_booster_t final
         void execute(owner *owner) override;
         void exit(owner *owner) override;
 
-    private:
+      private:
         bool _trigger_stopped{false}; // 用于确保拨弹盘完全停止后发0
     };
 
@@ -172,7 +173,8 @@ class quad_booster_t final
             void enter(owner *owner) override;
             void execute(owner *owner) override;
             void exit(owner *owner) override;
-        private:
+
+          private:
             float _homing_turnback_start_time{0.0f};
         };
         struct state_interim_t final : public state_t<owner>
@@ -220,7 +222,6 @@ class quad_booster_t final
     fsm_active_t _state_active;
     state_temp_t _state_temp;
     fsm_t<owner> _main_fsm;
-
 };
 
 } // namespace pyro

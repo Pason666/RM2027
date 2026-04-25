@@ -48,8 +48,8 @@ if (BOARD STREQUAL "GIMBAL_BOARD")
             # === Communication ===
             Communication/Gimbal_board/pyro_autoaim_drv.cpp
             Communication/Gimbal_board/pyro_autoaim_com.cpp
-            Communication/Gimbal_board/pyro_custom_drv.cpp
-            Communication/Gimbal_board/pyro_custom_com.cpp
+#            Communication/Gimbal_board/pyro_custom_drv.cpp
+#            Communication/Gimbal_board/pyro_custom_com.cpp
 
             pyro_mission_planer.cpp
             pyro_init_thread.cpp
@@ -68,7 +68,7 @@ if (BOARD STREQUAL "GIMBAL_BOARD")
             VT03_UART=PYRO_UART1
             AUTOAIM_UART=PYRO_UART7
             IMAGE_UART=PYRO_UART1
-            CUSTOM_UART=PYRO_UART10
+#            CUSTOM_UART=PYRO_UART10
     )
 
 elseif (BOARD STREQUAL "CHASSIS_BOARD")

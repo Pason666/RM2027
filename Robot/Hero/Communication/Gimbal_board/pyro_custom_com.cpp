@@ -51,7 +51,7 @@ extern "C"
             forward_referee_to_pc();
 
             // 3. 延时让出 CPU
-            // 轮询速率提高到 2ms，由业务逻辑 forward_pc_to_referee 自行控制 21ms 的发送间隔
+            // 轮询速率 2ms
             vTaskDelay(pdMS_TO_TICKS(2));
         }
     }
@@ -99,8 +99,8 @@ static void forward_pc_to_referee()
     if (has_pending_data) {
         float current_time = dwt_drv_t::get_timeline_ms();
 
-        // 严格遵循裁判系统 50Hz (20ms) 限制，保守设置为 21ms
-        if ((current_time - last_send_time_ms) >= 21.0f) {
+        // 进行基础流控，主要流控由pc端完成
+        if ((current_time - last_send_time_ms) >= 16.0f) {
 
             // 拿到图传链路的 DMA 零拷贝发送句柄
             auto &image_tx_data = image_drv_ptr->get_client_tx_data();

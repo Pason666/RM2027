@@ -1,5 +1,6 @@
 #include "pyro_quad_booster.h"
 #include "pyro_algo_common.h"
+#include "pyro_bsp_uart.h"
 #include "pyro_com_canrx.h"
 #include "pyro_dwt_drv.h"
 #include <cmath>
@@ -72,6 +73,75 @@ void quad_booster_t::_fsm_execute()
     _main_fsm.execute(this);
 }
 
+#include <cstdint>
+
+__attribute__((section(".dma_heap"))) char shoot_speed[10];
+
+/**
+ * @brief 轻量级浮点数转字符函数（保留5位小数）
+ * @param value 要转换的浮点数
+ * @param buffer 输出的字符数组
+ * @param max_len 数组最大长度（防止越界）
+ */
+void float_to_char_5_decimals(float value, char* buffer, int max_len)
+{
+    int idx = 0;
+
+    // 1. 处理符号
+    if (value < 0) {
+        if (idx < max_len - 1) buffer[idx++] = '-';
+        value = -value;
+    }
+
+    // 2. 分离整数和小数部分
+    int int_part = (int)value;
+    // 加 0.5f 用于实现最后一位的四舍五入
+    int frac_part = (int)((value - (float)int_part) * 100000.0f + 0.5f);
+
+    // 处理四舍五入导致的进位
+    if (frac_part >= 100000) {
+        int_part++;
+        frac_part -= 100000;
+    }
+
+    // 3. 计算整数部分的位数
+    int temp = int_part;
+    int num_digits = 0;
+    do {
+        num_digits++;
+        temp /= 10;
+    } while (temp > 0);
+
+    // 4. 边界安全检查：符号位 + 整数位数 + 小数点(1) + 5位小数 + 结束符(1)
+    if (idx + num_digits + 1 + 5 + 1 > max_len) {
+        // 如果越界（例如弹速异常到了三位数），默认安全返回全0
+        buffer[0] = '0';
+        buffer[1] = '\0';
+        return;
+    }
+
+    // 5. 提取整数部分（逆序写入）
+    for (int i = num_digits - 1; i >= 0; i--) {
+        buffer[idx + i] = '0' + (int_part % 10);
+        int_part /= 10;
+    }
+    idx += num_digits;
+
+    // 6. 写入小数点
+    buffer[idx++] = '.';
+
+    // 7. 提取小数部分（固定提取5位）
+    for (int i = 4; i >= 0; i--) {
+        buffer[idx + i] = '0' + (frac_part % 10);
+        frac_part /= 10;
+    }
+    idx += 5;
+
+    // 8. 添加字符串结束符
+    buffer[idx] = '\n';
+    buffer[idx + 1] = '\0';
+}
+
 void quad_booster_t::_speed_control()
 {
     std::array<uint8_t, 8> raw_data{};
@@ -84,6 +154,11 @@ void quad_booster_t::_speed_control()
         shoot_data.ball_speed[2] = shoot_data.ball_speed[1];
         shoot_data.ball_speed[1] = shoot_data.ball_speed[0];
         shoot_data.ball_speed[0] = *reinterpret_cast<float *>(raw_data.data());
+
+        float_to_char_5_decimals(shoot_data.ball_speed[0], shoot_speed, sizeof(shoot_speed));
+
+        bsp_uart::get_uart10().write(reinterpret_cast<const uint8_t *>(shoot_speed), strlen(shoot_speed));
+
 
         for (float & i : shoot_data.ball_speed)
         {
@@ -109,7 +184,7 @@ void quad_booster_t::_speed_control()
 
         float speed_increment = _ctx.pid.ball_speed_pid->calculate(0.0f, signed_weighted_mse);
 
-        shoot_data.fric1_mps += speed_increment;
+        // shoot_data.fric1_mps += speed_increment;
 
         // 共用限幅 9-17
         shoot_data.fric1_mps = std::clamp(shoot_data.fric1_mps, 9.0f, 17.0f);

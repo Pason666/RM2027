@@ -147,7 +147,7 @@ void custom_drv_t::unpack(const rx_packet_t *buf)
         if (_rx_data_queue != nullptr) {
             // 如果队列已满，丢弃最老的一包以保证实时性
             if (uxQueueSpacesAvailable(_rx_data_queue) == 0) {
-                rx_data_t dummy;
+                rx_data_t dummy{};
                 xQueueReceive(_rx_data_queue, &dummy, 0);
             }
             xQueueSend(_rx_data_queue, &buf->payload, 0);

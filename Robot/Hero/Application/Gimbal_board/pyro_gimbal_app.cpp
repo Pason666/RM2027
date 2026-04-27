@@ -362,5 +362,5 @@ void deps_init()
     screw_gimbal_deps->pid_deps.yaw_relative_pos =
         new pid_t(10.0f, 1.00f, 0.06f, 0.3f, 3.0f, 50, 20, 4);
     screw_gimbal_deps->pid_deps.yaw_relative_spd =
-        new pid_t(1.6f, 0.1f, 0.012f, 0.3f, 3.0f, 10, 5, 4);
+        new pid_t(1.8f, 0.1f, 0.012f, 0.3f, 3.0f, 10, 5, 4);
 }

@@ -225,6 +225,7 @@ void screw_gimbal_t::_gimbal_sling_control()
     }
 
     _ctx.data.out_yaw_torque = yaw_pid_out + yaw_friction_comp;
+    // _ctx.data.out_yaw_torque = yaw_pid_out;
     _ctx.data.out_yaw_torque = std::clamp(_ctx.data.out_yaw_torque, -YAW_SLING_TORQUE_LIMIT, YAW_SLING_TORQUE_LIMIT);
 }
 

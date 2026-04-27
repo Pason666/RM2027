@@ -170,14 +170,16 @@ void deps_init()
         ->set_torque_range(-27.0f, 27.0f);
     // NOLINTEND(cppcoreguidelines-pro-type-static-cast-downcast)
 
+	// 3508 手册的最大电流为 10 A
+	// C620 电调提供的 3508性能曲线表示在电流 > 10A 时变化不大
     hybrid_deps_ptr->pid_deps.mecanum_pid[0] =
-        new pid_t(0.3f, 0.0008f, 0.0002f, 1.0f, 20.0f, 20, 10, 4);
+        new pid_t(0.3f, 0.0008f, 0.0002f, 1.0f, 10.0f, 20, 10, 4);
     hybrid_deps_ptr->pid_deps.mecanum_pid[1] =
-        new pid_t(0.3f, 0.0008f, 0.0002f, 1.0f, 20.0f, 20, 10, 4);
+        new pid_t(0.3f, 0.0008f, 0.0002f, 1.0f, 10.0f, 20, 10, 4);
     hybrid_deps_ptr->pid_deps.mecanum_pid[2] =
-        new pid_t(0.3f, 0.0008f, 0.0002f, 1.0f, 20.0f, 20, 10, 4);
+        new pid_t(0.3f, 0.0008f, 0.0002f, 1.0f, 10.0f, 20, 10, 4);
     hybrid_deps_ptr->pid_deps.mecanum_pid[3] =
-        new pid_t(0.3f, 0.0008f, 0.0002f, 1.0f, 20.0f, 20, 10, 4);
+        new pid_t(0.3f, 0.0008f, 0.0002f, 1.0f, 10.0f, 20, 10, 4);
 
     hybrid_deps_ptr->pid_deps.follow_yaw_pid =
         new pid_t(5.0f, 0.0f, 0.1f, 0.0f, 10.0f, 200, 100, 4);

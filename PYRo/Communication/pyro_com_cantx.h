@@ -21,6 +21,8 @@ public:
         add_data_raw(id, bit_len, &data);
     }
 
+    static void add_data_raw(uint32_t id, uint8_t bit_len, const void *data);
+
     // 【修改点1】 增加 driver 参数，不再依赖内部成员
     static void send(uint32_t id, can_drv_t *driver);
 
@@ -28,7 +30,7 @@ private:
     can_tx_drv_t();
     ~can_tx_drv_t();
 
-    static void add_data_raw(uint32_t id, uint8_t bit_len, const void *data);
+
 
     struct frame_node_t
     {

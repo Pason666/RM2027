@@ -48,8 +48,8 @@ if (BOARD STREQUAL "GIMBAL_BOARD")
             # === Communication ===
             Communication/Gimbal_board/pyro_autoaim_drv.cpp
             Communication/Gimbal_board/pyro_autoaim_com.cpp
-#            Communication/Gimbal_board/pyro_custom_drv.cpp
-#            Communication/Gimbal_board/pyro_custom_com.cpp
+            Communication/Gimbal_board/pyro_custom_drv.cpp
+            Communication/Gimbal_board/pyro_custom_com.cpp
 
             pyro_mission_planer.cpp
             pyro_init_thread.cpp
@@ -68,7 +68,7 @@ if (BOARD STREQUAL "GIMBAL_BOARD")
             VT03_UART=PYRO_UART1
             AUTOAIM_UART=PYRO_UART7
             IMAGE_UART=PYRO_UART1
-#            CUSTOM_UART=PYRO_UART10
+            CUSTOM_UART=PYRO_UART10
     )
 
 elseif (BOARD STREQUAL "CHASSIS_BOARD")
@@ -86,6 +86,12 @@ elseif (BOARD STREQUAL "CHASSIS_BOARD")
             Chassis/fsm/pyro_hybrid_passive_state.cpp
             Chassis/fsm/pyro_hybrid_track_climbing_state.cpp
 
+            # === Communication ===
+            Communication/Chassis_board/pyro_board_com.cpp
+            Communication/Chassis_board/pyro_board_drv.cpp
+
+
+
             pyro_mission_planer.cpp
             pyro_init_thread.cpp
     )
@@ -94,6 +100,7 @@ elseif (BOARD STREQUAL "CHASSIS_BOARD")
     target_include_directories(Hero
             PUBLIC
             ${CMAKE_CURRENT_SOURCE_DIR}/Chassis
+            ${CMAKE_CURRENT_SOURCE_DIR}/Communication/Chassis_board
             ${CMAKE_CURRENT_SOURCE_DIR}
     )
 

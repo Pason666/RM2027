@@ -31,10 +31,6 @@ enum class cmd_id : uint16_t
     REFEREE_WARNING     = 0x0104, // 裁判警告数据
     DART_INFO           = 0x0105, // 飞镖发射相关数据
 
-    // Rx: 自主决策
-    SENTRY_CMD          = 0x0120, // [V1.2] 哨兵自主决策指令
-    RADAR_CMD           = 0x0121, // [V1.2] 雷达自主决策指令
-
     ROBOT_STATE         = 0x0201, // 机器人性能体系数据
     POWER_HEAT_DATA     = 0x0202, // 实时功率热量数据
     ROBOT_POS           = 0x0203, // 机器人位置
@@ -74,8 +70,8 @@ enum class interaction_sub_cmd : uint16_t
     ROBOT_COMM_START = 0x0200,
     ROBOT_COMM_END   = 0x02FF,
     // 自主决策指令
-    SENTRY_CMD       = 0x0120,
-    RADAR_CMD        = 0x0121,
+    SENTRY_CMD       = 0x0120, // [V1.2] 哨兵自主决策指令
+    RADAR_CMD        = 0x0121, // [V1.2] 雷达自主决策指令
 };
 
 // 帧头结构
@@ -86,8 +82,6 @@ struct frame_header_t
     uint8_t seq;
     uint8_t crc8;
 };
-
-/* ----------------- Structure Definitions ----------------- */
 
 /* ----------------- Structure Definitions ----------------- */
 
@@ -119,21 +113,21 @@ struct game_robot_hp_t
     uint16_t base_hp;
 };
 
-// 0x0101 场地事件数据 (重构为位域，精准贴合 RM 常规机制)
+// [修复] 0x0101 场地事件数据
 struct event_data_t
 {
-    uint32_t supply_heal_zone_1     : 1; // bit 0: 己方补血点 1 占领状态 (1为已占领)
-    uint32_t supply_heal_zone_2     : 1; // bit 1: 己方补血点 2 占领状态
-    uint32_t supply_heal_zone_3     : 1; // bit 2: 己方补血点 3 占领状态
-    uint32_t energy_mechanism_small : 1; // bit 3: 己方小能量机关激活状态
-    uint32_t energy_mechanism_big   : 1; // bit 4: 己方大能量机关激活状态
-    uint32_t circular_high_ground_2 : 1; // bit 5: 己方 2 号环形高地占领状态
-    uint32_t circular_high_ground_3 : 1; // bit 6: 己方 3 号环形高地占领状态
-    uint32_t circular_high_ground_4 : 1; // bit 7: 己方 4 号环形高地占领状态
-    uint32_t base_virtual_shield    : 1; // bit 8: 己方基地虚拟护盾状态 (1为有护盾)
-    uint32_t outpost_survival       : 1; // bit 9: 己方前哨战存活状态 (1为存活)
-    uint32_t energy_mechanism_hit   : 1; // bit 10: 己方能量机关是否有击打条件
-    uint32_t reserved               : 21;// bit 11-31: 保留
+    uint32_t supply_zone                : 3; // bit 0-2: 己方补给区的占领状态
+    uint32_t energy_mechanism_small     : 2; // bit 3-4: 己方小能量机关的激活状态
+    uint32_t energy_mechanism_big       : 2; // bit 5-6: 己方大能量机关的激活状态
+    uint32_t circular_high_ground       : 2; // bit 7-8: 己方中央高地的占领状态
+    uint32_t trapezoidal_high_ground    : 2; // bit 9-10: 己方梯形高地的占领状态
+    uint32_t dart_last_hit_time         : 9; // bit 11-19: 对方飞镖最后一次击中己方前哨站或基地的时间
+    uint32_t dart_last_hit_target       : 3; // bit 20-22: 对方飞镖最后一次击中己方前哨站或基地的具体目标
+    uint32_t center_buff_zone           : 2; // bit 23-24: 中心增益点的占领状态 (仅RMUL适用)
+    uint32_t fortress_buff_zone         : 2; // bit 25-26: 己方堡垒增益点的占领状态
+    uint32_t outpost_buff_zone          : 2; // bit 27-28: 己方前哨站增益点的占领状态
+    uint32_t base_buff_zone             : 1; // bit 29: 己方基地增益点的占领状态
+    uint32_t reserved                   : 2; // bit 30-31: 保留
 };
 
 // 0x0104
@@ -144,12 +138,14 @@ struct referee_warning_t
     uint8_t count;
 };
 
-// 0x0105 飞镖信息
+// [修复] 0x0105 飞镖信息
 struct dart_info_t
 {
     uint8_t dart_remaining_time;
-    uint16_t dart_aim_target : 2;  // bit 0-1: 最近一次飞镖的打击目标 (1:前哨战, 2:基地)
-    uint16_t reserved        : 14; // bit 2-15: 保留
+    uint16_t dart_last_hit_target  : 3;  // bit 0-2: 最近一次己方飞镖击中的目标
+    uint16_t dart_target_hit_count : 3;  // bit 3-5: 对方最近被击中的目标累计被击中计次数
+    uint16_t dart_aim_target       : 3;  // bit 6-8: 飞镖此时选定的击打目标
+    uint16_t reserved              : 7;  // bit 9-15: 保留
 };
 
 // 0x0201 机器人状态数据 (增加 reserved 补齐字节对齐)
@@ -225,19 +221,41 @@ struct projectile_allowance_t
     uint16_t projectile_allowance_fortress;
 };
 
-// 0x0209 机器人 RFID 状态 (重构为位域)
+// [修复] 0x0209 机器人 RFID 状态 (补全32位与附带的状态2)
 struct rfid_status_t
 {
-    uint32_t base_buff             : 1; // bit 0: 基地增益点 RFID 状态
-    uint32_t circular_high_ground  : 1; // bit 1: 环形高地增益点 RFID 状态
-    uint32_t enemy_circular_high   : 1; // bit 2: 对方环形高地增益点 RFID 状态
-    uint32_t friendly_outpost      : 1; // bit 3: 己方前哨站增益点 RFID 状态
-    uint32_t friendly_heal_zone    : 1; // bit 4: 己方补血点增益点 RFID 状态
-    uint32_t sentry_patrol_zone    : 1; // bit 5: 哨兵巡逻区 RFID 状态
-    uint32_t enemy_outpost         : 1; // bit 6: 对方前哨站增益点 RFID 状态
-    uint32_t friendly_heal_zone_in : 1; // bit 7: 己方补血点内部 RFID 状态
-    uint32_t center_buff           : 1; // bit 8: 中心增益点 RFID 状态
-    uint32_t reserved              : 23;// bit 9-31: 保留
+    uint32_t ally_base_buff                   : 1; // bit 0
+    uint32_t ally_circular_high               : 1; // bit 1
+    uint32_t enemy_circular_high              : 1; // bit 2
+    uint32_t ally_trapezoidal_high            : 1; // bit 3
+    uint32_t enemy_trapezoidal_high           : 1; // bit 4
+    uint32_t ally_fly_ramp_front              : 1; // bit 5
+    uint32_t ally_fly_ramp_back               : 1; // bit 6
+    uint32_t enemy_fly_ramp_front             : 1; // bit 7
+    uint32_t enemy_fly_ramp_back              : 1; // bit 8
+    uint32_t ally_circular_high_down          : 1; // bit 9
+    uint32_t ally_circular_high_up            : 1; // bit 10
+    uint32_t enemy_circular_high_down         : 1; // bit 11
+    uint32_t enemy_circular_high_up           : 1; // bit 12
+    uint32_t ally_highway_down                : 1; // bit 13
+    uint32_t ally_highway_up                  : 1; // bit 14
+    uint32_t enemy_highway_down               : 1; // bit 15
+    uint32_t enemy_highway_up                 : 1; // bit 16
+    uint32_t ally_fortress_buff               : 1; // bit 17
+    uint32_t ally_outpost_buff                : 1; // bit 18
+    uint32_t ally_supply_no_overlap           : 1; // bit 19
+    uint32_t ally_supply_overlap              : 1; // bit 20
+    uint32_t ally_assembly_buff               : 1; // bit 21
+    uint32_t enemy_assembly_buff              : 1; // bit 22
+    uint32_t center_buff                      : 1; // bit 23
+    uint32_t enemy_fortress_buff              : 1; // bit 24
+    uint32_t enemy_outpost_buff               : 1; // bit 25
+    uint32_t ally_tunnel_highway_down         : 1; // bit 26
+    uint32_t ally_tunnel_highway_mid          : 1; // bit 27
+    uint32_t ally_tunnel_highway_up           : 1; // bit 28
+    uint32_t ally_tunnel_trapezoidal_low      : 1; // bit 29
+    uint32_t ally_tunnel_trapezoidal_mid      : 1; // bit 30
+    uint32_t ally_tunnel_trapezoidal_high     : 1; // bit 31
 
     uint8_t rfid_status_2;
 };
@@ -353,6 +371,5 @@ struct referee_data_t
 #pragma pack(pop)
 
 } // namespace pyro
-
 
 #endif // ROBOMASTER_PROTOCOL_H

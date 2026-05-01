@@ -287,3 +287,29 @@ HAL_UART_ErrorCallback(UART_HandleTypeDef *huart)
         drv->enable_rx_dma();
     }
 }
+
+// 【新增】DMA 硬件发送完成中断回调
+extern "C" __attribute__((section(".itcm_text"))) void
+HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart)
+{
+    // 通过硬件句柄查找对应的 C++ 驱动实例
+    const auto it = pyro::uart_drv_t::uart_map().find(huart);
+    static BaseType_t xHigherPriorityTaskWoken = pdFALSE;
+
+    if (it != pyro::uart_drv_t::uart_map().end() && it->second)
+    {
+        const auto drv = it->second;
+        drv->state.tx_busy = 0; // 清除忙碌状态
+
+        // 触发已注册的 TX 完成回调（如果有）
+        if (drv->_tx_cplt_callback)
+        {
+            drv->_tx_cplt_callback(xHigherPriorityTaskWoken);
+        }
+    }
+
+    if (xHigherPriorityTaskWoken)
+    {
+        portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
+    }
+}

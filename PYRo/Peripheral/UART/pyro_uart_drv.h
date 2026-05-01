@@ -63,6 +63,9 @@ class uart_drv_t
     using rx_event_func = std::function<bool(
         uint8_t *p, uint16_t size, BaseType_t& xHigherPriorityTaskWoken)>;
 
+    // 【新增】定义 TX 发送完成的事件回调函数类型
+    using tx_cplt_func = std::function<void(BaseType_t& xHigherPriorityTaskWoken)>;
+
     /**
      * @brief Structure to store registered RX callbacks.
      * 用于存储已注册接收回调的结构体。
@@ -141,6 +144,11 @@ public:
      */
     status_t remove_rx_event_callback(uint32_t owner);
 
+    // 【新增】注册 TX 发送完成回调
+    void set_tx_cplt_callback(const tx_cplt_func &func) {
+        _tx_cplt_callback = func;
+    }
+
     /* Public Methods - HAL Callback Registration ----------------------------*/
     status_t register_event_callback(pUART_RxEventCallbackTypeDef pCallback) const;
     status_t unregister_event_callback() const;
@@ -160,6 +168,9 @@ public:
     // List of registered RX callbacks.
     // 已注册的接收回调列表。
     std::vector<rx_event_callback_t> rx_event_callbacks;
+    // 【新增】保存 TX 发送完成的回调函数
+    tx_cplt_func _tx_cplt_callback = nullptr;
+
 
     // Double buffers for DMA reception.
     // 用于 DMA 接收的双缓冲区。
@@ -195,6 +206,8 @@ private:
     // Size of each RX buffer.
     // 单个接收缓冲区的大小。
     uint16_t _rx_buf_size{};
+
+
 };
 
 } // namespace pyro

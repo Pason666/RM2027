@@ -3,7 +3,7 @@
 # =========================================================================
 #set(BOARD "GIMBAL_BOARD")
 set(BOARD "CHASSIS_BOARD")
-
+#
 # =========================================================================
 # 2. 声明Hero目标文件库（OBJECT库，仅编译目标文件不链接，保留原工程逻辑）
 # =========================================================================
@@ -50,6 +50,8 @@ if (BOARD STREQUAL "GIMBAL_BOARD")
             Communication/Gimbal_board/pyro_autoaim_com.cpp
             Communication/Gimbal_board/pyro_custom_drv.cpp
             Communication/Gimbal_board/pyro_custom_com.cpp
+            Communication/Gimbal_board/pyro_board_com.cpp
+            Communication/Gimbal_board/pyro_board_drv.cpp
 
             pyro_mission_planer.cpp
             pyro_init_thread.cpp

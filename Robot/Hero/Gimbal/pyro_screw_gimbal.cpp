@@ -1,6 +1,6 @@
 #include "pyro_screw_gimbal.h"
 #include "pyro_ins.h"
-#include "pyro_com_canrx.h"
+#include "pyro_board_drv.h"
 #include "pyro_algo_common.h"
 #include "pyro_dwt_drv.h"
 #include "screw_config.h"
@@ -23,7 +23,6 @@ status_t screw_gimbal_t::_init()
     _ctx.motor = _module_deps.motor_deps;
     _ctx.pid   = _module_deps.pid_deps;
 
-    pyro::can_rx_drv_t::subscribe(can_hub_t::which_can::can1, 0x103);
     return PYRO_OK;
 }
 
@@ -277,16 +276,17 @@ void screw_gimbal_t::_send_motor_command(gimbal_context_t *ctx)
 
 void screw_gimbal_t::_communicate_chassis()
 {
-    std::array<uint8_t, 8> raw_data{};
-    if (pyro::can_rx_drv_t::get_data(pyro::can_hub_t::which_can::can1, 0x103,
-                                     raw_data))
+    auto &board_drv = board_drv_t::get_instance(board_drv_t::role_t::GIMBAL, can_hub_t::can1);
+    if (!board_drv.check_online())
     {
-        auto *src              = reinterpret_cast<int16_t *>(raw_data.data());
-        _ctx.data.chassis_q[0] = static_cast<float>(src[0]) / 32767.0f;
-        _ctx.data.chassis_q[1] = static_cast<float>(src[1]) / 32767.0f;
-        _ctx.data.chassis_q[2] = static_cast<float>(src[2]) / 32767.0f;
-        _ctx.data.chassis_q[3] = static_cast<float>(src[3]) / 32767.0f;
+        return;
     }
+
+    const auto &rx_data = board_drv.get_c2g_rx_data();
+    _ctx.data.chassis_q[0] = static_cast<float>(rx_data.chassis_q[0]) / 32767.0f;
+    _ctx.data.chassis_q[1] = static_cast<float>(rx_data.chassis_q[1]) / 32767.0f;
+    _ctx.data.chassis_q[2] = static_cast<float>(rx_data.chassis_q[2]) / 32767.0f;
+    _ctx.data.chassis_q[3] = static_cast<float>(rx_data.chassis_q[3]) / 32767.0f;
 }
 
 void screw_gimbal_t::_calculate_relative_angles()

@@ -1,7 +1,7 @@
 #include "pyro_quad_booster.h"
 #include "pyro_algo_common.h"
 #include "pyro_bsp_uart.h"
-#include "pyro_com_canrx.h"
+#include "pyro_board_drv.h"
 #include "pyro_dwt_drv.h"
 #include <cmath>
 #include "quad_config.h"
@@ -18,7 +18,6 @@ status_t quad_booster_t::_init()
 {
     _ctx.motor = _module_deps.motor_deps;
     _ctx.pid   = _module_deps.pid_deps;
-    can_rx_drv_t::subscribe(can_hub_t::can1, 0x135);
     _ctx.pid.ball_speed_pid = new pid_t(0.32f, 0.0f, 0.005f, 0.0f, 2.0f);
 
     return PYRO_OK;
@@ -144,51 +143,66 @@ void float_to_char_5_decimals(float value, char* buffer, int max_len)
 
 void quad_booster_t::_speed_control()
 {
-    std::array<uint8_t, 8> raw_data{};
+    static uint16_t last_launching_num = 0;
+    auto &board_drv =
+        board_drv_t::get_instance(board_drv_t::role_t::GIMBAL, can_hub_t::can1);
+    board_drv_t::event_shoot_t shoot_event{};
+
+    if (!board_drv.read_event(board_drv_t::EVENT_C2G_SHOOT, shoot_event))
+    {
+        return;
+    }
+
+    if (shoot_event.launching_num == last_launching_num)
+    {
+        return;
+    }
+    last_launching_num = shoot_event.launching_num;
 
     // 根据吊射模式切换数据引用
-    auto &shoot_data = _ctx.cmd->sling_mode ? _ctx.shoot_sling_data : _ctx.shoot_normal_data;
+    auto &shoot_data = _ctx.cmd->sling_mode ? _ctx.shoot_sling_data
+                                            : _ctx.shoot_normal_data;
 
-    if (can_rx_drv_t::get_data(pyro::can_hub_t::can1, 0x135, raw_data))
+    shoot_data.ball_speed[2] = shoot_data.ball_speed[1];
+    shoot_data.ball_speed[1] = shoot_data.ball_speed[0];
+    shoot_data.ball_speed[0] = shoot_event.shoot_speed;
+
+    float_to_char_5_decimals(shoot_data.ball_speed[0], shoot_speed,
+                             sizeof(shoot_speed));
+
+    bsp_uart::get_uart10().write(reinterpret_cast<const uint8_t *>(shoot_speed),
+                                 strlen(shoot_speed));
+
+
+    for (float &i : shoot_data.ball_speed)
     {
-        shoot_data.ball_speed[2] = shoot_data.ball_speed[1];
-        shoot_data.ball_speed[1] = shoot_data.ball_speed[0];
-        shoot_data.ball_speed[0] = *reinterpret_cast<float *>(raw_data.data());
-
-        float_to_char_5_decimals(shoot_data.ball_speed[0], shoot_speed, sizeof(shoot_speed));
-
-        bsp_uart::get_uart10().write(reinterpret_cast<const uint8_t *>(shoot_speed), strlen(shoot_speed));
-
-
-        for (float & i : shoot_data.ball_speed)
-        {
-            if (i == 0.0f)
-                i = shoot_data.target_speed;
-        }
-
-        constexpr float w0 = 0.72f;
-        constexpr float w1 = 0.21f;
-        constexpr float w2 = 0.07f;
-
-        shoot_data.avg_ball_speed = w0 * shoot_data.ball_speed[0] +
-                                    w1 * shoot_data.ball_speed[1] +
-                                    w2 * shoot_data.ball_speed[2];
-
-        float e0 = shoot_data.ball_speed[0] - shoot_data.target_speed;
-        float e1 = shoot_data.ball_speed[1] - shoot_data.target_speed;
-        float e2 = shoot_data.ball_speed[2] - shoot_data.target_speed;
-
-        float signed_weighted_mse = (w0 * e0 * std::abs(e0)) +
-                                    (w1 * e1 * std::abs(e1)) +
-                                    (w2 * e2 * std::abs(e2));
-
-        float speed_increment = _ctx.pid.ball_speed_pid->calculate(0.0f, signed_weighted_mse);
-
-        // shoot_data.fric1_mps += speed_increment;
-
-        // 共用限幅 9-17
-        shoot_data.fric1_mps = std::clamp(shoot_data.fric1_mps, 9.0f, 17.0f);
+        if (i == 0.0f)
+            i = shoot_data.target_speed;
     }
+
+    constexpr float w0 = 0.72f;
+    constexpr float w1 = 0.21f;
+    constexpr float w2 = 0.07f;
+
+    shoot_data.avg_ball_speed = w0 * shoot_data.ball_speed[0] +
+                                w1 * shoot_data.ball_speed[1] +
+                                w2 * shoot_data.ball_speed[2];
+
+    float e0 = shoot_data.ball_speed[0] - shoot_data.target_speed;
+    float e1 = shoot_data.ball_speed[1] - shoot_data.target_speed;
+    float e2 = shoot_data.ball_speed[2] - shoot_data.target_speed;
+
+    float signed_weighted_mse = (w0 * e0 * std::abs(e0)) +
+                                (w1 * e1 * std::abs(e1)) +
+                                (w2 * e2 * std::abs(e2));
+
+    float speed_increment =
+        _ctx.pid.ball_speed_pid->calculate(0.0f, signed_weighted_mse);
+
+    // shoot_data.fric1_mps += speed_increment;
+
+    // 共用限幅 9-17
+    shoot_data.fric1_mps = std::clamp(shoot_data.fric1_mps, 9.0f, 17.0f);
 }
 
 void quad_booster_t::_launch_delay_calculate()
@@ -290,3 +304,4 @@ quad_booster_t::booster_ctx_t quad_booster_t::get_ctx() const
 }
 
 } // namespace pyro
+

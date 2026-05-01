@@ -98,7 +98,6 @@ class hybrid_chassis_t final
     void _leg_vmc();
     void _leg_length_control();
     void _send_motor_command() const;
-    void _communicate_gimbal() const;
     hybrid_kin_t *_kinematics{nullptr};
 
     // 运行时数据
@@ -232,3 +231,4 @@ class hybrid_chassis_t final
 } // namespace pyro
 
 #endif
+

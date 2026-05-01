@@ -4,7 +4,6 @@
 #include "pyro_vt03_rc_drv.h"
 #include "pyro_rc_base_drv.h"
 #include "pyro_screw_gimbal.h"
-#include "pyro_com_cantx.h"
 #include "pyro_dji_motor_drv.h"
 #include "pyro_dm_motor_drv.h"
 #include "pyro_autoaim_drv.h" // 新增：引入自瞄驱动头文件
@@ -26,9 +25,7 @@ static pyro::screw_gimbal_deps_t *screw_gimbal_deps   = nullptr;
 static bool is_sling_mode                             = false;
 
 static void gimbal_dr162cmd();
-static void chassis_dr162cmd();
 static void gimbal_vt032cmd();
-static void chassis_vt032cmd(uint32_t notify_val);
 static void deps_init();
 
 extern "C"
@@ -52,12 +49,10 @@ extern "C"
 
             if (vt03_drv_t::instance().check_online())
             {
-                chassis_vt032cmd(notify_val);
                 gimbal_vt032cmd();
             }
             else if (dr16_drv_t::instance().check_online())
             {
-                chassis_dr162cmd();
                 gimbal_dr162cmd();
             }
             else
@@ -114,58 +109,6 @@ void gimbal_dr162cmd()
     screw_gimbal_cmd_ptr->yaw_delta_angle   = -vrc.axes.rx * 0.0035f;
 }
 
-void chassis_dr162cmd()
-{
-    pyro::read_scope_lock lock(pyro::rc_drv_t::get_lock());
-    auto &vrc               = pyro::rc_drv_t::read();
-
-    static int8_t vx        = 0;
-    static int8_t vy        = 0;
-    static int8_t wz        = 0;
-    static bool active      = false;
-    static bool track_en    = false;
-    static bool leg_retract = false;
-
-    pyro::can_tx_drv_t::clear(0x101);
-
-    // 在 DR16 控制下，如果开启了吊射模式 (暂无按键绑定，保留判断以防扩展)
-    // 或右拨杆处于 DOWN，底盘无力
-    if (pyro::sw_pos_t::DOWN == vrc.switches.right.current_pos || is_sling_mode)
-    {
-        vx          = 0;
-        vy          = 0;
-        wz          = 0;
-        active      = false;
-        track_en    = false;
-        leg_retract = false;
-        pyro::can_tx_drv_t::add_data(0x101, 8, vx);
-        pyro::can_tx_drv_t::add_data(0x101, 8, vy);
-        pyro::can_tx_drv_t::add_data(0x101, 8, wz);
-        pyro::can_tx_drv_t::add_data(0x101, 1, active);
-        pyro::can_tx_drv_t::add_data(0x101, 1, track_en);
-        pyro::can_tx_drv_t::add_data(0x101, 1, leg_retract);
-        pyro::can_tx_drv_t::send(
-            0x101, pyro::can_hub_t::get_instance()->hub_get_can_obj(
-                       pyro::can_hub_t::which_can::can1));
-        return;
-    }
-
-    vx       = static_cast<int8_t>(vrc.axes.ly * 127);
-    vy       = static_cast<int8_t>(-vrc.axes.lx * 127);
-    wz       = 0;
-    active   = true;
-    track_en = false;
-
-    pyro::can_tx_drv_t::add_data(0x101, 8, vx);
-    pyro::can_tx_drv_t::add_data(0x101, 8, vy);
-    pyro::can_tx_drv_t::add_data(0x101, 8, wz);
-    pyro::can_tx_drv_t::add_data(0x101, 1, active);
-    pyro::can_tx_drv_t::add_data(0x101, 1, track_en);
-    pyro::can_tx_drv_t::add_data(0x101, 1, leg_retract);
-    pyro::can_tx_drv_t::send(0x101,
-                             pyro::can_hub_t::get_instance()->hub_get_can_obj(
-                                 pyro::can_hub_t::which_can::can1));
-}
 
 void gimbal_vt032cmd()
 {
@@ -238,78 +181,6 @@ void gimbal_vt032cmd()
     }
 }
 
-void chassis_vt032cmd(uint32_t notify_val)
-{
-    pyro::read_scope_lock lock(pyro::rc_drv_t::get_lock());
-    auto &vrc               = pyro::rc_drv_t::read();
-
-    static int8_t vx        = 0;
-    static int8_t vy        = 0;
-    static int8_t wz        = 0;
-    static bool active      = false;
-    static bool track_en    = false;
-    static bool leg_retract = false;
-
-    pyro::can_tx_drv_t::clear(0x101);
-
-    // 若开启吊射模式或处于急停档位，给底盘发送无力指令
-    if (pyro::sw_pos_t::UP == vrc.switches.gear.current_pos || is_sling_mode)
-    {
-        vx          = 0;
-        vy          = 0;
-        wz          = 0;
-        active      = false; // 底盘失能
-        track_en    = false;
-        leg_retract = false;
-        pyro::can_tx_drv_t::add_data(0x101, 8, vx);
-        pyro::can_tx_drv_t::add_data(0x101, 8, vy);
-        pyro::can_tx_drv_t::add_data(0x101, 8, wz);
-        pyro::can_tx_drv_t::add_data(0x101, 1, active);
-        pyro::can_tx_drv_t::add_data(0x101, 1, track_en);
-        pyro::can_tx_drv_t::add_data(0x101, 1, leg_retract);
-        pyro::can_tx_drv_t::send(
-            0x101, pyro::can_hub_t::get_instance()->hub_get_can_obj(
-                       pyro::can_hub_t::which_can::can1));
-        return;
-    }
-
-    vx     = static_cast<int8_t>(vrc.keys.w.current_level   ? 127
-                                 : vrc.keys.s.current_level ? -127
-                                                            : vrc.axes.ly * 127);
-    vy     = static_cast<int8_t>(vrc.keys.a.current_level   ? 127
-                                 : vrc.keys.d.current_level ? -127
-                                                            : -vrc.axes.lx * 127);
-    wz     = 0;
-    active = true;
-
-    // 根据任务通知位判断边沿事件
-    if (notify_val & EVENT_BIT_TRACK_TOGGLE)
-    {
-        track_en = !track_en;
-        if (!track_en)
-        {
-            leg_retract = false;
-        }
-    }
-
-    if (notify_val & EVENT_BIT_LEG_TOGGLE)
-    {
-        if (track_en)
-        {
-            leg_retract = !leg_retract;
-        }
-    }
-
-    pyro::can_tx_drv_t::add_data(0x101, 8, vx);
-    pyro::can_tx_drv_t::add_data(0x101, 8, vy);
-    pyro::can_tx_drv_t::add_data(0x101, 8, wz);
-    pyro::can_tx_drv_t::add_data(0x101, 1, active);
-    pyro::can_tx_drv_t::add_data(0x101, 1, track_en);
-    pyro::can_tx_drv_t::add_data(0x101, 1, leg_retract);
-    pyro::can_tx_drv_t::send(0x101,
-                             pyro::can_hub_t::get_instance()->hub_get_can_obj(
-                                 pyro::can_hub_t::which_can::can1));
-}
 
 void deps_init()
 {

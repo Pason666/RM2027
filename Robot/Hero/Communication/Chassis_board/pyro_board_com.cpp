@@ -1,11 +1,12 @@
 /**
-* @file pyro_board_com.cpp
- * @brief 板间通信业务逻辑层 - 底盘端 (Chassis)
+ * @file pyro_board_com.cpp
  */
 
 #include "pyro_board_drv.h"
 #include "pyro_module_base.h"
 #include "pyro_hybrid_chassis.h"
+#include "pyro_ins.h"
+#include "pyro_referee.h"
 
 using namespace pyro;
 
@@ -14,23 +15,38 @@ static board_drv_t *board_drv_ptr         = nullptr;
 
 static void process_chassis_logic()
 {
-    // 1. 填充底盘状态发给云台
+    // 1. 填充周期数据 (四元数)
     auto &tx_data = board_drv_ptr->get_c2g_tx_data();
-    tx_data.chassis_power = 6000; // 假数据示例
-    tx_data.state_flags   = 0x01;
+    float q[4]    = {0.0f};
+    ins_drv_t::get_instance()->get_quaternion(&q[0], &q[1], &q[2], &q[3]);
 
-    // 2. 读取云台指令并应用到底盘
+    for (int i = 0; i < 4; ++i)
+    {
+        tx_data.chassis_q[i] = static_cast<int16_t>(q[i] * 32767.0f);
+    }
+
+    static uint16_t last_launching_num = 0;
+    auto *referee                      = referee_drv_t::get_instance();
+    if (referee)
+    {
+        const auto &referee_shoot = referee->get_data().shoot;
+        if (referee_shoot.launching_num != last_launching_num)
+        {
+            board_drv_t::event_shoot_t shoot_event{};
+            shoot_event.shoot_speed   = referee_shoot.initial_speed;
+            shoot_event.launching_num = referee_shoot.launching_num;
+
+            status_t ret;
+            ret = board_drv_ptr->send_event(board_drv_t::EVENT_C2G_SHOOT,
+                                      shoot_event);
+            last_launching_num = referee_shoot.launching_num;
+        }
+    }
+    // 3. 接收逻辑
     if (board_drv_ptr->check_online())
     {
         const auto &rx_data = board_drv_ptr->get_g2c_rx_data();
-
-        // 示例：此处接入底盘控制命令的映射
-        // auto* hybrid_cmd_ptr = hybrid_chassis_t::instance()->get_cmd();
-        // hybrid_cmd_ptr->vx = 2.0f * static_cast<float>(rx_data.vx) / 127.0f;
-        // hybrid_cmd_ptr->vy = 2.0f * static_cast<float>(rx_data.vy) / 127.0f;
-        // hybrid_cmd_ptr->mode = rx_data.active ? cmd_base_t::mode_t::ACTIVE : cmd_base_t::mode_t::PASSIVE;
-        // hybrid_cmd_ptr->crossing_en = rx_data.track_en;
-        // hybrid_cmd_ptr->leg_retract = rx_data.leg_retract;
+        (void)rx_data;
     }
 }
 
@@ -42,14 +58,15 @@ extern "C"
         while (true)
         {
             process_chassis_logic();
-            board_drv_ptr->send_data();
+            board_drv_ptr->send_data(); // 发送周期包
             vTaskDelay(pdMS_TO_TICKS(1));
         }
     }
 
     void hero_board_com_init(void *argument)
     {
-        board_drv_ptr = &board_drv_t::get_instance(board_drv_t::role_t::CHASSIS, can_hub_t::can1);
+        board_drv_ptr = &board_drv_t::get_instance(board_drv_t::role_t::CHASSIS,
+                                                   can_hub_t::can1);
         board_drv_ptr->start_rx();
 
         xTaskCreate(hero_board_com_thread, "board_com_app", 256, nullptr,

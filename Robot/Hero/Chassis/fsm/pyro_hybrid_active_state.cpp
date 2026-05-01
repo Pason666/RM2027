@@ -24,7 +24,6 @@ void hybrid_chassis_t::fsm_active_t::on_execute(owner *owner)
         change_state(&cruising_state);
     }
 
-    owner->_communicate_gimbal();
     owner->_kinematics_solve();
 }
 

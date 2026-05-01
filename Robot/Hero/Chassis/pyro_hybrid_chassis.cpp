@@ -2,7 +2,6 @@
 #include "pyro_algo_common.h"
 #include <arm_math.h> // 引入 CMSIS-DSP 库
 #include "pyro_dji_motor_drv.h"
-#include "pyro_com_cantx.h"
 #include "pyro_power_control.h"
 #include "pyro_sr04_drv.h"
 #include <algorithm>
@@ -585,15 +584,6 @@ void hybrid_chassis_t::_leg_length_control()
         _ctx.data.out_leg_torque[i] = (i == 0 ? -1.0f : 1.0f) * tau_total;
     }
 }
-
-void hybrid_chassis_t::_communicate_gimbal() const
-{
-    pyro::can_tx_drv_t::clear(0x102);
-    pyro::can_tx_drv_t::add_data(0x102, 32, _ctx.data.current_pitch_rad);
-    pyro::can_tx_drv_t::send(
-        0x102, can_hub_t::get_instance()->hub_get_can_obj(can_hub_t::can1));
-}
-
 
 
 void hybrid_chassis_t::_mecanum_control()

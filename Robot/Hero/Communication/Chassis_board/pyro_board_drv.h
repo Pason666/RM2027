@@ -1,6 +1,6 @@
 /**
  * @file pyro_board_drv.h
- * @brief 板间通信底层驱动 (支持位域内存映射与自动分包)
+ * @brief 板间通信底层驱动 (支持高频周期数据与多通道独立事件数据)
  */
 
 #ifndef PYRO_BOARD_DRV_H
@@ -27,8 +27,7 @@ class board_drv_t
 #pragma pack(push, 1)
 
     /**
-     * @brief [云台 -> 底盘] 控制指令数据包
-     * @note 使用位域压榨空间，扩充只需在此往下添加变量
+     * @brief [周期数据区] 云台 -> 底盘
      */
     struct g2c_data_t
     {
@@ -36,34 +35,49 @@ class board_drv_t
         int8_t vy;
         int8_t wz;
 
-        // 将多个 bool 压缩进 1 个字节中 (位域定义)
         uint8_t active       : 1;
         uint8_t track_en     : 1;
         uint8_t leg_retract  : 1;
-        uint8_t sling_mode   : 1; // 预留：吊射模式状态
-        uint8_t reserved_bit : 4; // 凑满1字节，保持内存整齐
-
-        // float target_pitch; // 扩充示例
+        uint8_t sling_mode   : 1;
+        uint8_t reserved_bit : 4;
     };
 
     /**
-     * @brief [底盘 -> 云台] 反馈数据包
+     * @brief [周期数据区] 底盘 -> 云台
      */
     struct c2g_data_t
     {
+        int16_t chassis_q[4];
         uint16_t chassis_power;
         uint8_t state_flags;
-        // float capacitor_voltage; // 扩充示例
     };
+
+    /* ---------------------------------------------------- */
+    /* [独立事件区] 扩充事件时，新建结构体并分配独立 ID 即可  */
+    /* ---------------------------------------------------- */
+
+    // 事件 A：底盘发弹测速
+    struct event_shoot_t
+    {
+        float shoot_speed;
+        uint16_t launching_num;
+    };
+
+    // 事件 B：预留（例如云台发送 UI 更新）
+    // struct event_ui_t { uint8_t ui_mode; };
 
 #pragma pack(pop)
 /* ======================================================= */
 
-    // 定义基准 CAN ID (后续分包会自动累加 ID)
+    // 周期数据基准 ID
     static constexpr uint32_t G2C_BASE_ID = 0x101;
     static constexpr uint32_t C2G_BASE_ID = 0x105;
 
-    // 编译器自动计算需要的 CAN 帧数量
+    // 独立事件基准 ID
+    static constexpr uint32_t EVENT_C2G_SHOOT = 0x110;
+    // static constexpr uint32_t EVENT_G2C_UI = 0x112; // 注意避让上一事件可能占用的多个分包ID
+
+    // 周期帧数计算
     static constexpr uint8_t G2C_FRAME_CNT = (sizeof(g2c_data_t) + 7) / 8;
     static constexpr uint8_t C2G_FRAME_CNT = (sizeof(c2g_data_t) + 7) / 8;
 
@@ -72,36 +86,60 @@ class board_drv_t
 
     void start_rx() const;
 
-    // 数据交互接口
+    // 周期数据交互接口 (由后台任务高频维护)
     g2c_data_t &get_g2c_tx_data();
     c2g_data_t &get_c2g_tx_data();
     [[nodiscard]] const g2c_data_t &get_g2c_rx_data() const;
     [[nodiscard]] const c2g_data_t &get_c2g_rx_data() const;
-
     status_t send_data() const;
-    [[nodiscard]] bool check_online() const;
-    [[nodiscard]] role_t get_role() const
+
+    // =========================================================================
+    // 独立事件交互接口 (纯解耦：只发送/读取目标 ID 的结构体)
+    // =========================================================================
+
+    /**
+     * @brief 发送指定事件包
+     * @param event_base_id 目标事件的 CAN ID
+     * @param data 要发送的独立事件结构体
+     */
+    template <typename T>
+    status_t send_event(uint32_t event_base_id, const T &data) const
     {
-        return _role;
+        return send_event_raw(event_base_id, &data, sizeof(T));
     }
+
+    /**
+     * @brief 主动读取指定事件包
+     * @param event_base_id 目标事件的 CAN ID
+     * @param data_out [输出] 接收到的事件结构体
+     * @return true 代表收到了新事件，false 代表无新数据
+     */
+    template <typename T>
+    bool read_event(uint32_t event_base_id, T &data_out) const
+    {
+        return read_event_raw(event_base_id, &data_out, sizeof(T));
+    }
+
+    [[nodiscard]] bool check_online() const;
+    [[nodiscard]] role_t get_role() const { return _role; }
 
   private:
     explicit board_drv_t(role_t role, can_hub_t::which_can can_ch);
     ~board_drv_t();
+
+    // 隐藏的底层 raw 接口，避免头文件被 CAN 驱动污染
+    status_t send_event_raw(uint32_t event_base_id, const void *data, size_t size) const;
+    bool read_event_raw(uint32_t event_base_id, void *data_out, size_t size) const;
 
     class board_task_t final : public task_base_t
     {
       public:
         explicit board_task_t(board_drv_t *owner_ptr)
             : task_base_t("board_drv_task", 128, 256, priority_t::NORMAL),
-              _owner(owner_ptr)
-        {
-        }
-
+              _owner(owner_ptr) {}
       protected:
         status_t init() override;
         void run_loop() override;
-
       private:
         board_drv_t *_owner;
     };

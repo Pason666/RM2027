@@ -10,6 +10,7 @@ extern "C"
     extern void hero_booster_init(void *argument);
     extern void hero_autoaim_init(void *argument);
     extern void hero_custom_init(void *argument);
+    extern void hero_board_com_init(void *argument);
     extern void hero_chassis_init(void *argument);
 
 
@@ -36,6 +37,9 @@ extern "C"
         xTaskCreate(hero_chassis_init, "pyro_chassis_init", 512, nullptr,
                     configMAX_PRIORITIES - 2, nullptr);
 #endif
+
+        xTaskCreate(hero_board_com_init, "pyro_board_com_init", 512, nullptr,
+                    configMAX_PRIORITIES - 2, nullptr);
 
 #if DEBUG_MODE
         xTaskCreate(start_debug_task, "start_debug_task", 512, nullptr,

@@ -38,8 +38,9 @@ class board_drv_t
         uint8_t active       : 1;
         uint8_t track_en     : 1;
         uint8_t leg_retract  : 1;
+        uint8_t fric_en      : 1;
         uint8_t sling_mode   : 1;
-        uint8_t reserved_bit : 4;
+        uint8_t reserved_bit : 3;
     };
 
     /**
@@ -48,8 +49,6 @@ class board_drv_t
     struct c2g_data_t
     {
         int16_t chassis_q[4];
-        uint16_t chassis_power;
-        uint8_t state_flags;
     };
 
     /* ---------------------------------------------------- */
@@ -67,22 +66,24 @@ class board_drv_t
     // struct event_ui_t { uint8_t ui_mode; };
 
 #pragma pack(pop)
-/* ======================================================= */
+    /* ======================================================= */
 
     // 周期数据基准 ID
-    static constexpr uint32_t G2C_BASE_ID = 0x101;
-    static constexpr uint32_t C2G_BASE_ID = 0x105;
+    static constexpr uint32_t G2C_BASE_ID     = 0x101;
+    static constexpr uint32_t C2G_BASE_ID     = 0x105;
 
     // 独立事件基准 ID
     static constexpr uint32_t EVENT_C2G_SHOOT = 0x110;
-    // static constexpr uint32_t EVENT_G2C_UI = 0x112; // 注意避让上一事件可能占用的多个分包ID
+    // static constexpr uint32_t EVENT_G2C_UI = 0x112; //
+    // 注意避让上一事件可能占用的多个分包ID
 
     // 周期帧数计算
-    static constexpr uint8_t G2C_FRAME_CNT = (sizeof(g2c_data_t) + 7) / 8;
-    static constexpr uint8_t C2G_FRAME_CNT = (sizeof(c2g_data_t) + 7) / 8;
+    static constexpr uint8_t G2C_FRAME_CNT    = (sizeof(g2c_data_t) + 7) / 8;
+    static constexpr uint8_t C2G_FRAME_CNT    = (sizeof(c2g_data_t) + 7) / 8;
 
-    static board_drv_t &get_instance(role_t role = role_t::GIMBAL,
-                                     can_hub_t::which_can can_ch = can_hub_t::can1);
+    static board_drv_t &
+    get_instance(role_t role                 = role_t::GIMBAL,
+                 can_hub_t::which_can can_ch = can_hub_t::can1);
 
     void start_rx() const;
 
@@ -121,25 +122,34 @@ class board_drv_t
     }
 
     [[nodiscard]] bool check_online() const;
-    [[nodiscard]] role_t get_role() const { return _role; }
+    [[nodiscard]] role_t get_role() const
+    {
+        return _role;
+    }
 
   private:
     explicit board_drv_t(role_t role, can_hub_t::which_can can_ch);
     ~board_drv_t();
 
     // 隐藏的底层 raw 接口，避免头文件被 CAN 驱动污染
-    status_t send_event_raw(uint32_t event_base_id, const void *data, size_t size) const;
-    bool read_event_raw(uint32_t event_base_id, void *data_out, size_t size) const;
+    status_t send_event_raw(uint32_t event_base_id, const void *data,
+                            size_t size) const;
+    bool read_event_raw(uint32_t event_base_id, void *data_out,
+                        size_t size) const;
 
     class board_task_t final : public task_base_t
     {
       public:
         explicit board_task_t(board_drv_t *owner_ptr)
             : task_base_t("board_drv_task", 128, 256, priority_t::NORMAL),
-              _owner(owner_ptr) {}
+              _owner(owner_ptr)
+        {
+        }
+
       protected:
         status_t init() override;
         void run_loop() override;
+
       private:
         board_drv_t *_owner;
     };

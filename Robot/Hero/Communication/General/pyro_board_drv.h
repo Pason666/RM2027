@@ -35,12 +35,12 @@ class board_drv_t
         int8_t vy;
         int8_t wz;
 
-        uint8_t active       : 1;
-        uint8_t track_en     : 1;
-        uint8_t leg_retract  : 1;
-        uint8_t fric_en      : 1;
-        uint8_t sling_mode   : 1;
-        uint8_t reserved_bit : 3;
+        bool active       : 1;
+        bool track_en     : 1;
+        bool leg_retract  : 1;
+        bool fric_en      : 1;
+        bool sling_mode   : 1;
+        bool reserved_bit : 3;
     };
 
     /**
@@ -49,6 +49,9 @@ class board_drv_t
     struct c2g_data_t
     {
         int16_t chassis_q[4];
+        bool gimbal_output : 1;
+        bool booster_output : 1;
+        bool reserve : 6;
     };
 
     /* ---------------------------------------------------- */

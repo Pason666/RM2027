@@ -3,6 +3,7 @@
 #include "pyro_hybrid_chassis.h"
 #include "pyro_dji_motor_drv.h"
 #include "pyro_dm_motor_drv.h"
+#include "pyro_referee.h"
 
 #include <cstdint>
 
@@ -22,9 +23,16 @@ extern "C"
     {
         while (true)
         {
-            if (board_drv_ptr->check_online())
+            if (referee_drv_t::get_instance()->get_data().robot_status.power_management_chassis_output)
             {
-                chassis_rxcmd();
+                if (board_drv_ptr->check_online())
+                {
+                    chassis_rxcmd();
+                }
+                else
+                {
+                    hybrid_cmd_ptr->mode = pyro::cmd_base_t::mode_t::PASSIVE;
+                }
             }
             else
             {

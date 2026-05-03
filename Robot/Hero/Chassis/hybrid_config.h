@@ -20,7 +20,7 @@ constexpr float LEG_K_WALL                = 300.0f; // 虚拟墙弹性系数 (N*
 constexpr float LEG_D_WALL                = 20.0f; // 虚拟墙阻尼系数 (N*m*s/rad)
 constexpr float LEG_GRA_K_WALL            = 50.0f; // 自重补偿虚拟墙 (N*m/rad)
 constexpr float LEG_GRA_D_WALL            = 10.0f;
-constexpr float YAW_OFFSET_RAD            = 0.708699167f;
+constexpr float YAW_OFFSET_RAD            = -1.83617496f;
 // IMU 机械安装偏移补偿 (需将底盘置于绝对水平面上读取原始数据填入)
 constexpr float PITCH_OFFSET_RAD =
     -0.0675839931; // 示例值，正负号取决于你的 IMU 坐标系方向

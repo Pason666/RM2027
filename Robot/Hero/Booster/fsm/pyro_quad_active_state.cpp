@@ -52,10 +52,11 @@ void quad_booster_t::fsm_active_t::on_execute(owner *owner)
 
     // 3. 拨弹盘堵转判断
     constexpr float STALL_TIME_THRESHOLD   = 400.0f;
-    constexpr float STALL_TORQUE_THRESHOLD = 3.0f;
+    constexpr float STALL_TORQUE_THRESHOLD = 1.2f;
     constexpr float STALL_SPEED_THRESHOLD  = 0.4f;
 
     static float stall_start_time          = 0.0f;
+    static uint16_t clear_stall_counter    = 0;
     if (abs(owner->_ctx.data.current_trig_radps) < STALL_SPEED_THRESHOLD &&
         abs(owner->_ctx.data.current_trig_torque) > STALL_TORQUE_THRESHOLD)
     {
@@ -79,7 +80,19 @@ void quad_booster_t::fsm_active_t::on_execute(owner *owner)
     }
     else
     {
-        stall_start_time = 0.0f;
+        if (stall_start_time != 0.0f)
+        {
+            clear_stall_counter++;
+            if (clear_stall_counter >= 8) // 连续8个周期不满足堵转条件
+            {
+                stall_start_time = 0.0f;   // 真正重置堵转计时
+                clear_stall_counter = 0;   // 计数器归零
+            }
+        }
+        else
+        {
+            clear_stall_counter = 0; // 平时未触发堵转检测时，保持计数器为0
+        }
     }
 }
 

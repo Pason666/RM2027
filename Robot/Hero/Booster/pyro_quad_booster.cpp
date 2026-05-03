@@ -290,7 +290,7 @@ void quad_booster_t::_send_fric_command() const
     {
         _ctx.motor.fric_wheels[i]->send_torque(
             _ctx.data.out_fric_torque[i] +
-            0.1f * _ctx.data.current_fric_torque[i]);
+            0.08f * _ctx.data.current_fric_torque[i]);
     }
 }
 

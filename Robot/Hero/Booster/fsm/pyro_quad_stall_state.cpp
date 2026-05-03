@@ -7,11 +7,12 @@ namespace pyro
 {
 void quad_booster_t::fsm_active_t::state_stall_t::enter(owner *owner)
 {
-    owner->_ctx.data.target_trig_rad   = owner->_ctx.data.current_trig_rad;
-    owner->_ctx.data.target_trig_radps = 0;
+
 
     if (&owner->_state_active._homing_state == owner->_state_active._last_state)
     {
+        owner->_ctx.data.target_trig_rad   = owner->_ctx.data.current_trig_rad;
+        owner->_ctx.data.target_trig_radps = 0;
         // --- 修改点：寻找最近的预置位 ---
         // 1. 计算当前位置相对于基准预置位 TRIGGER_OFFSET 的偏差
         float delta = owner->_ctx.data.current_trig_rad - TRIGGER_OFFSET;
@@ -29,6 +30,8 @@ void quad_booster_t::fsm_active_t::state_stall_t::enter(owner *owner)
     else if (&owner->_state_active._stall_state ==
              owner->_state_active._last_state)
     {
+        owner->_ctx.data.target_trig_rad   = owner->_ctx.data.current_trig_rad;
+        owner->_ctx.data.target_trig_radps = 0;
         // 什么都不做
     }
     else

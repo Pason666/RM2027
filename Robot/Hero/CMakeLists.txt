@@ -1,8 +1,8 @@
 # =========================================================================
 # 1. 显式定义当前编译的板子类型（在这里切换 GIMBAL_BOARD 或 CHASSIS_BOARD）
 # =========================================================================
-#set(BOARD "GIMBAL_BOARD")
-set(BOARD "CHASSIS_BOARD")
+set(BOARD "GIMBAL_BOARD")
+#set(BOARD "CHASSIS_BOARD")
 #
 # =========================================================================
 # 2. 声明Hero目标文件库（OBJECT库，仅编译目标文件不链接，保留原工程逻辑）
@@ -48,10 +48,10 @@ if (BOARD STREQUAL "GIMBAL_BOARD")
             # === Communication ===
             Communication/Gimbal_board/pyro_autoaim_drv.cpp
             Communication/Gimbal_board/pyro_autoaim_com.cpp
-            Communication/Gimbal_board/pyro_custom_drv.cpp
-            Communication/Gimbal_board/pyro_custom_com.cpp
+#            Communication/Gimbal_board/pyro_custom_drv.cpp
+#            Communication/Gimbal_board/pyro_custom_com.cpp
             Communication/Gimbal_board/pyro_board_com.cpp
-            Communication/Gimbal_board/pyro_board_drv.cpp
+            Communication/general/pyro_board_drv.cpp
 
             pyro_mission_planer.cpp
             pyro_init_thread.cpp
@@ -63,14 +63,13 @@ if (BOARD STREQUAL "GIMBAL_BOARD")
             ${CMAKE_CURRENT_SOURCE_DIR}/Booster
             ${CMAKE_CURRENT_SOURCE_DIR}/Gimbal
             ${CMAKE_CURRENT_SOURCE_DIR}/Communication/Gimbal_board
+            ${CMAKE_CURRENT_SOURCE_DIR}/Communication/General
             ${CMAKE_CURRENT_SOURCE_DIR}
     )
     target_compile_definitions(PYRo PUBLIC
             DR16_UART=PYRO_UART5
             VT03_UART=PYRO_UART1
             AUTOAIM_UART=PYRO_UART7
-            IMAGE_UART=PYRO_UART1
-            CUSTOM_UART=PYRO_UART10
     )
 
 elseif (BOARD STREQUAL "CHASSIS_BOARD")
@@ -90,7 +89,7 @@ elseif (BOARD STREQUAL "CHASSIS_BOARD")
 
             # === Communication ===
             Communication/Chassis_board/pyro_board_com.cpp
-            Communication/Chassis_board/pyro_board_drv.cpp
+            Communication/General/pyro_board_drv.cpp
 
 
 
@@ -103,13 +102,12 @@ elseif (BOARD STREQUAL "CHASSIS_BOARD")
             PUBLIC
             ${CMAKE_CURRENT_SOURCE_DIR}/Chassis
             ${CMAKE_CURRENT_SOURCE_DIR}/Communication/Chassis_board
+            ${CMAKE_CURRENT_SOURCE_DIR}/Communication/General
             ${CMAKE_CURRENT_SOURCE_DIR}
     )
 
     target_compile_definitions(PYRo PUBLIC
             REFEREE_UART=PYRO_UART1
-#            SUPERCAP_UART=PYRO_UART7
-#            US100_UART=PYRO_UART10
             SR05_UART=PYRO_UART5
             SR04_UART=PYRO_UART10
             JCOM_DEBUG_PORT=PYRO_UART7

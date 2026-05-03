@@ -207,16 +207,16 @@ void deps_init()
         ->set_torque_range(-7.0f, 7.0f);
 
     quad_deps_ptr->pid_deps.fric_pid[0] =
-        new pid_t(6.415f, 0.02f, 0.02f, 2.5f, 20, 320, 80, 4);
+        new pid_t(6.375f, 0.02f, 0.02f, 2.5f, 20, 320, 80, 4);
     quad_deps_ptr->pid_deps.fric_pid[1] =
-        new pid_t(11.322f, 0.03f, 0.004f, 2.5f, 20, 240, 80, 4);
+        new pid_t(11.315f, 0.03f, 0.004f, 2.5f, 20, 240, 80, 4);
     quad_deps_ptr->pid_deps.fric_pid[2] =
-        new pid_t(6.48f, 0.02f, 0.02f, 2.5f, 20, 320, 80, 4);
+        new pid_t(6.410f, 0.02f, 0.02f, 2.5f, 20, 320, 80, 4);
     quad_deps_ptr->pid_deps.fric_pid[3] =
         new pid_t(11.315f, 0.03f, 0.004f, 2.5f, 20, 240, 80, 4);
 
     quad_deps_ptr->pid_deps.trigger_pos_pid =
-        new pid_t(14.0f, 0.03f, 0.0015f, 0.5f, 3.0f, 40, 20, 4);
+        new pid_t(6.30f, 0.03f, 0.0015f, 0.3f, 2.0f, 40, 20, 4);
     quad_deps_ptr->pid_deps.trigger_spd_pid =
-        new pid_t(0.5f, 0.08f, 0.0015f, 0.7f, 7.0f, 30, 20, 4);
+        new pid_t(0.92f, 0.08f, 0.0015f, 0.5f, 5.0f, 30, 20, 4);
 }

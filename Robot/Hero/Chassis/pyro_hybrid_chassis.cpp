@@ -71,19 +71,19 @@ void hybrid_chassis_t::_power_control_init()
     }
 
     // 履带 （dm4310p）功控参数
-    params.k1    = 0.10707706f; // 机械功率项系数
-    params.k2    = 0.60690610f; // 铜损/热损耗系数
-    params.k3    = 0.00001238f; // 高频摩擦系数
-    params.k4    = 0.00000000f; // 库仑摩擦系数
-    params.k5    = 0.85000000f; // 静态基础功耗 (强制固定)
-    params.alpha = 0.00393f;    // 默认电阻温度系数
+    // params.k1    = 0.10707706f; // 机械功率项系数
+    // params.k2    = 0.60690610f; // 铜损/热损耗系数
+    // params.k3    = 0.00001238f; // 高频摩擦系数
+    // params.k4    = 0.00000000f; // 库仑摩擦系数
+    // params.k5    = 0.85000000f; // 静态基础功耗 (强制固定)
+    // params.alpha = 0.00393f;    // 默认电阻温度系数
 
     // 注册 2 个履带电机
-    for (int i = 0; i < 2; i++)
-    {
-        _ctx.power_motor_data[i + 4] =
-            power_controller_t::get_instance().register_motor(params);
-    }
+    // for (int i = 0; i < 2; i++)
+    // {
+    //     _ctx.power_motor_data[i + 4] =
+    //         power_controller_t::get_instance().register_motor(params);
+    // }
 
     // 初始化缓冲能量 PID (安全缓冲参考值设为 60J,pid默认值)
     power_controller_t::get_instance().config_buffer_loop(60.0f);
@@ -147,7 +147,11 @@ void hybrid_chassis_t::_update_feedback()
     _ctx.data.current_yaw_rad   = raw_yaw; // Yaw 通常不参与重力补偿，可暂不滤波
     _ctx.data.current_pitch_rad = filtered_pitch;
     _ctx.data.current_roll_rad  = filtered_roll;
-    _ctx.data.distance_mm       = sr04_drv::get_instance().get_distance();
+    _ctx.data.front_distance_mm =
+        sr04_drv::get_instance().get_distance() - FRONT_DISTANCE_OFFSET;
+    _ctx.data.back_distance_mm =
+        sr04_drv::get_instance().get_distance() - BACK_DISTANCE_OFFSET;
+
 
     // 3. 转换并记录电机转速与位置
     float current_angle =
@@ -207,9 +211,11 @@ void hybrid_chassis_t::_update_feedback()
 
     _ctx.powermeter->get_data(_ctx.powermeter_feedback);
 
-    _ctx.data.total_predicted_power = power_controller_t::get_instance().get_total_predicted_power();
+    _ctx.data.total_predicted_power =
+        power_controller_t::get_instance().get_total_predicted_power();
 
-    _ctx.data.buf_energy = referee_drv_t::get_instance()->get_data().power_heat.buffer_energy;
+    _ctx.data.buf_energy =
+        referee_drv_t::get_instance()->get_data().power_heat.buffer_energy;
 }
 
 // =========================================================
@@ -355,22 +361,26 @@ void hybrid_chassis_t::_power_control()
         }
     }
 
-    for (int i = 0; i < 2; i++)
-    {
-        if (_ctx.power_motor_data[i + 4] != nullptr)
-        {
-            _ctx.power_motor_data[i + 4]->target_cmd =
-                _ctx.data.out_track_torque[i];
-            _ctx.power_motor_data[i + 4]->rpm = _ctx.data.current_track_rpm[i];
-            _ctx.power_motor_data[i + 4]->temp =
-                _ctx.data.current_track_temp[i];
-        }
-    }
+    // for (int i = 0; i < 2; i++)
+    // {
+    //     if (_ctx.power_motor_data[i + 4] != nullptr)
+    //     {
+    //         _ctx.power_motor_data[i + 4]->target_cmd =
+    //             _ctx.data.out_track_torque[i];
+    //         _ctx.power_motor_data[i + 4]->rpm =
+    //         _ctx.data.current_track_rpm[i]; _ctx.power_motor_data[i +
+    //         4]->temp =
+    //             _ctx.data.current_track_temp[i];
+    //     }
+    // }
 
     // 2. 调用核心求解器进行动态功率限制
 
-    power_controller_t::get_instance().solve(referee_drv_t::get_instance()->get_data().robot_status.chassis_power_limit
-        ,referee_drv_t::get_instance()->get_data().power_heat.buffer_energy , 0);
+    power_controller_t::get_instance().solve(
+        referee_drv_t::get_instance()
+            ->get_data()
+            .robot_status.chassis_power_limit,
+        referee_drv_t::get_instance()->get_data().power_heat.buffer_energy, 0);
 
     // 3. 将解算后的安全指令写回到底盘数据上下文中，等待发送
     for (int i = 0; i < 4; i++)
@@ -382,13 +392,14 @@ void hybrid_chassis_t::_power_control()
         }
     }
 
-    for (int i = 0; i < 2; i++)
-    {
-        if (_ctx.power_motor_data[i + 4] != nullptr)
-        {
-            _ctx.data.out_track_torque[i] = _ctx.power_motor_data[i + 4]->safe_cmd;
-        }
-    }
+    // for (int i = 0; i < 2; i++)
+    // {
+    //     if (_ctx.power_motor_data[i + 4] != nullptr)
+    //     {
+    //         _ctx.data.out_track_torque[i] = _ctx.power_motor_data[i +
+    //         4]->safe_cmd;
+    //     }
+    // }
 }
 
 

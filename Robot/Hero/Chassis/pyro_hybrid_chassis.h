@@ -124,7 +124,8 @@ class hybrid_chassis_t final
         float real_wz{0};
 
         // 测距模块反馈
-        uint16_t distance_mm{0};
+        uint16_t front_distance_mm{0};
+        uint16_t back_distance_mm{0};
 
         // YAW 电机差值反馈（用于底盘跟随云台）
         float current_yaw_error{0};

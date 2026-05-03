@@ -3,12 +3,18 @@
 #include "pyro_dr16_rc_drv.h"
 #include "pyro_vt03_rc_drv.h"
 #include "pyro_rc_base_drv.h"
-#include "pyro_screw_gimbal.h"
+#include "pyro_quad_booster.h"
 #include "pyro_com_cantx.h"
 #include "pyro_quad_booster.h"
 #include "pyro_com_canrx.h"
 #include "pyro_autoaim_drv.h"
+#include "pyro_board_drv.h"
+#include "pyro_dm_motor_drv.h"
 
+namespace pyro
+{
+class dm_motor_drv_t;
+}
 using namespace pyro;
 
 extern float read_time;
@@ -22,6 +28,7 @@ static TaskHandle_t booster_task_handle   = nullptr;
 static pyro::quad_booster_t *quad_booster_ptr         = nullptr;
 static pyro::quad_booster_cmd_t *quad_booster_cmd_ptr = nullptr;
 static pyro::quad_deps_t *quad_deps_ptr               = nullptr;
+static pyro::board_drv_t *board_drv_ptr               = nullptr;
 
 static void deps_init();
 
@@ -123,18 +130,37 @@ extern "C"
             uint32_t notify_val = 0;
             xTaskNotifyWait(0x00, UINT32_MAX, &notify_val, 0);
 
-            if (vt03_drv_t::instance().check_online())
+
+            if (board_drv_ptr->check_online())
             {
-                booster_vt032cmd(notify_val);
-            }
-            else if (dr16_drv_t::instance().check_online())
-            {
-                booster_dr162cmd(notify_val);
+                if (board_drv_ptr->get_c2g_rx_data().gimbal_output)
+                {
+                    if (vt03_drv_t::instance().check_online())
+                    {
+                        booster_vt032cmd(notify_val);
+                    }
+                    else if (dr16_drv_t::instance().check_online())
+                    {
+                        booster_dr162cmd(notify_val);
+                    }
+                    else
+                    {
+                        quad_booster_cmd_ptr->mode =
+                            pyro::cmd_base_t::mode_t::PASSIVE;
+                    }
+                }
+                else
+                {
+                    quad_booster_cmd_ptr->mode =
+                        pyro::cmd_base_t::mode_t::PASSIVE;
+                }
             }
             else
             {
                 quad_booster_cmd_ptr->mode = pyro::cmd_base_t::mode_t::PASSIVE;
             }
+
+
             quad_booster_ptr->set_command(*quad_booster_cmd_ptr);
             vTaskDelay(1);
         }
@@ -142,6 +168,7 @@ extern "C"
 
     void hero_booster_init(void *argument)
     {
+        board_drv_ptr        = &pyro::board_drv_t::get_instance();
         quad_booster_ptr     = pyro::quad_booster_t::instance();
         quad_booster_cmd_ptr = new pyro::quad_booster_cmd_t();
 

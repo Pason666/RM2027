@@ -20,6 +20,7 @@ static TaskHandle_t gimbal_task_handle                = nullptr;
 static pyro::screw_gimbal_t *screw_gimbal_ptr         = nullptr;
 static pyro::screw_gimbal_cmd_t *screw_gimbal_cmd_ptr = nullptr;
 static pyro::screw_gimbal_deps_t *screw_gimbal_deps   = nullptr;
+static pyro::board_drv_t *board_drv_ptr = nullptr;
 
 // 追踪当前是否处于吊射模式
 static bool is_sling_mode                             = false;
@@ -47,19 +48,35 @@ extern "C"
             // 同步给底层 HFSM 状态机
             screw_gimbal_cmd_ptr->sling_mode = is_sling_mode;
 
-
-            if (vt03_drv_t::instance().check_online())
+            if (board_drv_ptr->check_online())
             {
-                gimbal_vt032cmd();
-            }
-            else if (dr16_drv_t::instance().check_online())
-            {
-                gimbal_dr162cmd();
+                if (board_drv_ptr->get_c2g_rx_data().gimbal_output)
+                {
+                    if (vt03_drv_t::instance().check_online())
+                    {
+                        gimbal_vt032cmd();
+                    }
+                    else if (dr16_drv_t::instance().check_online())
+                    {
+                        gimbal_dr162cmd();
+                    }
+                    else
+                    {
+                        screw_gimbal_cmd_ptr->mode = pyro::cmd_base_t::mode_t::PASSIVE;
+                    }
+                }
+                else
+                {
+                    screw_gimbal_cmd_ptr->mode = pyro::cmd_base_t::mode_t::PASSIVE;
+                }
             }
             else
             {
                 screw_gimbal_cmd_ptr->mode = pyro::cmd_base_t::mode_t::PASSIVE;
             }
+
+
+
             screw_gimbal_ptr->set_command(*screw_gimbal_cmd_ptr);
             vTaskDelay(1);
         }
@@ -67,6 +84,7 @@ extern "C"
 
     void hero_gimbal_init(void *argument)
     {
+        board_drv_ptr = &pyro::board_drv_t::get_instance();
         screw_gimbal_cmd_ptr = new pyro::screw_gimbal_cmd_t();
         screw_gimbal_ptr     = pyro::screw_gimbal_t::instance();
 

@@ -21,7 +21,7 @@ void hybrid_chassis_t::fsm_active_t::climbing_fsm_t::on_enter(owner *owner)
     owner->_ctx.motor.leg[1]    ->enable();
 
     // --- 初始化测距滤波与触发器状态 ---
-    _filtered_distance = owner->_ctx.data.distance_mm;
+    _filtered_distance = owner->_ctx.data.front_distance_mm;
     _is_guide_wheel_suspended = false;
     _auto_retract_flag = false;
     _retract_hold_tick = 0; // 初始化计时器
@@ -41,7 +41,7 @@ void hybrid_chassis_t::fsm_active_t::climbing_fsm_t::on_execute(owner *owner)
     // ================= 自动收腿：施密特触发器逻辑 =================
 
     // 1. 一阶低通滤波 (LPF) 剔除毛刺，滤波参数见 config.h
-    _filtered_distance = CLIMB_DIST_LPF_ALPHA * owner->_ctx.data.distance_mm +
+    _filtered_distance = CLIMB_DIST_LPF_ALPHA * static_cast<float>(owner->_ctx.data.front_distance_mm) +
                          (1.0f - CLIMB_DIST_LPF_ALPHA) * _filtered_distance;
 
     // 2. 状态转移逻辑

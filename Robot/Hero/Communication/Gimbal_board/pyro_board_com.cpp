@@ -77,7 +77,7 @@ static void process_gimbal_logic(uint32_t notify_val)
         tx_data.track_en    = false;
         tx_data.leg_retract = false;
     }
-    tx_data.active      = false;
+    // tx_data.active      = false;
 
     if (board_drv_ptr->check_online())
     {

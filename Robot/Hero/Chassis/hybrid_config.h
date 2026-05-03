@@ -5,13 +5,13 @@
 
 constexpr float TRACK_SPACING             = 0.456f; // 履带中心距 (m)
 constexpr float MEC_WHEELBASE             = 0.421f; // 麦轮轴距
-constexpr float MEC_FRONT_TRACK_WIDTH     = 0.3f;  // 麦轮前轮距
+constexpr float MEC_FRONT_TRACK_WIDTH     = 0.3f;   // 麦轮前轮距
 constexpr float MEC_REAR_TRACK_WIDTH      = 0.48f;  // 麦轮后轮距
 constexpr float WHEEL_RADIUS              = 0.076f; // 轮子半径 (m)
 constexpr float TRACK_RADIUS              = 0.025f; // 履带驱动半径 (m)
 constexpr float LEG_MIN_POS               = 0.15f;  // 腿部最小位置 (rad)
 constexpr float LEG_MAX_POS               = 1.64f;  // 腿部最大位置
-constexpr float LEG_LENGTH_MIN_POS        = -0.25f;  // 腿部最小伸展位置(rad)
+constexpr float LEG_LENGTH_MIN_POS        = -0.25f; // 腿部最小伸展位置(rad)
 constexpr float LEG_LENGTH_MAX_POS        = 1.64f;  // 腿部最大伸展位置(rad)
 constexpr float LEG_POS_BUFFER_RAD        = 0.1f;   // 腿部位置缓冲 (rad)
 constexpr float LEG_LENGTH_POS_BUFFER_RAD = 0.1f;   // 腿部长度位置缓冲 (rad)
@@ -49,19 +49,22 @@ constexpr float K_TAU_GRAVITY = 1.0f;    // 自重补偿系数
 constexpr float MASS          = 25.5f;   // 机器人质量 (kg)
 constexpr float GRAVITY       = gNORM;   // 重力加速度 (m/s^2)
 constexpr float DIST_FRONT    = 0.2395f; // 质心到前轴距离 (m)
-constexpr float DIST_HIP      = 0.1805f;  // 质心到髋关节的水平距离
+constexpr float DIST_HIP      = 0.1805f; // 质心到髋关节的水平距离
 constexpr float H_COG         = 0.18f;   // 重心垂直高度
 constexpr float H_HIP_OFFSET  = 0.074f;  // 髋关节与前轮轴心的垂直落差
 inline float LEFT_LEG_OFFSET_RAD =
-  1.81237817f; // 左腿位置偏移 (rad)，正值表示向前偏移
+    1.81237817f; // 左腿位置偏移 (rad)，正值表示向前偏移
 inline float RIGHT_LEG_OFFSET_RAD =
-  0.44030714f; // 右腿位置偏移 (rad)，正值表示向前偏移
+    0.44030714f; // 右腿位置偏移 (rad)，正值表示向前偏移
 
 // ================= 新增：自动越障收腿配置参数 =================
-constexpr float CLIMB_DIST_LPF_ALPHA   = 0.03f;   // 测距模块低通滤波系数
-constexpr float CLIMB_DIST_THRES_HIGH  = 200.0f; // 导轮悬空距离上限判定 (mm)
-constexpr float CLIMB_DIST_THRES_LOW   = 60.0f;  // 导轮搭上台阶距离下限判定 (mm)
-constexpr float CLIMB_VEL_X_FRONT_THRES      = 0.3f;   // 触发自动收腿的底盘最小真实前推速度 (m/s)
+constexpr float CLIMB_DIST_LPF_ALPHA     = 0.03f; // 测距模块低通滤波系数
+constexpr uint16_t FRONT_DISTANCE_OFFSET = 38;    // 前测距模块平地偏置
+constexpr uint16_t BACK_DISTANCE_OFFSET  = 116;   // 后测距模块平地偏置
+constexpr uint16_t CLIMB_DIST_THRES_HIGH = 160;   // 导轮悬空距离上限判定 (mm)
+constexpr uint16_t CLIMB_DIST_THRES_LOW  = 20; // 导轮搭上台阶距离下限判定 (mm)
+constexpr float CLIMB_VEL_X_FRONT_THRES =
+    0.3f; // 触发自动收腿的底盘最小真实前推速度 (m/s)
 constexpr float CLIMB_VEL_X_BACK_THRES      = 0.15f;
 
 constexpr uint32_t CLIMB_RETRACT_HOLD_TICKS = 1500;

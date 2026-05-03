@@ -51,7 +51,7 @@ class board_drv_t
         int16_t chassis_q[4];
         bool gimbal_output : 1;
         bool booster_output : 1;
-        bool reserve : 6;
+        bool reserved_bit : 6;
     };
 
     /* ---------------------------------------------------- */

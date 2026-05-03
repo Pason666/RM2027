@@ -132,12 +132,13 @@ __attribute__((section(".itcm_text"))) status_t uart_drv_t::enable_rx_dma()
     return PYRO_OK;
 }
 
-status_t uart_drv_t::disable_rx_dma() const
+status_t uart_drv_t::disable_rx_dma()
 {
     if (state.rx_dma_enable)
     {
         if (HAL_OK != HAL_UART_AbortReceive(_huart))
             return PYRO_ERROR;
+        state.rx_dma_enable = 0;
         return PYRO_OK;
     }
     return PYRO_OK;
@@ -168,9 +169,60 @@ status_t uart_drv_t::reset(const uint32_t BaudRate, const uint32_t WordLength,
                                       UART_CLEAR_NEF | UART_CLEAR_OREF |
                                       UART_CLEAR_RTOF | UART_CLEAR_CMF |
                                       UART_CLEAR_WUF);
+    return PYRO_OK;
+}
 
-    if (PYRO_OK != enable_rx_dma())
+/* Pin and Level Configuration -----------------------------------------------*/
+status_t uart_drv_t::set_pin_swap(const bool enable)
+{
+    // 修改硬件配置前，必须先停止当前的接收动作
+    if (disable_rx_dma() != PYRO_OK)
+    {
         return PYRO_ERROR;
+    }
+
+    // 配置高级特性：标记我们要初始化引脚交换功能
+    _huart->AdvancedInit.AdvFeatureInit |= UART_ADVFEATURE_SWAP_INIT;
+
+    // 设置使能或禁用状态
+    _huart->AdvancedInit.Swap = enable ? UART_ADVFEATURE_SWAP_ENABLE : UART_ADVFEATURE_SWAP_DISABLE;
+
+    // 重新初始化串口使配置生效
+    if (HAL_OK != HAL_UART_DeInit(_huart))
+        return PYRO_ERROR;
+    if (HAL_OK != HAL_UART_Init(_huart))
+        return PYRO_ERROR;
+
+    // 更新标志位
+    state.pin_swapped = enable ? 1 : 0;
+
+    return PYRO_OK;
+}
+
+status_t uart_drv_t::set_level_invert(const bool tx_invert, const bool rx_invert)
+{
+    // 修改硬件配置前，必须先停止当前的接收动作
+    if (disable_rx_dma() != PYRO_OK)
+    {
+        return PYRO_ERROR;
+    }
+
+    // 配置高级特性：标记我们要初始化 TX 和 RX 的电平反转功能
+    _huart->AdvancedInit.AdvFeatureInit |= (UART_ADVFEATURE_TXINVERT_INIT | UART_ADVFEATURE_RXINVERT_INIT);
+
+    // 设置 TX 与 RX 是否反转电平
+    _huart->AdvancedInit.TxPinLevelInvert = tx_invert ? UART_ADVFEATURE_TXINV_ENABLE : UART_ADVFEATURE_TXINV_DISABLE;
+    _huart->AdvancedInit.RxPinLevelInvert = rx_invert ? UART_ADVFEATURE_RXINV_ENABLE : UART_ADVFEATURE_RXINV_DISABLE;
+
+    // 重新初始化串口使配置生效
+    if (HAL_OK != HAL_UART_DeInit(_huart))
+        return PYRO_ERROR;
+    if (HAL_OK != HAL_UART_Init(_huart))
+        return PYRO_ERROR;
+
+    // 只要有任意一个引脚发生了反转，标志位置 1
+    state.level_inverted = (tx_invert || rx_invert) ? 1 : 0;
+
     return PYRO_OK;
 }
 

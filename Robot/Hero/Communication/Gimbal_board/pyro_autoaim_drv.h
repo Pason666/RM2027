@@ -37,6 +37,7 @@ class autoaim_drv_t
         float curr_pitch;
         uint8_t state;
         uint8_t autoaim;
+        uint8_t fire_count;
         uint8_t enemy_color;
         float curr_speed;
         uint16_t shoot_delay;

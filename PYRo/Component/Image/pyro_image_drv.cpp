@@ -199,7 +199,7 @@ status_t image_drv_t::send_client_data()
 
     _tx_client_pkt->header.sof = HEADER_SOF;
     _tx_client_pkt->header.data_length = sizeof(tx_client_payload_t);
-    _tx_client_pkt->header.seq = _send_seq++;
+    _tx_client_pkt->header.seq = _send_seq;
     _tx_client_pkt->header.crc8 = 0;
 
     append_crc8_check_sum(reinterpret_cast<uint8_t *>(&_tx_client_pkt->header), HEADER_SIZE);
@@ -209,6 +209,7 @@ status_t image_drv_t::send_client_data()
     append_crc16_check_sum(reinterpret_cast<uint8_t *>(_tx_client_pkt), sizeof(tx_client_packet_t));
 
     status_t ret = _uart->write(reinterpret_cast<uint8_t *>(_tx_client_pkt), sizeof(tx_client_packet_t));
+    _send_seq++;
     if (ret != PYRO_OK)
     {
         _send_seq--;

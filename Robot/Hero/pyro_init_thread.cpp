@@ -55,6 +55,7 @@ extern "C"
 #ifdef REFEREE_UART
         REFEREE_UART.reset(115200, UART_WORDLENGTH_8B, UART_STOPBITS_1,
                            UART_PARITY_NONE);
+        REFEREE_UART.enable_rx_dma();
         referee_drv_t::get_instance()->init();
 #endif
 
@@ -84,6 +85,7 @@ extern "C"
 #ifdef SR04_UART
         SR04_UART.reset(9600, UART_WORDLENGTH_8B, UART_STOPBITS_1,
                         UART_PARITY_NONE);
+        SR04_UART.enable_rx_dma();
         sr04_drv::get_instance().init();
         sr04_drv::get_instance().start();
 #endif
@@ -96,8 +98,10 @@ extern "C"
 #endif
 
 #ifdef SR05_UART
+        SR05_UART.set_level_invert(false,true);
         SR05_UART.reset(9600, UART_WORDLENGTH_8B, UART_STOPBITS_1,
                                 UART_PARITY_NONE);
+        SR05_UART.enable_rx_dma();
         sr05_drv::get_instance().init();
         sr05_drv::get_instance().start();
 #endif

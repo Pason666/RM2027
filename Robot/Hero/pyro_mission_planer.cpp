@@ -30,9 +30,10 @@ extern "C"
         vTaskDelay(10);
         xTaskCreate(hero_autoaim_init, "pyro_autoaim_init", 512, nullptr,
                     configMAX_PRIORITIES - 2, nullptr);
-        // vTaskDelay(10);
-        // xTaskCreate(hero_custom_init, "pyro_custom_init", 512, nullptr,
-        //             configMAX_PRIORITIES - 3, nullptr);
+        vTaskDelay(20);
+        xTaskCreate(hero_custom_init, "pyro_custom_init", 512, nullptr,
+                    configMAX_PRIORITIES - 3, nullptr);
+        vTaskDelay(20);
 #elif BOARD == CHASSIS_BOARD
         xTaskCreate(hero_chassis_init, "pyro_chassis_init", 512, nullptr,
                     configMAX_PRIORITIES - 2, nullptr);

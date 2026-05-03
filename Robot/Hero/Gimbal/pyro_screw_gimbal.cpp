@@ -263,7 +263,7 @@ void screw_gimbal_t::_handle_dynamic_calibration()
     }
 }
 
-screw_gimbal_t::gimbal_context_t screw_gimbal_t::get_ctx() const
+screw_gimbal_t::gimbal_context_t& screw_gimbal_t::get_ctx()
 {
     return _ctx;
 }

@@ -1,5 +1,5 @@
 /**
-* @file pyro_board_com.cpp
+ * @file pyro_board_com.cpp
  * @brief 板间通信业务逻辑层 - 云台端 (Gimbal)
  */
 
@@ -7,33 +7,72 @@
 #include "pyro_module_base.h"
 #include "pyro_rc_base_drv.h"
 #include "pyro_screw_gimbal.h"
+#include "pyro_vt03_rc_drv.h"
 
 using namespace pyro;
+
+constexpr uint32_t EVENT_BIT_TRACK_TOGGLE = (1 << 0);
+constexpr uint32_t EVENT_BIT_SLING_TOGGLE = (1 << 2);
 
 static TaskHandle_t board_com_task_handle = nullptr;
 static board_drv_t *board_drv_ptr         = nullptr;
 
-static void process_gimbal_logic()
+static void process_gimbal_logic(uint32_t notify_val)
 {
     auto &tx_data = board_drv_ptr->get_g2c_tx_data();
 
     pyro::read_scope_lock lock(pyro::rc_drv_t::get_lock());
     auto &vrc = pyro::rc_drv_t::read();
 
-    if (sw_pos_t::DOWN == vrc.switches.right.current_pos)
+    static bool sling_mode = false;
+
+    if (vt03_drv_t::instance().check_online())
+    {
+        if (notify_val & EVENT_BIT_SLING_TOGGLE)
+        {
+            sling_mode = !sling_mode;
+        }
+
+        if (sling_mode)
+        {
+            tx_data.active      = false;
+            tx_data.vx          = 0;
+            tx_data.vy          = 0;
+            tx_data.wz          = 0;
+            tx_data.track_en    = false;
+            tx_data.leg_retract = false;
+        }
+        else
+        {
+            if (sw_pos_t::UP == vrc.switches.gear.current_pos)
+            {
+                tx_data.active      = false;
+                tx_data.vx          = 0;
+                tx_data.vy          = 0;
+                tx_data.wz          = 0;
+                tx_data.track_en    = false;
+                tx_data.leg_retract = false;
+            }
+            else
+            {
+                tx_data.active = true;
+                tx_data.vx     = static_cast<int8_t>(vrc.axes.ly * 127);
+                tx_data.vy     = static_cast<int8_t>(-vrc.axes.lx * 127);
+                tx_data.wz     = 0;
+
+                if (notify_val & EVENT_BIT_TRACK_TOGGLE)
+                {
+                    tx_data.track_en = !tx_data.track_en;
+                }
+                tx_data.leg_retract = false;
+            }
+        }
+    }
+    else
     {
         tx_data.active      = false;
         tx_data.vx          = 0;
         tx_data.vy          = 0;
-        tx_data.wz          = 0;
-        tx_data.track_en    = false;
-        tx_data.leg_retract = false;
-    }
-    else
-    {
-        tx_data.active      = true;
-        tx_data.vx          = static_cast<int8_t>(vrc.axes.ly * 127);
-        tx_data.vy          = static_cast<int8_t>(-vrc.axes.lx * 127);
         tx_data.wz          = 0;
         tx_data.track_en    = false;
         tx_data.leg_retract = false;
@@ -53,7 +92,9 @@ extern "C"
         vTaskDelay(pdMS_TO_TICKS(500));
         while (true)
         {
-            process_gimbal_logic();
+            uint32_t notify_val = 0;
+            xTaskNotifyWait(0x00, UINT32_MAX, &notify_val, 0);
+            process_gimbal_logic(notify_val);
             board_drv_ptr->send_data();
             vTaskDelay(pdMS_TO_TICKS(1));
         }
@@ -61,11 +102,21 @@ extern "C"
 
     void hero_board_com_init(void *argument)
     {
-        board_drv_ptr = &board_drv_t::get_instance(board_drv_t::role_t::GIMBAL, can_hub_t::can1);
+
+
+        board_drv_ptr = &board_drv_t::get_instance(board_drv_t::role_t::GIMBAL,
+                                                   can_hub_t::can1);
         board_drv_ptr->start_rx();
 
         xTaskCreate(hero_board_com_thread, "board_com_app", 256, nullptr,
                     configMAX_PRIORITIES - 3, &board_com_task_handle);
+
+        auto &vrc = pyro::rc_drv_t::read();
+        pyro::btn_broker::subscribe(
+            &vrc.buttons.pause, pyro::btn_event_t::PRESS_DOWN,
+            board_com_task_handle, EVENT_BIT_TRACK_TOGGLE);
+        pyro::btn_broker::subscribe(&vrc.keys.r, pyro::btn_event_t::PRESS_DOWN,
+                                    board_com_task_handle, EVENT_BIT_SLING_TOGGLE);
         vTaskDelete(nullptr);
     }
 }

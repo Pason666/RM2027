@@ -131,6 +131,10 @@ extern "C"
             {
                 booster_dr162cmd(notify_val);
             }
+            else
+            {
+                quad_booster_cmd_ptr->mode = pyro::cmd_base_t::mode_t::PASSIVE;
+            }
             quad_booster_ptr->set_command(*quad_booster_cmd_ptr);
             vTaskDelay(1);
         }

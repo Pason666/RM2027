@@ -104,7 +104,13 @@ class custom_drv_t
 
 /* Private Protocol Types ------------------------------------------------*/
 #pragma pack(push, 1)
-    struct frame_header_t { uint8_t sof; }; // 0xA6
+    struct frame_header_t
+    {
+        uint8_t sof;
+        uint16_t data_length;
+        uint8_t seq;
+        uint8_t crc8;
+    };
     struct frame_tailer_t { uint16_t crc16; uint8_t end; }; // '\n'
     struct rx_frame_tailer_t { uint16_t crc16; };
 
@@ -118,6 +124,7 @@ class custom_drv_t
     struct rx_packet_t
     {
         frame_header_t header;
+        uint16_t cmd_id;
         rx_data_t payload;
         rx_frame_tailer_t tailer;
     };
@@ -139,7 +146,10 @@ class custom_drv_t
     float _comm_interval_ms{0.0f};
     float _last_rx_time_ms{0.0f};
 
-    static constexpr uint8_t FRAME_SOF = 0xA6;
+    mutable uint8_t _tx_seq{0}; // 新增：发送序列号，使用 mutable 以便在 const 方法中自增
+
+    static constexpr uint8_t FRAME_SOF = 0xA5; // 修改：固定的 SOF 为 0xA5
+    static constexpr uint16_t CMD_ID = 0x0310;
 
     /* Private Methods (Logic) -----------------------------------------------*/
     void init_impl();

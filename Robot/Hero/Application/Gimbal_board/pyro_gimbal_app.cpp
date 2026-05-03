@@ -11,10 +11,9 @@
 using namespace pyro;
 
 // 定义任务通知的位掩码 (Event Bits)
-constexpr uint32_t EVENT_BIT_TRACK_TOGGLE = (1 << 0);
-constexpr uint32_t EVENT_BIT_LEG_TOGGLE   = (1 << 1);
-constexpr uint32_t EVENT_BIT_SLING_TOGGLE =
-    (1 << 2); // 新增：吊射模式切换标志位
+
+constexpr uint32_t EVENT_BIT_LEG_TOGGLE               = (1 << 1);
+constexpr uint32_t EVENT_BIT_SLING_TOGGLE             = (1 << 2);
 
 static TaskHandle_t gimbal_task_handle                = nullptr;
 static pyro::screw_gimbal_t *screw_gimbal_ptr         = nullptr;
@@ -77,9 +76,7 @@ extern "C"
                     configMAX_PRIORITIES - 1, &gimbal_task_handle);
 
         auto &vrc = pyro::rc_drv_t::read();
-        pyro::btn_broker::subscribe(&vrc.buttons.pause,
-                                    pyro::btn_event_t::PRESS_DOWN,
-                                    gimbal_task_handle, EVENT_BIT_TRACK_TOGGLE);
+
         pyro::btn_broker::subscribe(&vrc.buttons.fn_r,
                                     pyro::btn_event_t::PRESS_DOWN,
                                     gimbal_task_handle, EVENT_BIT_LEG_TOGGLE);

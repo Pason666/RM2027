@@ -173,7 +173,6 @@ void quad_booster_t::_speed_control()
     bsp_uart::get_uart10().write(reinterpret_cast<const uint8_t *>(shoot_speed),
                                  strlen(shoot_speed));
 
-
     for (float &i : shoot_data.ball_speed)
     {
         if (i == 0.0f)
@@ -228,7 +227,9 @@ void quad_booster_t::_launch_delay_calculate()
                                      0.2f * _ctx.data.launch_delay_timer[1] +
                                      0.1f * _ctx.data.launch_delay_timer[2];
         _ctx.data.fresh_timer = 0;
+        _ctx.data.fire_count++;
     }
+
 }
 
 void quad_booster_t::_fric_control()
@@ -298,7 +299,7 @@ void quad_booster_t::_send_trigger_command() const
     _ctx.motor.trigger_wheel->send_torque(_ctx.data.out_trig_torque);
 }
 
-quad_booster_t::booster_ctx_t quad_booster_t::get_ctx() const
+quad_booster_t::booster_ctx_t& quad_booster_t::get_ctx()
 {
     return _ctx;
 }

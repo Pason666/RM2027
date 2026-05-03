@@ -80,6 +80,8 @@ class hybrid_chassis_t final
     hybrid_chassis_t(const hybrid_chassis_t &)            = delete;
     hybrid_chassis_t &operator=(const hybrid_chassis_t &) = delete;
 
+    hybrid_context_t& get_ctx();
+
   private:
     hybrid_chassis_t();
     ~hybrid_chassis_t() override = default;
@@ -151,7 +153,7 @@ class hybrid_chassis_t final
         hybrid_deps_t::pid_deps_t pid;
         data_ctx_t data;
         powermeter_drv_t *powermeter{nullptr};
-        powermeter_data powermeter_feedback;
+        powermeter_data powermeter_feedback{};
         power_node_t *power_motor_data[6]{};
         hybrid_cmd_t *cmd{};
     };

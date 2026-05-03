@@ -18,6 +18,14 @@ static bool speed_control_en                              = false;
 static bool fric1_online                                  = false;
 static bool fric2_online                                  = false;
 
+
+struct ui_ctx
+{
+    float yaw_angle;
+    float pitch_angle;
+    float target_ball_speed;
+
+}
 /**
  * @brief 静态 UI 绘制（仅在初始化或手动刷新时调用，使用 ADD）
  */

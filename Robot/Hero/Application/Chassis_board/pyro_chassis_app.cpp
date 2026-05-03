@@ -22,7 +22,14 @@ extern "C"
     {
         while (true)
         {
-            chassis_rxcmd();
+            if (board_drv_ptr->check_online())
+            {
+                chassis_rxcmd();
+            }
+            else
+            {
+                hybrid_cmd_ptr->mode = pyro::cmd_base_t::mode_t::PASSIVE;
+            }
             hybrid_chassis_ptr->set_command(*hybrid_cmd_ptr);
             vTaskDelay(1);
         }

@@ -74,7 +74,7 @@ class screw_gimbal_t final
     struct gimbal_context_t;
 
   public:
-    [[nodiscard]] gimbal_context_t get_ctx() const;
+    [[nodiscard]] gimbal_context_t& get_ctx();
 
   private:
     screw_gimbal_t();

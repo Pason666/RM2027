@@ -82,12 +82,15 @@ class uart_drv_t
      */
     typedef struct state_t
     {
-        volatile uint8_t init_flag     : 1;
-        volatile uint8_t tx_busy       : 1;
-        volatile uint8_t tx_timeout    : 1;
-        volatile uint8_t rx_dma_enable : 1;
-        volatile uint8_t rx_busy       : 1;
-        volatile uint8_t rx_error      : 1;
+        volatile uint8_t init_flag      : 1;
+        volatile uint8_t tx_busy        : 1;
+        volatile uint8_t tx_timeout     : 1;
+        volatile uint8_t rx_dma_enable  : 1;
+        volatile uint8_t rx_busy        : 1;
+        volatile uint8_t rx_error       : 1;
+        // 【新增】引脚与电平翻转状态标志
+        volatile uint8_t pin_swapped    : 1;
+        volatile uint8_t level_inverted : 1;
     } state_t;
 
 public:
@@ -98,12 +101,28 @@ public:
      */
     ~uart_drv_t();
 
+    /* Public Methods - Peripheral Management --------------------------------*/
     /**
      * @brief Resets and re-initializes the UART peripheral.
      * 复位并重新初始化串口外设。
      */
     status_t reset(uint32_t BaudRate, uint32_t WordLength, uint32_t StopBits,
                    uint32_t Parity);
+
+    /**
+     * @brief 设置是否交换 TX 和 RX 引脚。
+     * @param enable true 交换，false 恢复默认
+     * @return 状态码
+     */
+    status_t set_pin_swap(bool enable);
+
+    /**
+     * @brief 设置是否反转 TX 和 RX 引脚的有效电平。
+     * @param tx_invert true 反转 TX 电平
+     * @param rx_invert true 反转 RX 电平
+     * @return 状态码
+     */
+    status_t set_level_invert(bool tx_invert, bool rx_invert);
 
     /* Public Methods - Transmission -----------------------------------------*/
     /**
@@ -129,7 +148,7 @@ public:
      * @brief Aborts the ongoing DMA reception.
      * 终止正在进行的 DMA 接收。
      */
-    status_t disable_rx_dma() const;
+    status_t disable_rx_dma();
 
     /* Public Methods - Custom Callback Management ---------------------------*/
     /**
@@ -171,7 +190,6 @@ public:
     // 【新增】保存 TX 发送完成的回调函数
     tx_cplt_func _tx_cplt_callback = nullptr;
 
-
     // Double buffers for DMA reception.
     // 用于 DMA 接收的双缓冲区。
     uint8_t *rx_buf[2];
@@ -206,7 +224,6 @@ private:
     // Size of each RX buffer.
     // 单个接收缓冲区的大小。
     uint16_t _rx_buf_size{};
-
 
 };
 

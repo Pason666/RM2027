@@ -18,7 +18,7 @@ constexpr float SCREW_MAX_TORQUE         = 20.0f;      // 电机最大扭矩
 // =========================================================
 constexpr uint32_t PITCH_CALIB_DELAY_TICKS = 1000; // 上电校准前等待稳定时间
 constexpr uint32_t PITCH_CALIB_MAX_TICKS   = 1000; // 采集均值的持续时间
-constexpr uint32_t DYNAMIC_CALIB_WINDOW_TICKS = 400; // 动态校准的观察窗口期
+constexpr uint32_t DYNAMIC_CALIB_WINDOW_TICKS = 500; // 动态校准的观察窗口期
 
 // =========================================================
 // 动态校准触发阈值 (防零漂判定条件)
@@ -38,8 +38,8 @@ constexpr float PITCH_BUFFER_NORMAL_RADPS   = 0.003f; // 常规模式速度缓�
 constexpr float PITCH_DEADBAND_AUTOAIM_RADPS  = 0.05f; // 自瞄模式速度死区 (抗IMU噪声)
 constexpr float PITCH_BUFFER_AUTOAIM_RADPS  = 0.04f; // 自瞄模式速度缓冲区
 
-constexpr float YAW_SLING_FRICTION_TORQUE     = 0.125f; // 吊射模式 Yaw 摩擦前馈
-constexpr float YAW_SLING_DEADBAND_RADPS      = 0.01f; // 吊射模式 Yaw 速度死区
+constexpr float YAW_SLING_FRICTION_TORQUE     = 0.12f; // 吊射模式 Yaw 摩擦前馈
+constexpr float YAW_SLING_DEADBAND_RADPS      = 0.005f; // 吊射模式 Yaw 速度死区
 constexpr float YAW_SLING_TORQUE_LIMIT        = 3.0f;  // 吊射模式 Yaw 输出限幅
 
 // =========================================================

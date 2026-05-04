@@ -232,6 +232,7 @@ void screw_gimbal_t::_handle_dynamic_calibration()
 {
     // 如果处于吊射模式或尚未完成初始校准，则直接退出
     if (!_ctx.data.allow_dynamic_calib || !_ctx.data.has_initial_calibrated) {
+        _dynamic_calib_sum = 0.0f;
         _dynamic_calib_timer = 0;
         return;
     }

@@ -23,15 +23,15 @@ hybrid_chassis_t::hybrid_chassis_t() : module_base_t("hybrid")
 
 status_t hybrid_chassis_t::_init()
 {
-    _ctx.motor      = _module_deps.motor_deps;
-    _ctx.pid        = _module_deps.pid_deps;
+    _ctx.motor  = _module_deps.motor_deps;
+    _ctx.pid    = _module_deps.pid_deps;
 
     // 使用 config.h 中的参数初始化运动学模型xssx
-    _kinematics     = new hybrid_kin_t(TRACK_SPACING,
-                                       (MEC_FRONT_TRACK_WIDTH + MEC_WHEELBASE) / 2,
-                                       (MEC_FRONT_TRACK_WIDTH + MEC_WHEELBASE) / 2,
-                                       (MEC_REAR_TRACK_WIDTH + MEC_WHEELBASE) / 2,
-                                       (MEC_REAR_TRACK_WIDTH + MEC_WHEELBASE) / 2);
+    _kinematics = new hybrid_kin_t(
+        TRACK_SPACING, MEC_FRONT_TRACK_WIDTH / 2 + MEC_FRONT_WHEELBASE,
+        MEC_FRONT_TRACK_WIDTH / 2 + MEC_FRONT_WHEELBASE,
+        MEC_REAR_TRACK_WIDTH / 2 + MEC_REAR_WHEELBASE,
+        MEC_REAR_TRACK_WIDTH / 2 + MEC_REAR_WHEELBASE);
     // float x = 0.15f;
     // _kinematics = new hybrid_kin_t(TRACK_SPACING,
     //                            0.15f + x,0.15f + x,0.66f - x, 0.66f - x);
@@ -158,35 +158,35 @@ void hybrid_chassis_t::_update_feedback()
     // }
     // else
     // {
-        // 1. 变化率限幅 (Slew Rate Limiting)
-        // 即使开机第一帧是毛刺导致初始化错误，后续也能以最大合法步长迅速回归真实值，避免死锁
-        float front_delta = raw_front_dist - _ctx.data.front_lpf_state[1];
-        if (front_delta > CLIMB_DIST_MAX_JUMP)
-            raw_front_dist = _ctx.data.front_lpf_state[1] + CLIMB_DIST_MAX_JUMP;
-        else if (front_delta < -CLIMB_DIST_MAX_JUMP)
-            raw_front_dist = _ctx.data.front_lpf_state[1] - CLIMB_DIST_MAX_JUMP;
+    // 1. 变化率限幅 (Slew Rate Limiting)
+    // 即使开机第一帧是毛刺导致初始化错误，后续也能以最大合法步长迅速回归真实值，避免死锁
+    float front_delta   = raw_front_dist - _ctx.data.front_lpf_state[1];
+    if (front_delta > CLIMB_DIST_MAX_JUMP)
+        raw_front_dist = _ctx.data.front_lpf_state[1] + CLIMB_DIST_MAX_JUMP;
+    else if (front_delta < -CLIMB_DIST_MAX_JUMP)
+        raw_front_dist = _ctx.data.front_lpf_state[1] - CLIMB_DIST_MAX_JUMP;
 
-        float back_delta = raw_back_dist - _ctx.data.back_lpf_state[1];
-        if (back_delta > CLIMB_DIST_MAX_JUMP)
-            raw_back_dist = _ctx.data.back_lpf_state[1] + CLIMB_DIST_MAX_JUMP;
-        else if (back_delta < -CLIMB_DIST_MAX_JUMP)
-            raw_back_dist = _ctx.data.back_lpf_state[1] - CLIMB_DIST_MAX_JUMP;
+    float back_delta = raw_back_dist - _ctx.data.back_lpf_state[1];
+    if (back_delta > CLIMB_DIST_MAX_JUMP)
+        raw_back_dist = _ctx.data.back_lpf_state[1] + CLIMB_DIST_MAX_JUMP;
+    else if (back_delta < -CLIMB_DIST_MAX_JUMP)
+        raw_back_dist = _ctx.data.back_lpf_state[1] - CLIMB_DIST_MAX_JUMP;
 
-        // 2. 前测距 二阶级联滤波 (平滑高频白噪声)
-        _ctx.data.front_lpf_state[0] =
-            CLIMB_DIST_LPF_ALPHA * raw_front_dist +
-            (1.0f - CLIMB_DIST_LPF_ALPHA) * _ctx.data.front_lpf_state[0];
-        _ctx.data.front_lpf_state[1] =
-            CLIMB_DIST_LPF_ALPHA * _ctx.data.front_lpf_state[0] +
-            (1.0f - CLIMB_DIST_LPF_ALPHA) * _ctx.data.front_lpf_state[1];
+    // 2. 前测距 二阶级联滤波 (平滑高频白噪声)
+    _ctx.data.front_lpf_state[0] =
+        CLIMB_DIST_LPF_ALPHA * raw_front_dist +
+        (1.0f - CLIMB_DIST_LPF_ALPHA) * _ctx.data.front_lpf_state[0];
+    _ctx.data.front_lpf_state[1] =
+        CLIMB_DIST_LPF_ALPHA * _ctx.data.front_lpf_state[0] +
+        (1.0f - CLIMB_DIST_LPF_ALPHA) * _ctx.data.front_lpf_state[1];
 
-        // 3. 后测距 二阶级联滤波
-        _ctx.data.back_lpf_state[0] =
-            CLIMB_DIST_LPF_ALPHA * raw_back_dist +
-            (1.0f - CLIMB_DIST_LPF_ALPHA) * _ctx.data.back_lpf_state[0];
-        _ctx.data.back_lpf_state[1] =
-            CLIMB_DIST_LPF_ALPHA * _ctx.data.back_lpf_state[0] +
-            (1.0f - CLIMB_DIST_LPF_ALPHA) * _ctx.data.back_lpf_state[1];
+    // 3. 后测距 二阶级联滤波
+    _ctx.data.back_lpf_state[0] =
+        CLIMB_DIST_LPF_ALPHA * raw_back_dist +
+        (1.0f - CLIMB_DIST_LPF_ALPHA) * _ctx.data.back_lpf_state[0];
+    _ctx.data.back_lpf_state[1] =
+        CLIMB_DIST_LPF_ALPHA * _ctx.data.back_lpf_state[0] +
+        (1.0f - CLIMB_DIST_LPF_ALPHA) * _ctx.data.back_lpf_state[1];
     // }
 
     _ctx.data.front_distance_mm       = static_cast<int32_t>(raw_front_dist);

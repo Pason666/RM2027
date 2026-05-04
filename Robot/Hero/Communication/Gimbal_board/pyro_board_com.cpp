@@ -11,18 +11,19 @@
 
 using namespace pyro;
 
-constexpr uint32_t EVENT_BIT_TRACK_TOGGLE = (1 << 0);
-constexpr uint32_t EVENT_BIT_SLING_TOGGLE = (1 << 2);
+constexpr uint32_t EVENT_BIT_TRACK_TOGGLE   = (1 << 0);
+constexpr uint32_t EVENT_BIT_RETRACT_TOGGLE = (1 << 1);
+constexpr uint32_t EVENT_BIT_SLING_TOGGLE   = (1 << 2);
 
-static TaskHandle_t board_com_task_handle = nullptr;
-static board_drv_t *board_drv_ptr         = nullptr;
+static TaskHandle_t board_com_task_handle   = nullptr;
+static board_drv_t *board_drv_ptr           = nullptr;
 
 static void process_gimbal_logic(uint32_t notify_val)
 {
     auto &tx_data = board_drv_ptr->get_g2c_tx_data();
 
     pyro::read_scope_lock lock(pyro::rc_drv_t::get_lock());
-    auto &vrc = pyro::rc_drv_t::read();
+    auto &vrc              = pyro::rc_drv_t::read();
 
     static bool sling_mode = false;
 
@@ -56,15 +57,31 @@ static void process_gimbal_logic(uint32_t notify_val)
             else
             {
                 tx_data.active = true;
-                tx_data.vx     = static_cast<int8_t>(vrc.axes.ly * 127);
-                tx_data.vy     = static_cast<int8_t>(-vrc.axes.lx * 127);
-                tx_data.wz     = 0;
+                tx_data.vx = static_cast<int8_t>(vrc.keys.w.current_level ? 127
+                                                 : vrc.keys.s.current_level
+                                                     ? -127
+                                                     : vrc.axes.ly * 127);
+                tx_data.vy = static_cast<int8_t>(vrc.keys.a.current_level ? 127
+                                                 : vrc.keys.d.current_level
+                                                     ? -127
+                                                     : -vrc.axes.lx * 127);
+                tx_data.wz = 0;
 
                 if (notify_val & EVENT_BIT_TRACK_TOGGLE)
                 {
                     tx_data.track_en = !tx_data.track_en;
                 }
-                tx_data.leg_retract = false;
+                if (tx_data.track_en)
+                {
+                    if (notify_val & EVENT_BIT_RETRACT_TOGGLE)
+                    {
+                        tx_data.leg_retract = !tx_data.leg_retract;
+                    }
+                }
+                else
+                {
+                    tx_data.leg_retract = false;
+                }
             }
         }
     }
@@ -116,8 +133,12 @@ extern "C"
         pyro::btn_broker::subscribe(
             &vrc.buttons.pause, pyro::btn_event_t::PRESS_DOWN,
             board_com_task_handle, EVENT_BIT_TRACK_TOGGLE);
+        pyro::btn_broker::subscribe(
+            &vrc.buttons.fn_r, pyro::btn_event_t::PRESS_DOWN,
+            board_com_task_handle, EVENT_BIT_RETRACT_TOGGLE);
         pyro::btn_broker::subscribe(&vrc.keys.r, pyro::btn_event_t::PRESS_DOWN,
-                                    board_com_task_handle, EVENT_BIT_SLING_TOGGLE);
+                                    board_com_task_handle,
+                                    EVENT_BIT_SLING_TOGGLE);
         vTaskDelete(nullptr);
     }
 }

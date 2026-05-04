@@ -101,12 +101,6 @@ void hybrid_chassis_t::_update_feedback()
         i->update_feedback();
     _ctx.motor.yaw->update_feedback();
 
-    // // 2. 读取 IMU 数据作为底盘姿态反馈
-    // ins_drv_t::get_instance()->get_rads_n(&_ctx.data.current_yaw_rad,
-    //                                       &_ctx.data.current_pitch_rad,
-    //                                       &_ctx.data.current_roll_rad);
-    // _ctx.data.current_pitch_rad -= PITCH_OFFSET_RAD;
-    // _ctx.data.current_roll_rad -= ROLL_OFFSET_RAD;
     // 2. 读取 IMU 数据作为底盘姿态反馈
     float raw_yaw, raw_pitch, raw_roll;
     ins_drv_t::get_instance()->get_rads_n(&raw_yaw, &raw_pitch, &raw_roll);
@@ -115,42 +109,93 @@ void hybrid_chassis_t::_update_feedback()
     raw_pitch -= PITCH_OFFSET_RAD;
     raw_roll -= ROLL_OFFSET_RAD;
 
-    // --- 一阶低通滤波 (LPF) ---
-    // 为了快速验证，这里使用 static 变量保存上一次的滤波状态
-    // 如果确认有效，建议将它们移到 _ctx.data 结构体中
+    // --- 一阶低通滤波 (IMU) ---
     static float filtered_pitch = 0.0f;
     static float filtered_roll  = 0.0f;
     static bool is_first_run    = true;
-
-    // 滤波系数 alpha：(0, 1]
-    // alpha = 1.0 表示完全不滤波；alpha 越小，抗噪声能力越强，但相位延迟越大。
-    // 对于 500Hz~1000Hz 的控制循环，0.1f ~ 0.3f 通常是一个比较理想的甜点值。
-    const float LPF_ALPHA       = 0.15f;
+    const float IMU_LPF_ALPHA   = 0.15f;
 
     if (is_first_run)
     {
-        // 第一次运行直接赋值，防止开机瞬间出现从 0 平滑过去的巨大阶跃
         filtered_pitch = raw_pitch;
         filtered_roll  = raw_roll;
         is_first_run   = false;
     }
     else
     {
-        // 迭代滤波公式
         filtered_pitch =
-            LPF_ALPHA * raw_pitch + (1.0f - LPF_ALPHA) * filtered_pitch;
+            IMU_LPF_ALPHA * raw_pitch + (1.0f - IMU_LPF_ALPHA) * filtered_pitch;
         filtered_roll =
-            LPF_ALPHA * raw_roll + (1.0f - LPF_ALPHA) * filtered_roll;
+            IMU_LPF_ALPHA * raw_roll + (1.0f - IMU_LPF_ALPHA) * filtered_roll;
     }
 
-    // 将滤波后的平滑数据赋给上下文，供 VMC 和 PID 使用
-    _ctx.data.current_yaw_rad   = raw_yaw; // Yaw 通常不参与重力补偿，可暂不滤波
+    _ctx.data.current_yaw_rad   = raw_yaw;
     _ctx.data.current_pitch_rad = filtered_pitch;
     _ctx.data.current_roll_rad  = filtered_roll;
-    _ctx.data.front_distance_mm =
-        sr04_drv::get_instance().get_distance() - FRONT_DISTANCE_OFFSET;
-    _ctx.data.back_distance_mm =
-        sr04_drv::get_instance().get_distance() - BACK_DISTANCE_OFFSET;
+
+    // =========================================================================
+    // --- 新增：测距模块 变化率限幅 + 二阶低通滤波 (2nd-Order LPF) ---
+    // =========================================================================
+    int32_t raw_front_dist_int32 =
+        static_cast<int32_t>(sr04_drv::get_instance().get_distance()) -
+        FRONT_DISTANCE_OFFSET;
+    int32_t raw_back_dist_int32 =
+        static_cast<int32_t>(sr05_drv::get_instance().get_distance()) -
+        BACK_DISTANCE_OFFSET;
+
+    auto raw_front_dist = static_cast<float>(raw_front_dist_int32);
+    auto raw_back_dist  = static_cast<float>(raw_back_dist_int32);
+
+    // if (!_ctx.data.distance_lpf_initialized)
+    // {
+    //     // 赋予初始值，防止开机瞬间缓慢从 0 爬升
+    //     for (int i = 0; i < 2; i++)
+    //     {
+    //         _ctx.data.front_lpf_state[i] = raw_front_dist;
+    //         _ctx.data.back_lpf_state[i]  = raw_back_dist;
+    //     }
+    //     _ctx.data.distance_lpf_initialized = true;
+    // }
+    // else
+    // {
+        // 1. 变化率限幅 (Slew Rate Limiting)
+        // 即使开机第一帧是毛刺导致初始化错误，后续也能以最大合法步长迅速回归真实值，避免死锁
+        float front_delta = raw_front_dist - _ctx.data.front_lpf_state[1];
+        if (front_delta > CLIMB_DIST_MAX_JUMP)
+            raw_front_dist = _ctx.data.front_lpf_state[1] + CLIMB_DIST_MAX_JUMP;
+        else if (front_delta < -CLIMB_DIST_MAX_JUMP)
+            raw_front_dist = _ctx.data.front_lpf_state[1] - CLIMB_DIST_MAX_JUMP;
+
+        float back_delta = raw_back_dist - _ctx.data.back_lpf_state[1];
+        if (back_delta > CLIMB_DIST_MAX_JUMP)
+            raw_back_dist = _ctx.data.back_lpf_state[1] + CLIMB_DIST_MAX_JUMP;
+        else if (back_delta < -CLIMB_DIST_MAX_JUMP)
+            raw_back_dist = _ctx.data.back_lpf_state[1] - CLIMB_DIST_MAX_JUMP;
+
+        // 2. 前测距 二阶级联滤波 (平滑高频白噪声)
+        _ctx.data.front_lpf_state[0] =
+            CLIMB_DIST_LPF_ALPHA * raw_front_dist +
+            (1.0f - CLIMB_DIST_LPF_ALPHA) * _ctx.data.front_lpf_state[0];
+        _ctx.data.front_lpf_state[1] =
+            CLIMB_DIST_LPF_ALPHA * _ctx.data.front_lpf_state[0] +
+            (1.0f - CLIMB_DIST_LPF_ALPHA) * _ctx.data.front_lpf_state[1];
+
+        // 3. 后测距 二阶级联滤波
+        _ctx.data.back_lpf_state[0] =
+            CLIMB_DIST_LPF_ALPHA * raw_back_dist +
+            (1.0f - CLIMB_DIST_LPF_ALPHA) * _ctx.data.back_lpf_state[0];
+        _ctx.data.back_lpf_state[1] =
+            CLIMB_DIST_LPF_ALPHA * _ctx.data.back_lpf_state[0] +
+            (1.0f - CLIMB_DIST_LPF_ALPHA) * _ctx.data.back_lpf_state[1];
+    // }
+
+    _ctx.data.front_distance_mm       = static_cast<int32_t>(raw_front_dist);
+    _ctx.data.back_distance_mm        = static_cast<int32_t>(raw_back_dist);
+
+    // 取出第二阶的结果作为最终平滑值，供外部状态机判定使用
+    _ctx.data.filtered_front_distance = _ctx.data.front_lpf_state[1];
+    _ctx.data.filtered_back_distance  = _ctx.data.back_lpf_state[1];
+    // =========================================================================
 
 
     // 3. 转换并记录电机转速与位置
@@ -193,16 +238,11 @@ void hybrid_chassis_t::_update_feedback()
     }
 
     // 左右腿对称性修正：对右腿(leg[1])的读取数据取反，抹平机械差异
-    // 左右腿对称性修正与机械零点 Offset 处理
-    // 【左腿】：原本是 (pos - offset)，现在电机反转，所以整体取反变成 -(pos -
-    // offset)
     float left_leg_raw =
         -(_ctx.motor.leg[0]->get_current_position() - LEFT_LEG_OFFSET_RAD);
     _ctx.data.current_leg_rad[0]   = loop_fp32_constrain(left_leg_raw, -PI, PI);
     _ctx.data.current_leg_radps[0] = -_ctx.motor.leg[0]->get_current_rotate();
 
-    // 【右腿】：原本就是 -(pos - offset)，现在电机也反了，负负得正变成 (pos -
-    // offset)
     float right_leg_raw =
         _ctx.motor.leg[1]->get_current_position() - RIGHT_LEG_OFFSET_RAD;
     _ctx.data.current_leg_rad[1] = loop_fp32_constrain(right_leg_raw, -PI, PI);

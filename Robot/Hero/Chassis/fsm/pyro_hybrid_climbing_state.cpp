@@ -20,11 +20,9 @@ void hybrid_chassis_t::fsm_active_t::climbing_fsm_t::on_enter(owner *owner)
     owner->_ctx.motor.leg[0]    ->enable();
     owner->_ctx.motor.leg[1]    ->enable();
 
-    // --- 初始化测距滤波与触发器状态 ---
-    _filtered_distance = owner->_ctx.data.front_distance_mm;
-    _is_guide_wheel_suspended = false;
+    // --- 初始化状态 ---
     _auto_retract_flag = false;
-    _retract_hold_tick = 0; // 初始化计时器
+    _retract_hold_tick = 0;
 }
 
 void hybrid_chassis_t::fsm_active_t::climbing_fsm_t::on_execute(owner *owner)
@@ -38,52 +36,46 @@ void hybrid_chassis_t::fsm_active_t::climbing_fsm_t::on_execute(owner *owner)
     owner->_power_control();
 
 
-    // ================= 自动收腿：施密特触发器逻辑 =================
+    // ================= 自动收腿：双测距空间判定逻辑 =================
 
-    // 1. 一阶低通滤波 (LPF) 剔除毛刺，滤波参数见 config.h
-    _filtered_distance = CLIMB_DIST_LPF_ALPHA * static_cast<float>(owner->_ctx.data.front_distance_mm) +
-                         (1.0f - CLIMB_DIST_LPF_ALPHA) * _filtered_distance;
+    // 1. 提取 _update_feedback 中已做完三阶低通滤波的数据
+    bool is_front_on_step  = (owner->_ctx.data.filtered_front_distance < CLIMB_DIST_THRES_LOW);
+    bool is_back_suspended = (owner->_ctx.data.filtered_back_distance > CLIMB_DIST_THRES_HIGH);
+    bool is_back_on_step   = (owner->_ctx.data.filtered_back_distance < CLIMB_DIST_THRES_LOW);
 
     // 2. 状态转移逻辑
-    if (_filtered_distance > CLIMB_DIST_THRES_HIGH)
+    if (!_auto_retract_flag)
     {
-        // 冲破上限，记录导轮悬空状态 (车头正在翘起或跨越中)
-        _is_guide_wheel_suspended = true;
-        _retract_hold_tick = 0; // 悬空时清空退出计时
-    }
-    else if (_filtered_distance < CLIMB_DIST_THRES_LOW)
-    {
-        if (_is_guide_wheel_suspended && owner->_ctx.data.real_vx < -CLIMB_VEL_X_BACK_THRES)
+        // a. 触发判定：前轮搭上台阶 且 后部被腿支撑悬空 且 车身保持向前速度
+        if (is_front_on_step && is_back_suspended && owner->_ctx.data.real_vx > CLIMB_VEL_X_FRONT_THRES)
         {
-            _is_guide_wheel_suspended = false;
-        }
-        // a. 进入自动收腿的判定
-        else if (_is_guide_wheel_suspended && owner->_ctx.data.real_vx > CLIMB_VEL_X_FRONT_THRES)
-        {
-            _auto_retract_flag = true; // 锁存自动收腿信号
-            _is_guide_wheel_suspended = false; // 触发后复位悬空状态
-            _retract_hold_tick = 0; // 刚触发时清零计时器
-        }
-
-        // b. 退出自动收腿的判定
-        if (_auto_retract_flag)
-        {
-            _retract_hold_tick++; // 只要低于下限且处于收腿锁存期，就持续累加
-
-            if (_retract_hold_tick >= CLIMB_RETRACT_HOLD_TICKS)
-            {
-                // 持续时间达标，证明已经稳稳在台阶面上开了一段距离了，退出收腿
-                _auto_retract_flag = false;
-                _retract_hold_tick = 0;
-            }
+            _auto_retract_flag = true;
+            _retract_hold_tick = 0;    // 触发时清零计时器，开始超时倒数
         }
     }
-    else // 距离位于上下限之间，或者异常突变高于下限
+    else
     {
-        // 如果在自动收腿过程中距离突然变大，说明可能遇到坑洼或者并没有完全跨过去
-        // 此时打断退出计时，要求必须连续贴地才允许退出
-        if (_auto_retract_flag)
+        _retract_hold_tick++; // 处于收腿状态时，每帧累加时间
+
+        // b. 成功越障判定 (绝对空间确认)
+        if (is_back_on_step)
         {
+            // 后方导轮也落在了台阶面上，证明整车成功上去，立刻解除收腿
+            _auto_retract_flag = false;
+            _retract_hold_tick = 0;
+        }
+        // c. 超时卡死判定
+        else if (_retract_hold_tick >= CLIMB_RETRACT_TIMEOUT_TICKS)
+        {
+            // 长时间未能让后轮上去，证明卡住或履带打滑，强制放下腿重新支撑
+            _auto_retract_flag = false;
+            _retract_hold_tick = 0;
+        }
+        // d. 主动放弃判定 (倒车保护)
+        else if (owner->_ctx.data.real_vx < -CLIMB_VEL_X_BACK_THRES)
+        {
+            // 驾驶员剧烈向后拉摇杆，强制解除收腿，重新放下腿部支撑保护底盘
+            _auto_retract_flag = false;
             _retract_hold_tick = 0;
         }
     }

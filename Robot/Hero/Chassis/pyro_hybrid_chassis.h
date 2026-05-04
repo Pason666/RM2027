@@ -123,9 +123,16 @@ class hybrid_chassis_t final
         float real_vy{0};
         float real_wz{0};
 
-        // 测距模块反馈
-        uint16_t front_distance_mm{0};
-        uint16_t back_distance_mm{0};
+        // 测距模块原始反馈
+        int32_t front_distance_mm{0};
+        int32_t back_distance_mm{0};
+
+        // --- 新增：测距 2阶 LPF 状态变量 ---
+        float filtered_front_distance{0.0f};
+        float filtered_back_distance{0.0f};
+        float front_lpf_state[2]{0.0f, 0.0f}; // 数组大小改为 2
+        float back_lpf_state[2]{0.0f, 0.0f};
+        bool  distance_lpf_initialized{false};
 
         // YAW 电机差值反馈（用于底盘跟随云台）
         float current_yaw_error{0};
@@ -196,8 +203,6 @@ class hybrid_chassis_t final
                 void enter(owner *owner) override;
                 void execute(owner *owner) override;
                 void exit(owner *owner) override;
-
-
             };
 
             void on_enter(owner *owner) override;
@@ -208,10 +213,8 @@ class hybrid_chassis_t final
             track_climbing_state_t track_climbing_state;
             leg_retraction_state_t leg_retraction_state;
 
-            // --- 新增：施密特触发器及自动收腿状态变量 ---
-            float _filtered_distance{0.0f};        // 滤波后的距离
-            bool _is_guide_wheel_suspended{false}; // 施密特高位状态标志
-            bool _auto_retract_flag{false}; // 自动收腿触发标志
+            // 自动收腿控制标志位
+            bool _auto_retract_flag{false};
             uint32_t _retract_hold_tick{0};
         };
 
@@ -234,4 +237,3 @@ class hybrid_chassis_t final
 } // namespace pyro
 
 #endif
-

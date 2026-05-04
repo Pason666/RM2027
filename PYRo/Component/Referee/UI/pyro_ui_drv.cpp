@@ -67,8 +67,8 @@ ui_drv_t &ui_drv_t::draw_rect(const char name[3], ui_operate op, uint8_t layer,
 {
     auto fig      = create_base_figure(name, op, ui_figure::RECT, layer, color,
                                        width, start_x, start_y);
-    fig.details_a = end_x;
-    fig.details_b = end_y;
+    fig.details_d = end_x;
+    fig.details_e = end_y;
     _buffer.push_back(fig);
     return *this;
 }

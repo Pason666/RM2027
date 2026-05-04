@@ -90,6 +90,7 @@ elseif (BOARD STREQUAL "CHASSIS_BOARD")
             # === Communication ===
             Communication/Chassis_board/pyro_board_com.cpp
             Communication/General/pyro_board_drv.cpp
+            Communication/Chassis_board/pyro_ui_com.cpp
 
 
 

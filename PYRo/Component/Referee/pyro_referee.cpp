@@ -268,8 +268,10 @@ bool referee_drv_t::send_ui_interaction(const uint16_t sub_cmd_id,
             len = 0;
             break;
     }
-    return _send_interaction_packet_base(sub_cmd_id, get_client_id(), data,
+    bool ret = _send_interaction_packet_base(sub_cmd_id, get_client_id(), data,
                                          len);
+    vTaskDelay(pdMS_TO_TICKS(32));
+    return ret;
 }
 
 bool referee_drv_t::send_custom_info(const char *message)

@@ -216,7 +216,6 @@ bool ui_drv_t::flush()
                 &_buffer[i]);
             i += 1;
         }
-        vTaskDelay(35);
     }
 
     _buffer.clear();

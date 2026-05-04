@@ -25,7 +25,7 @@ constexpr float YAW_OFFSET_RAD            = -1.83617496f;
 constexpr float PITCH_OFFSET_RAD =
     -0.0675839931; // 示例值，正负号取决于你的 IMU 坐标系方向
 constexpr float NORMAL_PITCH =
-    0.02f; // 机器人正常站立时的俯仰角 (rad)，用于自重补偿的基准点
+    0.08f; // 机器人正常站立时的俯仰角 (rad)，用于自重补偿的基准点
 constexpr float ROLL_OFFSET_RAD                  = -0.0f;
 constexpr uint32_t JX_POLY_DEGREE                = 7; // JX 多项式拟合阶数
 constexpr uint32_t JY_POLY_DEGREE                = 5; // JY 多项式拟合阶数

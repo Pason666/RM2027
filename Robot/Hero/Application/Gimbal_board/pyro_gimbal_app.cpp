@@ -20,7 +20,7 @@ static TaskHandle_t gimbal_task_handle                = nullptr;
 static pyro::screw_gimbal_t *screw_gimbal_ptr         = nullptr;
 static pyro::screw_gimbal_cmd_t *screw_gimbal_cmd_ptr = nullptr;
 static pyro::screw_gimbal_deps_t *screw_gimbal_deps   = nullptr;
-static pyro::board_drv_t *board_drv_ptr = nullptr;
+static pyro::board_drv_t *board_drv_ptr               = nullptr;
 
 // 追踪当前是否处于吊射模式
 static bool is_sling_mode                             = false;
@@ -62,12 +62,14 @@ extern "C"
                     }
                     else
                     {
-                        screw_gimbal_cmd_ptr->mode = pyro::cmd_base_t::mode_t::PASSIVE;
+                        screw_gimbal_cmd_ptr->mode =
+                            pyro::cmd_base_t::mode_t::PASSIVE;
                     }
                 }
                 else
                 {
-                    screw_gimbal_cmd_ptr->mode = pyro::cmd_base_t::mode_t::PASSIVE;
+                    screw_gimbal_cmd_ptr->mode =
+                        pyro::cmd_base_t::mode_t::PASSIVE;
                 }
             }
             else
@@ -84,7 +86,7 @@ extern "C"
 
     void hero_gimbal_init(void *argument)
     {
-        board_drv_ptr = &pyro::board_drv_t::get_instance();
+        board_drv_ptr        = &pyro::board_drv_t::get_instance();
         screw_gimbal_cmd_ptr = new pyro::screw_gimbal_cmd_t();
         screw_gimbal_ptr     = pyro::screw_gimbal_t::instance();
 
@@ -223,17 +225,17 @@ void deps_init()
     //     new pid_t(22.0f, 0.102f, 0.014f, 1.0f, 20.0f, 20, 10,
     //               4); // 输出限制匹配电机 Nm 级
     screw_gimbal_deps->pid_deps.pitch_pos =
-        new pid_t(11.5f, 0.108f, 0.01f, 0.5f, 10.0f, 40, 10,
+        new pid_t(11.5f, 0.108f, 0.01f, 0.5f, 10.0f, 40, 1, 10, 1,
                   4); // 位置环输出为 rad/s，限制在电机可接受范围内
     screw_gimbal_deps->pid_deps.pitch_spd =
-        new pid_t(11000.0f, 51.0f, 7.0f, 500.0f, 10000.0f, 20, 10,
+        new pid_t(11000.0f, 51.0f, 7.0f, 500.0f, 10000.0f, 20, 1, 10, 1,
                   4); // 输出限制匹配电机 Nm 级
 
     screw_gimbal_deps->pid_deps.pitch_auto_pos =
-        new pid_t(12.5f, 0.027f, 0.01f, 0.1f, 10.0f, 15, 5,
+        new pid_t(12.5f, 0.027f, 0.01f, 0.1f, 10.0f, 15, 1, 5, 1,
                   4); // 位置环输出为 rad/s，限制在电机可接受范围内
     screw_gimbal_deps->pid_deps.pitch_auto_spd =
-        new pid_t(11500.0f, 25.0f, 7.0f, 300.0f, 10000.0f, 10, 5,
+        new pid_t(11500.0f, 25.0f, 7.0f, 300.0f, 10000.0f, 10, 1, 5, 1,
                   4); // 输出限制匹配电机 Nm 级
 
 
@@ -243,12 +245,12 @@ void deps_init()
     // screw_gimbal_deps->pid_deps.yaw_spd =
     //     new pid_t(4.0f, 0.0003f, 0.0001f, 0.2f, 3.0f,100,50,4);
     screw_gimbal_deps->pid_deps.yaw_pos =
-        new pid_t(8.2f, 0.01f, 0.22f, 0.8f, 10.0f, 100, 50, 4);
+        new pid_t(8.2f, 0.01f, 0.22f, 0.8f, 10.0f, 100, 1, 50, 1, 4);
     screw_gimbal_deps->pid_deps.yaw_spd =
-        new pid_t(5.0f, 0.0003f, 0.0001f, 0.2f, 3.0f, 100, 50, 4);
+        new pid_t(5.0f, 0.0003f, 0.0001f, 0.2f, 3.0f, 100, 1, 50, 1, 4);
 
     screw_gimbal_deps->pid_deps.yaw_relative_pos =
-        new pid_t(5.0f, 0.0f, 0.0f, 0.3f, 3.0f, 10, 5, 4);
+        new pid_t(5.0f, 0.0f, 0.0f, 0.3f, 3.0f, 30, 2, 15, 3, 4);
     screw_gimbal_deps->pid_deps.yaw_relative_spd =
-        new pid_t(2.4f, 0.02f, 0.012f, 0.3f, 3.0f, 10, 5, 4);
+        new pid_t(2.4f, 0.02f, 0.012f, 0.3f, 3.0f, 20, 2, 10, 2, 4);
 }

@@ -9,10 +9,10 @@
 
 using namespace pyro;
 
-pyro::hybrid_chassis_t *hybrid_chassis_ptr       = nullptr;
-static pyro::hybrid_cmd_t *hybrid_cmd_ptr               = nullptr;
-static pyro::hybrid_deps_t *hybrid_deps_ptr             = nullptr;
-static board_drv_t *board_drv_ptr                 = nullptr;
+pyro::hybrid_chassis_t *hybrid_chassis_ptr  = nullptr;
+static pyro::hybrid_cmd_t *hybrid_cmd_ptr   = nullptr;
+static pyro::hybrid_deps_t *hybrid_deps_ptr = nullptr;
+static board_drv_t *board_drv_ptr           = nullptr;
 
 static void chassis_rxcmd();
 static void deps_init();
@@ -23,7 +23,9 @@ extern "C"
     {
         while (true)
         {
-            if (referee_drv_t::get_instance()->get_data().robot_status.power_management_chassis_output)
+            if (referee_drv_t::get_instance()
+                    ->get_data()
+                    .robot_status.power_management_chassis_output)
             {
                 if (board_drv_ptr->check_online())
                 {
@@ -45,9 +47,10 @@ extern "C"
 
     void hero_chassis_init(void *argument)
     {
-        board_drv_ptr       = &board_drv_t::get_instance(board_drv_t::role_t::CHASSIS, can_hub_t::can1);
-        hybrid_cmd_ptr      = new pyro::hybrid_cmd_t();
-        hybrid_chassis_ptr  = pyro::hybrid_chassis_t::instance();
+        board_drv_ptr = &board_drv_t::get_instance(board_drv_t::role_t::CHASSIS,
+                                                   can_hub_t::can1);
+        hybrid_cmd_ptr     = new pyro::hybrid_cmd_t();
+        hybrid_chassis_ptr = pyro::hybrid_chassis_t::instance();
 
         deps_init();
         hybrid_chassis_ptr->configure(*hybrid_deps_ptr);
@@ -66,10 +69,10 @@ void chassis_rxcmd()
         return;
     }
 
-    const auto &rx_data = board_drv_ptr->get_g2c_rx_data();
-    hybrid_cmd_ptr->vx = 2.0f * static_cast<float>(rx_data.vx) / 127.0f;
-    hybrid_cmd_ptr->vy = 2.0f * static_cast<float>(rx_data.vy) / 127.0f;
-    hybrid_cmd_ptr->wz = 2.0f * static_cast<float>(rx_data.wz) / 127.0f;
+    const auto &rx_data  = board_drv_ptr->get_g2c_rx_data();
+    hybrid_cmd_ptr->vx   = 2.0f * static_cast<float>(rx_data.vx) / 127.0f;
+    hybrid_cmd_ptr->vy   = 2.0f * static_cast<float>(rx_data.vy) / 127.0f;
+    hybrid_cmd_ptr->wz   = 2.0f * static_cast<float>(rx_data.wz) / 127.0f;
     hybrid_cmd_ptr->mode = rx_data.active ? pyro::cmd_base_t::mode_t::ACTIVE
                                           : pyro::cmd_base_t::mode_t::PASSIVE;
     hybrid_cmd_ptr->crossing_en = rx_data.track_en;
@@ -132,42 +135,40 @@ void deps_init()
         ->set_torque_range(-27.0f, 27.0f);
     // NOLINTEND(cppcoreguidelines-pro-type-static-cast-downcast)
 
-	// 3508 手册的最大电流为 10 A
-	// C620 电调提供的 3508性能曲线表示在电流 > 10A 时变化不大
+    // 3508 手册的最大电流为 10 A
+    // C620 电调提供的 3508性能曲线表示在电流 > 10A 时变化不大
     hybrid_deps_ptr->pid_deps.mecanum_pid[0] =
-        new pid_t(0.3f, 0.0008f, 0.0002f, 1.0f, 10.0f, 20, 10, 4);
+        new pid_t(0.3f, 0.0008f, 0.0002f, 1.0f, 10.0f, 20, 1, 10, 1, 4);
     hybrid_deps_ptr->pid_deps.mecanum_pid[1] =
-        new pid_t(0.3f, 0.0008f, 0.0002f, 1.0f, 10.0f, 20, 10, 4);
+        new pid_t(0.3f, 0.0008f, 0.0002f, 1.0f, 10.0f, 20, 1, 10, 1, 4);
     hybrid_deps_ptr->pid_deps.mecanum_pid[2] =
-        new pid_t(0.3f, 0.0008f, 0.0002f, 1.0f, 10.0f, 20, 10, 4);
+        new pid_t(0.3f, 0.0008f, 0.0002f, 1.0f, 10.0f, 20, 1, 10, 1, 4);
     hybrid_deps_ptr->pid_deps.mecanum_pid[3] =
-        new pid_t(0.3f, 0.0008f, 0.0002f, 1.0f, 10.0f, 20, 10, 4);
+        new pid_t(0.3f, 0.0008f, 0.0002f, 1.0f, 10.0f, 20, 1, 10, 1, 4);
 
     hybrid_deps_ptr->pid_deps.follow_yaw_pid =
-        new pid_t(5.0f, 0.0f, 0.1f, 0.0f, 10.0f, 200, 100, 4);
+        new pid_t(5.0f, 0.0f, 0.1f, 0.0f, 10.0f, 200, 1, 100, 1, 4);
 
     hybrid_deps_ptr->pid_deps.track_pid[0] =
-        new pid_t(0.02f, 0.0001f, 0.00002f, 0.5f, 11.0f, 20, 10, 4);
+        new pid_t(0.02f, 0.0001f, 0.00002f, 0.5f, 11.0f, 20, 1, 10, 1, 4);
     hybrid_deps_ptr->pid_deps.track_pid[1] =
-        new pid_t(0.02f, 0.0001f, 0.00002f, 0.5f, 11.0f, 20, 10, 4);
+        new pid_t(0.02f, 0.0001f, 0.00002f, 0.5f, 11.0f, 20, 1, 10, 1, 4);
 
     hybrid_deps_ptr->pid_deps.pitch_pid = new pid_t(
-        260.0f, 0.1f, 10.0f, 20.0f, 200.0f, 200, 100, 4,
+        260.0f, 0.1f, 10.0f, 20.0f, 200.0f, 200, 1, 100, 1, 4,
         pid_t::INTEGRAL_LIMIT | pid_t::OUTPUT_FILTER |
             pid_t::DERIVATIVE_FILTER | pid_t::DERIVATIVE_ON_MEASUREMENT);
     hybrid_deps_ptr->pid_deps.roll_pid = new pid_t(
-        360.0f, 0.1f, 10.0f, 20.0f, 200.0f, 200, 100, 4,
+        360.0f, 0.1f, 10.0f, 20.0f, 200.0f, 200, 1, 100, 1, 4,
         pid_t::INTEGRAL_LIMIT | pid_t::OUTPUT_FILTER |
             pid_t::DERIVATIVE_FILTER | pid_t::DERIVATIVE_ON_MEASUREMENT);
 
     hybrid_deps_ptr->pid_deps.leg_pos_pid[0] =
-        new pid_t(11.2f, 0.005f, 0.008f, 0.01f, 0.5f, 20, 10, 4);
+        new pid_t(11.2f, 0.005f, 0.008f, 0.01f, 0.5f, 20, 1, 10, 1, 4);
     hybrid_deps_ptr->pid_deps.leg_pos_pid[1] =
-        new pid_t(11.2f, 0.005f, 0.008f, 0.01f, 0.5f, 20, 10, 4);
+        new pid_t(11.2f, 0.005f, 0.008f, 0.01f, 0.5f, 20, 1, 10, 1, 4);
     hybrid_deps_ptr->pid_deps.leg_vel_pid[0] =
-        new pid_t(260.0f, 0.005f, 0.008f, 5.0f, 200.0f, 20, 10, 4);
+        new pid_t(260.0f, 0.005f, 0.008f, 5.0f, 200.0f, 20, 1, 10, 1, 4);
     hybrid_deps_ptr->pid_deps.leg_vel_pid[1] =
-        new pid_t(260.0f, 0.005f, 0.008f, 5.0f, 200.0f, 20, 10, 4);
+        new pid_t(260.0f, 0.005f, 0.008f, 5.0f, 200.0f, 20, 1, 10, 1, 4);
 }
-
-

@@ -212,19 +212,30 @@ void screw_gimbal_t::_gimbal_sling_control()
     float yaw_pid_out = _ctx.pid.yaw_relative_spd->calculate(
         _ctx.data.target_yaw_radps, _ctx.data.relative_yaw_motor_radps);
 
-    float yaw_friction_comp = 0.0f;
+    // 【修改点】：引入 Yaw 轴摩擦力的施密特触发器 (迟滞区间)
+    static int yaw_active_direction = 0; // 1: 正向, -1: 反向, 0: 无
 
-    if (_ctx.data.target_yaw_radps > YAW_SLING_DEADBAND_RADPS)
+    float target_yaw_radps_abs = std::abs(_ctx.data.target_yaw_radps);
+    float threshold_high = YAW_SLING_DEADBAND_RADPS + YAW_SLING_BUFFER_RADPS;
+    float threshold_low  = YAW_SLING_DEADBAND_RADPS;
+
+    if (_ctx.data.target_yaw_radps > threshold_high)
     {
-        yaw_friction_comp = YAW_SLING_FRICTION_TORQUE;
+        yaw_active_direction = 1;
     }
-    else if (_ctx.data.target_yaw_radps < -YAW_SLING_DEADBAND_RADPS)
+    else if (_ctx.data.target_yaw_radps < -threshold_high)
     {
-        yaw_friction_comp = -YAW_SLING_FRICTION_TORQUE;
+        yaw_active_direction = -1;
     }
+    else if (target_yaw_radps_abs < threshold_low)
+    {
+        yaw_active_direction = 0;
+    }
+    // else 落在 [threshold_low, threshold_high] 的区间内，保持 yaw_active_direction 状态不变
+
+    float yaw_friction_comp = yaw_active_direction * YAW_SLING_FRICTION_TORQUE;
 
     _ctx.data.out_yaw_torque = yaw_pid_out + yaw_friction_comp;
-    // _ctx.data.out_yaw_torque = yaw_pid_out;
     _ctx.data.out_yaw_torque = std::clamp(_ctx.data.out_yaw_torque, -YAW_SLING_TORQUE_LIMIT, YAW_SLING_TORQUE_LIMIT);
 }
 

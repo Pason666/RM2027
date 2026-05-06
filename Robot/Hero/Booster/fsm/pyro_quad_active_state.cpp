@@ -6,6 +6,7 @@ namespace pyro
 
 void quad_booster_t::fsm_active_t::on_enter(owner *owner)
 {
+    static_cast<dm_motor_drv* >(owner->_ctx.motor.trigger_wheel)->clear_error;
     owner->_ctx.motor.trigger_wheel->enable();
     owner->_ctx.motor.fric_wheels[0]->enable();
     owner->_ctx.motor.fric_wheels[1]->enable();

@@ -39,8 +39,12 @@ class board_drv_t
         bool track_en     : 1;
         bool leg_retract  : 1;
         bool fric_en      : 1;
+        bool firc_err     : 1;
         bool sling_mode   : 1;
-        bool reserved_bit : 3;
+        bool reserved_bit : 2;
+
+        int16_t pitch_rad;
+        uint8_t target_shoot_spd;
     };
 
     /**
@@ -49,9 +53,9 @@ class board_drv_t
     struct c2g_data_t
     {
         int16_t chassis_q[4];
-        bool gimbal_output : 1;
+        bool gimbal_output  : 1;
         bool booster_output : 1;
-        bool reserved_bit : 6;
+        bool reserved_bit   : 6;
     };
 
     /* ---------------------------------------------------- */

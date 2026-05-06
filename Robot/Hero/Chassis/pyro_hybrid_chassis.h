@@ -9,6 +9,7 @@
 #include "hybrid_config.h"
 #include "pyro_power_control.h"
 #include "pyro_powermeter.h"
+#include "pyro_supercap_drv.h"
 
 namespace pyro
 {
@@ -162,6 +163,8 @@ class hybrid_chassis_t final
         data_ctx_t data;
         powermeter_drv_t *powermeter{nullptr};
         powermeter_data powermeter_feedback{};
+        supercap_drv_t::chassis_cmd_t supercap_cmd{};
+        supercap_drv_t::cap_feedback_t cap_feedback{};
         power_node_t *power_motor_data[6]{};
         hybrid_cmd_t *cmd{};
     };

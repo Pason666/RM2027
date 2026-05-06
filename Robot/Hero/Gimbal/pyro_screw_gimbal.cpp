@@ -101,6 +101,16 @@ void screw_gimbal_t::_update_feedback()
 
     // 4. 动态实时校准 (抗编码器零漂)
     _handle_dynamic_calibration();
+
+    // =========================================================
+    // 5. LESO 观测器更新 (全时段连续追踪，防止切入时状态突跳)
+    // =========================================================
+    if (_ctx.pid.yaw_leso != nullptr)
+    {
+        // 取上一次计算出的最终力矩作为已知控制输入 u
+        float last_yaw_u = _ctx.data.out_yaw_torque;
+        _ctx.pid.yaw_leso->update(_ctx.data.relative_yaw_motor_rad, last_yaw_u);
+    }
 }
 
 void screw_gimbal_t::_gimbal_control()
@@ -212,30 +222,17 @@ void screw_gimbal_t::_gimbal_sling_control()
     float yaw_pid_out = _ctx.pid.yaw_relative_spd->calculate(
         _ctx.data.target_yaw_radps, _ctx.data.relative_yaw_motor_radps);
 
-    // 【修改点】：引入 Yaw 轴摩擦力的施密特触发器 (迟滞区间)
-    static int yaw_active_direction = 0; // 1: 正向, -1: 反向, 0: 无
-
-    float target_yaw_radps_abs = std::abs(_ctx.data.target_yaw_radps);
-    float threshold_high = YAW_SLING_DEADBAND_RADPS + YAW_SLING_BUFFER_RADPS;
-    float threshold_low  = YAW_SLING_DEADBAND_RADPS;
-
-    if (_ctx.data.target_yaw_radps > threshold_high)
+    // 【修改点】：使用 LESO 估计的总扰动进行前馈补偿，替代原先的施密特触发器逻辑
+    float yaw_leso_comp = 0.0f;
+    if (_ctx.pid.yaw_leso != nullptr)
     {
-        yaw_active_direction = 1;
+        // 获取实时观测出的阻尼与摩擦总扰动
+        float estimated_disturbance = _ctx.pid.yaw_leso->get_z3();
+        // 控制律: u = PID_out - z3 / b
+        yaw_leso_comp = -estimated_disturbance / _ctx.pid.yaw_leso->get_b();
     }
-    else if (_ctx.data.target_yaw_radps < -threshold_high)
-    {
-        yaw_active_direction = -1;
-    }
-    else if (target_yaw_radps_abs < threshold_low)
-    {
-        yaw_active_direction = 0;
-    }
-    // else 落在 [threshold_low, threshold_high] 的区间内，保持 yaw_active_direction 状态不变
 
-    float yaw_friction_comp = yaw_active_direction * YAW_SLING_FRICTION_TORQUE;
-
-    _ctx.data.out_yaw_torque = yaw_pid_out + yaw_friction_comp;
+    _ctx.data.out_yaw_torque = yaw_pid_out + yaw_leso_comp;
     _ctx.data.out_yaw_torque = std::clamp(_ctx.data.out_yaw_torque, -YAW_SLING_TORQUE_LIMIT, YAW_SLING_TORQUE_LIMIT);
 }
 

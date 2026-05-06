@@ -253,4 +253,6 @@ void deps_init()
         new pid_t(5.0f, 0.0f, 0.0f, 0.3f, 3.0f, 30, 2, 15, 3, 4);
     screw_gimbal_deps->pid_deps.yaw_relative_spd =
         new pid_t(2.4f, 0.02f, 0.012f, 0.3f, 3.0f, 20, 2, 10, 2, 4);
+    screw_gimbal_deps->pid_deps.yaw_leso =
+        new leso_t(100,1.0f,3.0f); // LESO 参数配置
 }

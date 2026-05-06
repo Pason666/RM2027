@@ -93,6 +93,11 @@ class leso_t
         return _z3;
     }
 
+    [[nodiscard]] float get_b() const
+    {
+        return _b;
+    }
+
   private:
     // --- Private Helper Functions ---
     void calculate_betas();

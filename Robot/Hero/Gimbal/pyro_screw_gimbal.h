@@ -2,6 +2,7 @@
 #define __PYRO_SCREW_GIMBAL_H__
 
 #include "pyro_algo_pid.h"
+#include "pyro_algo_leso.h" // 【新增】引入 LESO 观测器
 #include "pyro_dji_motor_drv.h"
 #include "pyro_dm_motor_drv.h"
 #include "pyro_module_base.h"
@@ -53,6 +54,9 @@ struct screw_gimbal_deps_t
         pid_t *yaw_spd{nullptr};
         pid_t *yaw_relative_pos{nullptr};
         pid_t *yaw_relative_spd{nullptr};
+
+        // 【新增】吊射模式下用于 Yaw 轴机械角前馈补偿的 LESO
+        leso_t *yaw_leso{nullptr};
     };
 
     motor_deps_t motor_deps{};

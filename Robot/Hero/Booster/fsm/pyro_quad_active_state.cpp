@@ -1,3 +1,4 @@
+#include "pyro_dm_motor_drv.h"
 #include "pyro_quad_booster.h"
 #include "pyro_dwt_drv.h"
 
@@ -6,7 +7,8 @@ namespace pyro
 
 void quad_booster_t::fsm_active_t::on_enter(owner *owner)
 {
-    static_cast<dm_motor_drv* >(owner->_ctx.motor.trigger_wheel)->clear_error;
+    static_cast<dm_motor_drv_t *>(owner->_ctx.motor.trigger_wheel) // NOLINT
+        ->clear_error();                                           // NOLINT
     owner->_ctx.motor.trigger_wheel->enable();
     owner->_ctx.motor.fric_wheels[0]->enable();
     owner->_ctx.motor.fric_wheels[1]->enable();
@@ -24,7 +26,9 @@ void quad_booster_t::fsm_active_t::on_execute(owner *owner)
     if (owner->_ctx.cmd->fric_on)
     {
         // 根据吊射模式切换数据引用
-        auto &shoot_data = owner->_ctx.cmd->sling_mode ? owner->_ctx.shoot_sling_data : owner->_ctx.shoot_normal_data;
+        auto &shoot_data                    = owner->_ctx.cmd->sling_mode
+                                                  ? owner->_ctx.shoot_sling_data
+                                                  : owner->_ctx.shoot_normal_data;
 
         owner->_ctx.data.target_fric_mps[0] = shoot_data.fric2_mps;
         owner->_ctx.data.target_fric_mps[2] = -shoot_data.fric2_mps;
@@ -67,7 +71,8 @@ void quad_booster_t::fsm_active_t::on_execute(owner *owner)
         }
         else
         {
-            const float elapsed_time = dwt_drv_t::get_timeline_ms() - stall_start_time;
+            const float elapsed_time =
+                dwt_drv_t::get_timeline_ms() - stall_start_time;
             if (elapsed_time >= STALL_TIME_THRESHOLD)
             {
                 change_state(&_stall_state);
@@ -86,8 +91,8 @@ void quad_booster_t::fsm_active_t::on_execute(owner *owner)
             clear_stall_counter++;
             if (clear_stall_counter >= 8) // 连续8个周期不满足堵转条件
             {
-                stall_start_time = 0.0f;   // 真正重置堵转计时
-                clear_stall_counter = 0;   // 计数器归零
+                stall_start_time    = 0.0f; // 真正重置堵转计时
+                clear_stall_counter = 0;    // 计数器归零
             }
         }
         else

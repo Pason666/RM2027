@@ -227,7 +227,7 @@ void screw_gimbal_t::_gimbal_sling_control()
     if (_ctx.pid.yaw_leso != nullptr)
     {
         // 获取实时观测出的阻尼与摩擦总扰动
-        float estimated_disturbance = _ctx.pid.yaw_leso->get_z3();
+        float estimated_disturbance = _ctx.pid.yaw_leso->get_disturbance();
         // 控制律: u = PID_out - z3 / b
         yaw_leso_comp = -estimated_disturbance / _ctx.pid.yaw_leso->get_b();
     }

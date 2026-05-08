@@ -259,7 +259,7 @@ void deps_init()
 
     // 1. LESO: 降低带宽到 50，略微增大 b (14.0) 以软化前馈输出，限幅保持 20.0A
     screw_gimbal_deps->pid_deps.yaw_leso =
-        new leso_t(50.0f, 14.0f, 20.0f);
+        new leso_t<3>(50.0f, 14.0f, 20.0f);
 
     // 2. 位置环 PID: 保持 Kp=4.0 不变。
     // 关键修改：将输出滤波从 30Hz 提高到 80Hz (一阶)，减少相位延迟。

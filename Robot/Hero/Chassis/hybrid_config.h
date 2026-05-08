@@ -27,7 +27,7 @@ constexpr float YAW_OFFSET_RAD            = -0.381194115f;
 constexpr float PITCH_OFFSET_RAD =
     -0.0675839931; // 示例值，正负号取决于你的 IMU 坐标系方向
 constexpr float NORMAL_PITCH =
-    0.08f; // 机器人正常站立时的俯仰角 (rad)，用于自重补偿的基准点
+    0.1f; // 机器人正常站立时的俯仰角 (rad)，用于自重补偿的基准点
 constexpr float ROLL_OFFSET_RAD                  = -0.0f;
 constexpr uint32_t JX_POLY_DEGREE                = 7; // JX 多项式拟合阶数
 constexpr uint32_t JY_POLY_DEGREE                = 5; // JY 多项式拟合阶数
@@ -69,7 +69,7 @@ constexpr uint16_t BACK_DISTANCE_OFFSET  = 116; // 后测距模块平地偏置
 constexpr uint16_t CLIMB_DIST_THRES_HIGH = 175; // 导轮悬空距离上限判定 (mm)
 constexpr uint16_t CLIMB_DIST_THRES_LOW  = 25;  // 导轮搭上台阶距离下限判定 (mm)
 constexpr float CLIMB_VEL_X_FRONT_THRES =
-    0.3f; // 触发自动收腿的底盘最小真实前推速度 (m/s)
+    0.1f; // 触发自动收腿的底盘最小真实前推速度 (m/s)
 constexpr float CLIMB_VEL_X_BACK_THRES         = 0.15f; // 倒车保护判定速度
 constexpr uint32_t CLIMB_RETRACT_TIMEOUT_TICKS = 3000;  // 超时放弃收腿
 

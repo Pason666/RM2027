@@ -43,7 +43,7 @@ extern "C"
             {
                 is_sling_mode = !is_sling_mode;
             }
-            is_sling_mode = true;
+            // is_sling_mode = true;
 
 
             // 同步给底层 HFSM 状态机
@@ -250,24 +250,24 @@ void deps_init()
     screw_gimbal_deps->pid_deps.yaw_spd =
         new pid_t(5.0f, 0.0003f, 0.0001f, 0.2f, 3.0f, 100, 1, 50, 1, 4);
 
-    // screw_gimbal_deps->pid_deps.yaw_relative_pos =
-    //     new pid_t(4.0f, 0.0f, 0.0f, 0.3f, 3.0f, 30, 2, 20, 3, 4);
-    // screw_gimbal_deps->pid_deps.yaw_relative_spd =
-    //     new pid_t(10.0f, 0.0f, 0.0f, 0.3f, 3.0f, 30, 1, 10, 2, 4);
-    // screw_gimbal_deps->pid_deps.yaw_leso =
-    //     new leso_t(40,12.632f,20.0f); // LESO 参数配置
-
-    // 1. LESO: 降低带宽到 50，略微增大 b (14.0) 以软化前馈输出，限幅保持 20.0A
-    screw_gimbal_deps->pid_deps.yaw_leso =
-        new leso_t<3>(50.0f, 14.0f, 20.0f);
-
-    // 2. 位置环 PID: 保持 Kp=4.0 不变。
-    // 关键修改：将输出滤波从 30Hz 提高到 80Hz (一阶)，减少相位延迟。
     screw_gimbal_deps->pid_deps.yaw_relative_pos =
-        new pid_t(4.0f, 0.0f, 0.0f, 0.3f, 5.0f, 80.0f, 1, 0.0f, 1, 2);
-
-    // 3. 速度环 PID: 保持 Kp=10.0 不变。
-    // 关键修改：将输出滤波提高到 80Hz (一阶)，给电流输出更快的响应速度。
+        new pid_t(4.0f, 0.0f, 0.0f, 0.3f, 3.0f, 30, 2, 20, 3, 4);
     screw_gimbal_deps->pid_deps.yaw_relative_spd =
-        new pid_t(10.0f, 0.0f, 0.0f, 0.3f, 5.0f, 80.0f, 1, 0.0f, 1, 2);
+        new pid_t(10.0f, 0.0f, 0.0f, 0.3f, 3.0f, 30, 1, 10, 2, 4);
+    screw_gimbal_deps->pid_deps.yaw_leso =
+        new leso_t<3>(40,12.632f,20.0f); // LESO 参数配置
+
+    // // 1. LESO: 降低带宽到 50，略微增大 b (14.0) 以软化前馈输出，限幅保持 20.0A
+    // screw_gimbal_deps->pid_deps.yaw_leso =
+    //     new leso_t<3>(50.0f, 14.0f, 20.0f);
+    //
+    // // 2. 位置环 PID: 保持 Kp=4.0 不变。
+    // // 关键修改：将输出滤波从 30Hz 提高到 80Hz (一阶)，减少相位延迟。
+    // screw_gimbal_deps->pid_deps.yaw_relative_pos =
+    //     new pid_t(4.0f, 0.0f, 0.0f, 0.3f, 5.0f, 80.0f, 1, 0.0f, 1, 2);
+    //
+    // // 3. 速度环 PID: 保持 Kp=10.0 不变。
+    // // 关键修改：将输出滤波提高到 80Hz (一阶)，给电流输出更快的响应速度。
+    // screw_gimbal_deps->pid_deps.yaw_relative_spd =
+    //     new pid_t(10.0f, 0.0f, 0.0f, 0.3f, 5.0f, 80.0f, 1, 0.0f, 1, 2);
 }

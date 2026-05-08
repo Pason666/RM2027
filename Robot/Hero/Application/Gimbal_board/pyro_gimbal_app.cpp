@@ -43,6 +43,7 @@ extern "C"
             {
                 is_sling_mode = !is_sling_mode;
             }
+            is_sling_mode = true;
 
 
             // 同步给底层 HFSM 状态机
@@ -180,10 +181,10 @@ void gimbal_vt032cmd()
             // 吊射模式下：WASD 直接接管云台控制 (W/S控制Pitch, A/D控制Yaw)
             float wasd_pitch = static_cast<float>(
                 vrc.keys.w.current_level ? 1
-                                         : (vrc.keys.s.current_level ? -1 : 0));
+                                         : (vrc.keys.s.current_level ? -1 : 0)) + -vrc.axes.ry * 2.0f;
             float wasd_yaw = static_cast<float>(
                 vrc.keys.a.current_level ? 1
-                                         : (vrc.keys.d.current_level ? -1 : 0));
+                                         : (vrc.keys.d.current_level ? -1 : 0)) + -vrc.axes.rx * 2.0f;
 
             // 步进系数设为 0.0025f，以保证手感相对平滑
             screw_gimbal_cmd_ptr->pitch_delta_angle = -wasd_pitch * 0.00002f;
@@ -249,10 +250,24 @@ void deps_init()
     screw_gimbal_deps->pid_deps.yaw_spd =
         new pid_t(5.0f, 0.0003f, 0.0001f, 0.2f, 3.0f, 100, 1, 50, 1, 4);
 
-    screw_gimbal_deps->pid_deps.yaw_relative_pos =
-        new pid_t(5.0f, 0.0f, 0.0f, 0.3f, 3.0f, 30, 2, 15, 3, 4);
-    screw_gimbal_deps->pid_deps.yaw_relative_spd =
-        new pid_t(2.4f, 0.02f, 0.012f, 0.3f, 3.0f, 20, 2, 10, 2, 4);
+    // screw_gimbal_deps->pid_deps.yaw_relative_pos =
+    //     new pid_t(4.0f, 0.0f, 0.0f, 0.3f, 3.0f, 30, 2, 20, 3, 4);
+    // screw_gimbal_deps->pid_deps.yaw_relative_spd =
+    //     new pid_t(10.0f, 0.0f, 0.0f, 0.3f, 3.0f, 30, 1, 10, 2, 4);
+    // screw_gimbal_deps->pid_deps.yaw_leso =
+    //     new leso_t(40,12.632f,20.0f); // LESO 参数配置
+
+    // 1. LESO: 降低带宽到 50，略微增大 b (14.0) 以软化前馈输出，限幅保持 20.0A
     screw_gimbal_deps->pid_deps.yaw_leso =
-        new leso_t(100,1.0f,3.0f); // LESO 参数配置
+        new leso_t(50.0f, 14.0f, 20.0f);
+
+    // 2. 位置环 PID: 保持 Kp=4.0 不变。
+    // 关键修改：将输出滤波从 30Hz 提高到 80Hz (一阶)，减少相位延迟。
+    screw_gimbal_deps->pid_deps.yaw_relative_pos =
+        new pid_t(4.0f, 0.0f, 0.0f, 0.3f, 5.0f, 80.0f, 1, 0.0f, 1, 2);
+
+    // 3. 速度环 PID: 保持 Kp=10.0 不变。
+    // 关键修改：将输出滤波提高到 80Hz (一阶)，给电流输出更快的响应速度。
+    screw_gimbal_deps->pid_deps.yaw_relative_spd =
+        new pid_t(10.0f, 0.0f, 0.0f, 0.3f, 5.0f, 80.0f, 1, 0.0f, 1, 2);
 }

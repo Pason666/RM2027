@@ -17,7 +17,8 @@ void screw_gimbal_t::fsm_active_t::sling_state_t::enter(owner *owner)
     owner->_ctx.data.allow_dynamic_calib = false;
     owner->_ctx.pid.yaw_relative_pos->clear();
     owner->_ctx.pid.yaw_relative_spd->clear();
-    owner->_ctx.pid.yaw_leso->clear();
+    owner->_ctx.pid.yaw_pos_leso->clear();
+    owner->_ctx.pid.yaw_spd_leso->clear();
 }
 
 void screw_gimbal_t::fsm_active_t::sling_state_t::execute(owner *owner)

@@ -1,8 +1,8 @@
 # =========================================================================
 # 1. 显式定义当前编译的板子类型（在这里切换 GIMBAL_BOARD 或 CHASSIS_BOARD）
 # =========================================================================
-set(BOARD "GIMBAL_BOARD")
-#set(BOARD "CHASSIS_BOARD")
+#set(BOARD "GIMBAL_BOARD")
+set(BOARD "CHASSIS_BOARD")
 #
 # =========================================================================
 # 2. 声明Hero目标文件库（OBJECT库，仅编译目标文件不链接，保留原工程逻辑）
@@ -53,6 +53,7 @@ if (BOARD STREQUAL "GIMBAL_BOARD")
             Communication/Gimbal_board/pyro_board_com.cpp
             Communication/general/pyro_board_drv.cpp
 
+
             pyro_mission_planer.cpp
             pyro_init_thread.cpp
     )
@@ -91,7 +92,7 @@ elseif (BOARD STREQUAL "CHASSIS_BOARD")
             Communication/Chassis_board/pyro_board_com.cpp
             Communication/General/pyro_board_drv.cpp
             Communication/Chassis_board/pyro_ui_com.cpp
-
+            Communication/Chassis_board/pyro_board_com.cpp
 
 
             pyro_mission_planer.cpp

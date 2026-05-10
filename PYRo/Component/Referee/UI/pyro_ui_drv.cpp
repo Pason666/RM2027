@@ -29,6 +29,7 @@ bool ui_drv_t::clear_all() const
     constexpr uint8_t data[2] = {2, 0}; // 2: 删除所有
     return _referee->send_ui_interaction(
         static_cast<uint16_t>(interaction_sub_cmd::UI_CMD_DELETE), data);
+
 }
 
 ui_figure_data_t ui_drv_t::create_base_figure(const char name[3], ui_operate op,

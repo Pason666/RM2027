@@ -53,6 +53,7 @@ if (BOARD STREQUAL "GIMBAL_BOARD")
             Communication/Gimbal_board/pyro_board_com.cpp
             Communication/general/pyro_board_drv.cpp
 
+
             pyro_mission_planer.cpp
             pyro_init_thread.cpp
     )
@@ -91,7 +92,7 @@ elseif (BOARD STREQUAL "CHASSIS_BOARD")
             Communication/Chassis_board/pyro_board_com.cpp
             Communication/General/pyro_board_drv.cpp
             Communication/Chassis_board/pyro_ui_com.cpp
-
+            Communication/Chassis_board/pyro_board_com.cpp
 
 
             pyro_mission_planer.cpp

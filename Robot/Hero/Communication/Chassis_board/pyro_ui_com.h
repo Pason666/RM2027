@@ -18,11 +18,13 @@ struct ui_ctx_t
     bool sling_flag                              = false; // 吊射模式标志位
     bool fric_en_flag                            = false; // 摩擦轮使能标志位
     bool fric_error_flag                         = false; // 摩擦轮错误标志位
+    bool track_en_flag                          = false;
+    bool leg_retract_flag                            = false;
     float yaw_rad                                = 0.0f;  // rad
     float pitch_rad                              = 0.0f;  // rad
     float target_shoot_spd                       = 0.0f;  // m/s
     float super_cap_voltage                      = 0.0f;  // V
-
+    bool refresh_flag                            = false; // T/F本身无含义，仅检测变化
     static constexpr float super_cap_voltage_max = 26.0f;
 
     // 辅助判定
@@ -55,6 +57,8 @@ public:
     // 全局刷新 (清空所有 -> 绘制静态 -> 绘制动态)
     void refresh();
 
+    //检查翻转沿
+    bool refresh_check();
 private:
     ui_drv_t *_drv = nullptr;
 
@@ -69,6 +73,7 @@ private:
     void draw_pitch();
     void draw_spd();
     void draw_super_cap();
+    void draw_trail_state();
 };
 }
 static constexpr float sqrt__2 = 0.707f;//二分之根号2

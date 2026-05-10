@@ -20,7 +20,6 @@ using namespace pyro;
 // ==========================================
 static pyro::referee_drv_t *referee_ptr = nullptr;
 static pyro::ui_drv_t *ui_ptr           = nullptr;
-static bool flush_flag                  = false;
 
 static pyro::ui_ctx_t ui_ctx; // 全局数据上下文
 static pyro::ui_com hero_ui;  // UI 绘制控制器组件
@@ -53,6 +52,9 @@ static void info_update_test()
         10.0f;
     ui_ctx.super_cap_voltage = static_cast<float>(
         hybrid_chassis_t::instance()->get_ctx().cap_feedback.vot_cap);
+    ui_ctx.refresh_flag = board_drv_t::get_instance().get_g2c_rx_data().ui_refresh;
+    ui_ctx.track_en_flag = board_drv_t::get_instance().get_g2c_rx_data().track_en;
+
 }
 
 // ==========================================
@@ -60,6 +62,11 @@ static void info_update_test()
 // ==========================================
 namespace
 {
+struct cfg_trail
+{
+    static constexpr uint16_t x = 120, y = 800, r = 40;
+    static constexpr uint8_t layer = 2, additional_layer = 7;
+};
 struct cfg_fric
 {
     static constexpr uint16_t x = 1800, y = 730, r = 50;
@@ -140,14 +147,38 @@ void ui_com::draw_static()
                     0.0f);
     // 5. 交叉线的ADD占位
     _drv->draw_line("FL1", ui_operate::ADD, cfg_fric::cross_layer,
-                           ui_color::MAGENTA, 3, 0,0,0,0)
+                           ui_color::MAGENTA, 3, 1,1,1,1)
         .draw_line("FL2", ui_operate::ADD, cfg_fric::cross_layer,
-                           ui_color::MAGENTA, 3, 0,0,0,0)
+                           ui_color::MAGENTA, 3, 1,1,1,1)
         .draw_line("LL1", ui_operate::ADD, cfg_lob::cross_layer,
-                           ui_color::ORANGE, 3,0,0,0,0)
+                           ui_color::ORANGE, 3,1,1,1,1)
         .draw_line("LL2", ui_operate::ADD, cfg_lob::cross_layer,
-                           ui_color::ORANGE, 3, 0,0,0,0);
-
+                           ui_color::ORANGE, 3, 1,1,1,1);
+    // 5. 绘制越障模式台阶图案(静态)
+    _drv->draw_line("TR1",ui_operate::ADD, cfg_trail::layer,ui_color::WHITE,3,
+        cfg_trail::x-70,cfg_trail::y-18,
+        cfg_trail::x+45,cfg_trail::y-18)
+        .draw_line("TR2",ui_operate::ADD,cfg_trail::layer,ui_color::WHITE,3,
+        cfg_trail::x-45,cfg_trail::y-18,
+        cfg_trail::x-45,cfg_trail::y+18)
+        .draw_line("TR3",ui_operate::ADD,cfg_trail::layer,ui_color::WHITE,3,
+        cfg_trail::x-45,cfg_trail::y+18,
+        cfg_trail::x+45,cfg_trail::y+18);
+    // 5. 越障模式图标占位
+    _drv->draw_circle("TF1",ui_operate::ADD, cfg_trail::additional_layer,
+                    ui_color::MAGENTA,4,cfg_trail::x,cfg_trail::y,cfg_trail::r)
+        .draw_line("TF2",ui_operate::ADD, cfg_trail::additional_layer,ui_color::MAGENTA,4,
+                cfg_trail::x-cfg_trail::r*sqrt__2,cfg_trail::y-cfg_trail::r*sqrt__2,
+                cfg_trail::x+cfg_trail::r*sqrt__2,cfg_trail::y+cfg_trail::r*sqrt__2)
+        .draw_line("TT1",ui_operate::ADD, cfg_trail::additional_layer,ui_color::GREEN,4,
+                    cfg_trail::x,cfg_trail::y-cfg_trail::r-10,
+                    cfg_trail::x,cfg_trail::y+cfg_trail::r+10)
+        .draw_line("TT2",ui_operate::ADD,cfg_trail::additional_layer,ui_color::GREEN,4,
+                    cfg_trail::x,cfg_trail::y+cfg_trail::r+10,
+                    cfg_trail::x-15,cfg_trail::y+cfg_trail::r-10)
+        .draw_line("TT3",ui_operate::ADD,cfg_trail::additional_layer,ui_color::GREEN,4,
+                    cfg_trail::x,cfg_trail::y+cfg_trail::r+10,
+                    cfg_trail::x+15,cfg_trail::y+cfg_trail::r-10);
     _drv->flush();
 }
 
@@ -162,7 +193,7 @@ void ui_com::draw_dynamic()
     draw_fric_state();
     draw_lob_state();
     draw_super_cap();
-
+    draw_trail_state();
     _drv->flush();
     _force_refresh_flag = false;
 }
@@ -225,18 +256,18 @@ void ui_com::draw_fric_state()
         _drv->draw_circle("FRC", ui_operate::MODIFY, cfg_fric::layer,
                         circle_color, 3, cfg_fric::x, cfg_fric::y,
                         cfg_fric::r)
-            .draw_line("FL1", ui_operate::ADD, cfg_fric::cross_layer,
+            .draw_line("FL1", ui_operate::MODIFY, cfg_fric::cross_layer,
                         cross_line_color, 3,
-                        (cfg_fric::x - cfg_fric::r*cross_line_reduce_k)*cross_line,
-                        (cfg_fric::y + cfg_fric::r*cross_line_reduce_k)*cross_line,
-                        (cfg_fric::x + cfg_fric::r*cross_line_reduce_k)*cross_line,
-                        (cfg_fric::y - cfg_fric::r*cross_line_reduce_k)*cross_line)
-            .draw_line("FL2", ui_operate::ADD, cfg_fric::cross_layer,
+                        (cfg_fric::x - cfg_fric::r*cross_line_reduce_k)*cross_line+!cross_line,
+                        (cfg_fric::y + cfg_fric::r*cross_line_reduce_k)*cross_line+!cross_line,
+                        (cfg_fric::x + cfg_fric::r*cross_line_reduce_k)*cross_line+!cross_line,
+                        (cfg_fric::y - cfg_fric::r*cross_line_reduce_k)*cross_line+!cross_line)
+            .draw_line("FL2", ui_operate::MODIFY, cfg_fric::cross_layer,
                         cross_line_color, 3,
-                        (cfg_fric::x + cfg_fric::r*cross_line_reduce_k)*cross_line,
-                        (cfg_fric::y + cfg_fric::r*cross_line_reduce_k)*cross_line,
-                        (cfg_fric::x - cfg_fric::r*cross_line_reduce_k)*cross_line,
-                        (cfg_fric::y - cfg_fric::r*cross_line_reduce_k)*cross_line);
+                        (cfg_fric::x + cfg_fric::r*cross_line_reduce_k)*cross_line+!cross_line,
+                        (cfg_fric::y + cfg_fric::r*cross_line_reduce_k)*cross_line+!cross_line,
+                        (cfg_fric::x - cfg_fric::r*cross_line_reduce_k)*cross_line+!cross_line,
+                        (cfg_fric::y - cfg_fric::r*cross_line_reduce_k)*cross_line+!cross_line);
     }
 
 }
@@ -286,6 +317,37 @@ void ui_com::draw_super_cap()
                     50, start_x, cfg_cap::cy, end_x, cfg_cap::cy);
 }
 
+void ui_com::draw_trail_state()
+{
+
+
+
+    if (_ctx.track_en_flag!= _last_ctx.track_en_flag || _force_refresh_flag)
+    {
+        _drv->draw_line("TT1",ui_operate::MODIFY, cfg_trail::additional_layer,ui_color::GREEN,4,
+            cfg_trail::x,cfg_trail::y-(cfg_trail::r+10)*_ctx.track_en_flag,
+            cfg_trail::x,cfg_trail::y+(cfg_trail::r+10)*_ctx.track_en_flag)
+            .draw_line("TT2",ui_operate::MODIFY,cfg_trail::additional_layer,ui_color::GREEN,4,
+            cfg_trail::x,cfg_trail::y+cfg_trail::r+10*_ctx.track_en_flag,
+            cfg_trail::x-15*_ctx.track_en_flag,cfg_trail::y+cfg_trail::r-10*_ctx.track_en_flag)
+            .draw_line("TT3",ui_operate::MODIFY,cfg_trail::additional_layer,ui_color::GREEN,4,
+            cfg_trail::x,cfg_trail::y+cfg_trail::r+10*_ctx.track_en_flag,
+            cfg_trail::x+15*_ctx.track_en_flag,cfg_trail::y+cfg_trail::r-10*_ctx.track_en_flag)
+            .draw_circle("TF1",ui_operate::MODIFY, cfg_trail::additional_layer,
+        ui_color::MAGENTA,4,cfg_trail::x,cfg_trail::y,cfg_trail::r*!_ctx.track_en_flag)
+            .draw_line("TF2",ui_operate::MODIFY, cfg_trail::additional_layer,ui_color::MAGENTA,4,
+            cfg_trail::x-cfg_trail::r*sqrt__2*!_ctx.track_en_flag,
+            cfg_trail::y-cfg_trail::r*sqrt__2*!_ctx.track_en_flag,
+            cfg_trail::x+cfg_trail::r*sqrt__2*!_ctx.track_en_flag,
+            cfg_trail::y+cfg_trail::r*sqrt__2*!_ctx.track_en_flag);
+    }
+
+}
+
+bool ui_com::refresh_check()
+{
+    return _last_ctx.refresh_flag!=_ctx.refresh_flag;
+}
 // ==========================================
 // 线程与初始化 (外部 C 接口保持不变)
 // ==========================================
@@ -312,11 +374,10 @@ extern "C"
 
             if (referee_ptr->is_online())
             {
-                if (flush_flag)
+                if (hero_ui.refresh_check())
                 {
                     // 如果请求强制刷新
                     hero_ui.refresh();
-                    flush_flag = false;
                 }
                 else
                 {

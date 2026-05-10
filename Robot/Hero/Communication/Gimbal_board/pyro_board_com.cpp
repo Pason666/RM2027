@@ -5,6 +5,7 @@
 
 #include "pyro_board_drv.h"
 #include "pyro_module_base.h"
+#include "pyro_quad_booster.h"
 #include "pyro_rc_base_drv.h"
 #include "pyro_screw_gimbal.h"
 #include "pyro_vt03_rc_drv.h"
@@ -14,6 +15,7 @@ using namespace pyro;
 constexpr uint32_t EVENT_BIT_TRACK_TOGGLE   = (1 << 0);
 constexpr uint32_t EVENT_BIT_RETRACT_TOGGLE = (1 << 1);
 constexpr uint32_t EVENT_BIT_SLING_TOGGLE   = (1 << 2);
+constexpr uint32_t EVENT_BIT_C_PRESS        = (1 << 3);
 
 static TaskHandle_t board_com_task_handle   = nullptr;
 static board_drv_t *board_drv_ptr           = nullptr;
@@ -84,6 +86,13 @@ static void process_gimbal_logic(uint32_t notify_val)
                 }
             }
         }
+        if (notify_val & EVENT_BIT_C_PRESS)
+        {
+            if (vrc.keys.ctrl.current_level)
+            {
+                tx_data.ui_refresh = !tx_data.ui_refresh;
+            }
+        }
     }
     else
     {
@@ -95,6 +104,10 @@ static void process_gimbal_logic(uint32_t notify_val)
         tx_data.leg_retract = false;
     }
     // tx_data.active      = false;
+
+    tx_data.fric_en    = quad_booster_t::instance()->get_ctx().cmd->fric_on;
+    tx_data.fric_err   = quad_booster_t::instance()->get_ctx().data.fric_err;
+    tx_data.sling_mode = quad_booster_t::instance()->get_ctx().cmd->sling_mode;
 
     if (board_drv_ptr->check_online())
     {
@@ -139,6 +152,9 @@ extern "C"
         pyro::btn_broker::subscribe(&vrc.keys.r, pyro::btn_event_t::PRESS_DOWN,
                                     board_com_task_handle,
                                     EVENT_BIT_SLING_TOGGLE);
+        pyro::btn_broker::subscribe(&vrc.keys.c, pyro::btn_event_t::PRESS_DOWN,
+                                    board_com_task_handle,
+                                    EVENT_BIT_C_PRESS);
         vTaskDelete(nullptr);
     }
 }

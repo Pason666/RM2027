@@ -38,10 +38,11 @@ class board_drv_t
         bool active       : 1;
         bool track_en     : 1;
         bool leg_retract  : 1;
+        bool ui_refresh   : 1;
         bool fric_en      : 1;
-        bool firc_err     : 1;
+        bool fric_err     : 1;
         bool sling_mode   : 1;
-        bool reserved_bit : 2;
+        bool reserved_bit : 1;
 
         int16_t pitch_rad;
         uint8_t target_shoot_spd;
@@ -69,6 +70,7 @@ class board_drv_t
         uint16_t launching_num;
     };
 
+
     // 事件 B：预留（例如云台发送 UI 更新）
     // struct event_ui_t { uint8_t ui_mode; };
 
@@ -81,7 +83,7 @@ class board_drv_t
 
     // 独立事件基准 ID
     static constexpr uint32_t EVENT_C2G_SHOOT = 0x110;
-    // static constexpr uint32_t EVENT_G2C_UI = 0x112; //
+    static constexpr uint32_t EVENT_G2C_UI = 0x112;
     // 注意避让上一事件可能占用的多个分包ID
 
     // 周期帧数计算

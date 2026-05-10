@@ -107,6 +107,8 @@ class quad_booster_t final
     {
         uint8_t internal_fire_count{0}; // 内部拨弹计数器追踪
 
+        bool fric_err;
+
         float launch_delay_timer[3]{}; // 发射延时计时器
         float signal_timer{0};         // 信号持续时间计时器
         float avg_launch_delay{0};     // 平均发射延时
@@ -183,6 +185,9 @@ class quad_booster_t final
             void enter(owner *owner) override;
             void execute(owner *owner) override;
             void exit(owner *owner) override;
+
+          private:
+            float _ready_wait_start_time{0.0f};
         };
         struct state_ready_t final : public state_t<owner>
         {
@@ -227,3 +232,4 @@ class quad_booster_t final
 
 } // namespace pyro
 #endif
+

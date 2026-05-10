@@ -13,8 +13,7 @@ using namespace pyro;
 
 // 定义任务通知的位掩码 (Event Bits)
 
-constexpr uint32_t EVENT_BIT_LEG_TOGGLE               = (1 << 1);
-constexpr uint32_t EVENT_BIT_SLING_TOGGLE             = (1 << 2);
+constexpr uint32_t EVENT_BIT_SLING_TOGGLE             = (1 << 1);
 
 static TaskHandle_t gimbal_task_handle                = nullptr;
 static pyro::screw_gimbal_t *screw_gimbal_ptr         = nullptr;
@@ -114,10 +113,6 @@ extern "C"
                     configMAX_PRIORITIES - 1, &gimbal_task_handle);
 
         auto &vrc = pyro::rc_drv_t::read();
-
-        pyro::btn_broker::subscribe(&vrc.buttons.fn_r,
-                                    pyro::btn_event_t::PRESS_DOWN,
-                                    gimbal_task_handle, EVENT_BIT_LEG_TOGGLE);
 
         // 绑定键盘 R 键到吊射模式切换事件
         pyro::btn_broker::subscribe(&vrc.keys.r, pyro::btn_event_t::PRESS_DOWN,
@@ -222,8 +217,7 @@ void deps_init()
     screw_gimbal_deps = new pyro::screw_gimbal_deps_t();
     // 1. 初始化电机
 
-    // Pitch: 使用 DM 电机 (示例 ID: Master 0x11, Slave 0x21, CAN1)
-    // 根据 hybrid 中的用法进行配置
+    // Pitch motor
     screw_gimbal_deps->motor_deps.pitch =
         new dji_m3508_motor_drv_t(dji_motor_tx_frame_t::id_2, can_hub_t::can3);
 

@@ -12,10 +12,8 @@
 
 using namespace pyro;
 
-constexpr uint32_t EVENT_BIT_TRACK_TOGGLE   = (1 << 0);
-constexpr uint32_t EVENT_BIT_RETRACT_TOGGLE = (1 << 1);
-constexpr uint32_t EVENT_BIT_SLING_TOGGLE   = (1 << 2);
-constexpr uint32_t EVENT_BIT_C_PRESS        = (1 << 3);
+constexpr uint32_t EVENT_BIT_SLING_TOGGLE = (1 << 0);
+constexpr uint32_t EVENT_BIT_C_PRESS      = (1 << 1);
 
 static TaskHandle_t board_com_task_handle   = nullptr;
 static board_drv_t *board_drv_ptr           = nullptr;
@@ -42,8 +40,6 @@ static void process_gimbal_logic(uint32_t notify_val)
             tx_data.vx          = 0;
             tx_data.vy          = 0;
             tx_data.wz          = 0;
-            tx_data.track_en    = false;
-            tx_data.leg_retract = false;
         }
         else
         {
@@ -53,8 +49,6 @@ static void process_gimbal_logic(uint32_t notify_val)
                 tx_data.vx          = 0;
                 tx_data.vy          = 0;
                 tx_data.wz          = 0;
-                tx_data.track_en    = false;
-                tx_data.leg_retract = false;
             }
             else
             {
@@ -68,22 +62,6 @@ static void process_gimbal_logic(uint32_t notify_val)
                                                      ? -127
                                                      : -vrc.axes.lx * 127);
                 tx_data.wz = 0;
-
-                if (notify_val & EVENT_BIT_TRACK_TOGGLE)
-                {
-                    tx_data.track_en = !tx_data.track_en;
-                }
-                if (tx_data.track_en)
-                {
-                    if (notify_val & EVENT_BIT_RETRACT_TOGGLE)
-                    {
-                        tx_data.leg_retract = !tx_data.leg_retract;
-                    }
-                }
-                else
-                {
-                    tx_data.leg_retract = false;
-                }
             }
         }
         if (notify_val & EVENT_BIT_C_PRESS)
@@ -100,8 +78,6 @@ static void process_gimbal_logic(uint32_t notify_val)
         tx_data.vx          = 0;
         tx_data.vy          = 0;
         tx_data.wz          = 0;
-        tx_data.track_en    = false;
-        tx_data.leg_retract = false;
     }
     // tx_data.active      = false;
 
@@ -166,12 +142,6 @@ extern "C"
                     configMAX_PRIORITIES - 3, &board_com_task_handle);
 
         auto &vrc = pyro::rc_drv_t::read();
-        pyro::btn_broker::subscribe(
-            &vrc.buttons.pause, pyro::btn_event_t::PRESS_DOWN,
-            board_com_task_handle, EVENT_BIT_TRACK_TOGGLE);
-        pyro::btn_broker::subscribe(
-            &vrc.buttons.fn_r, pyro::btn_event_t::PRESS_DOWN,
-            board_com_task_handle, EVENT_BIT_RETRACT_TOGGLE);
         pyro::btn_broker::subscribe(&vrc.keys.r, pyro::btn_event_t::PRESS_DOWN,
                                     board_com_task_handle,
                                     EVENT_BIT_SLING_TOGGLE);

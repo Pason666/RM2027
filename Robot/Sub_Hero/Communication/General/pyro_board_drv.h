@@ -36,13 +36,11 @@ class board_drv_t
         int8_t wz;
 
         bool active       : 1;
-        bool track_en     : 1;
-        bool leg_retract  : 1;
         bool ui_refresh   : 1;
         bool fric_en      : 1;
         bool fric_err     : 1;
         bool sling_mode   : 1;
-        bool reserved_bit : 1;
+        bool reserved_bit : 3;
 
         int16_t pitch_rad;
         uint8_t target_shoot_spd;
@@ -54,9 +52,13 @@ class board_drv_t
     struct c2g_data_t
     {
         int16_t chassis_q[4];
+        uint16_t chassis_power_limit;
+        int16_t chassis_buffer_energy;
+        uint16_t supercap_voltage;
+        bool chassis_output : 1;
         bool gimbal_output  : 1;
         bool booster_output : 1;
-        bool reserved_bit   : 6;
+        bool reserved_bit   : 5;
     };
 
     /* ---------------------------------------------------- */

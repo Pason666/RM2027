@@ -3,9 +3,9 @@
  */
 
 #include "pyro_board_drv.h"
-#include "pyro_module_base.h"
-#include "pyro_hybrid_chassis.h"
 #include "pyro_ins.h"
+#include "pyro_mec_chassis.h"
+#include "pyro_module_base.h"
 #include "pyro_referee.h"
 
 using namespace pyro;
@@ -29,6 +29,7 @@ static void process_chassis_logic()
     auto *referee                      = referee_drv_t::get_instance();
     if (referee)
     {
+        const auto &ref_data = referee->get_data();
         const auto &referee_shoot = referee->get_data().shoot;
         if (referee_shoot.launching_num != last_launching_num)
         {
@@ -36,13 +37,23 @@ static void process_chassis_logic()
             shoot_event.shoot_speed   = referee_shoot.initial_speed;
             shoot_event.launching_num = referee_shoot.launching_num;
 
-            status_t ret;
-            ret = board_drv_ptr->send_event(board_drv_t::EVENT_C2G_SHOOT,
-                                      shoot_event);
+            status_t ret = board_drv_ptr->send_event(
+                board_drv_t::EVENT_C2G_SHOOT, shoot_event);
+            (void)ret;
             last_launching_num = referee_shoot.launching_num;
         }
-        tx_data.gimbal_output = referee->get_data().robot_status.power_management_gimbal_output;
-        tx_data.booster_output = referee->get_data().robot_status.power_management_shooter_output;
+        tx_data.chassis_output =
+            ref_data.robot_status.power_management_chassis_output;
+        tx_data.gimbal_output =
+            ref_data.robot_status.power_management_gimbal_output;
+        tx_data.booster_output =
+            ref_data.robot_status.power_management_shooter_output;
+        tx_data.chassis_power_limit =
+            ref_data.robot_status.chassis_power_limit;
+        tx_data.chassis_buffer_energy = static_cast<int16_t>(
+            ref_data.power_heat.buffer_energy * 100.0f);
+        tx_data.supercap_voltage = static_cast<uint16_t>(
+            mec_chassis_t::instance()->get_ctx().cap_feedback.vot_cap);
     }
     // 3. 接收逻辑
     if (board_drv_ptr->check_online())

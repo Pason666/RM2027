@@ -5,41 +5,48 @@
 #include "pyro_kin_mec.h"
 #include "pyro_module_base.h"
 #include "pyro_motor_base.h"
-#include "pyro_supercap_drv.h"
-#include "pyro_power_control_drv.h"
+#include "pyro_power_control.h"
 #include "pyro_powermeter.h"
+#include "pyro_supercap_drv.h"
 
 namespace pyro
 {
 
-// =========================================================
-// 1. 命令定义
-// =========================================================
 struct mec_cmd_t final : public cmd_base_t
 {
-    float vx; // 云台坐标系下的 X 轴速度 m/s (推前)
-    float vy; // 云台坐标系下的 Y 轴速度 m/s (推左)
-    float wz; // z轴角速度 rad/s (通常跟随模式下该值为0，除非做小陀螺)
+    float vx;
+    float vy;
+    float wz;
 
-    mec_cmd_t() : vx(0), vy(0), wz(0)
+    mec_cmd_t() : vx(0.0f), vy(0.0f), wz(0.0f)
     {
     }
 };
 
-struct mec_cfg_t
+struct mec_deps_t
 {
+    struct motor_deps_t
+    {
+        motor_base_t *wheels[4]{nullptr}; // FL, FR, BL, BR
+        motor_base_t *yaw{nullptr};
+    };
+
+    struct pid_deps_t
+    {
+        pid_t *wheel_pid[4]{nullptr};
+        pid_t *follow_yaw_pid{nullptr};
+    };
+
+    motor_deps_t motor_deps{};
+    pid_deps_t pid_deps{};
 };
 
-// =========================================================
-// 2. 麦轮底盘类
-// =========================================================
-class mec_chassis_t final : public module_base_t<mec_chassis_t, mec_cmd_t,mec_cfg_t>
+class mec_chassis_t final
+    : public module_base_t<mec_chassis_t, mec_cmd_t, mec_deps_t>
 {
-    friend class module_base_t<mec_chassis_t, mec_cmd_t,mec_cfg_t>;
+    friend class module_base_t<mec_chassis_t, mec_cmd_t, mec_deps_t>;
     friend class jcom_drv_t;
 
-    struct motor_ctx_t;
-    struct pid_ctx_t;
     struct data_ctx_t;
     struct mec_context_t;
 
@@ -47,77 +54,70 @@ class mec_chassis_t final : public module_base_t<mec_chassis_t, mec_cmd_t,mec_cf
     mec_chassis_t(const mec_chassis_t &)            = delete;
     mec_chassis_t &operator=(const mec_chassis_t &) = delete;
 
+    [[nodiscard]] mec_context_t &get_ctx();
+
   private:
     mec_chassis_t();
     ~mec_chassis_t() override = default;
 
-    // --- 基类接口实现 ---
     status_t _init() override;
     void _update_feedback() override;
     void _fsm_execute() override;
 
-    // --- 私有辅助方法 ---
-    static void _power_control_init();
+    void _power_control_init();
+    void _supercap_control();
     void _power_control();
     void _kinematics_solve();
-    void _chassis_control(mec_context_t *ctx);
-    static void _send_motor_command(mec_context_t *ctx);
-    void _send_supercap_command() const;
+    void _mecanum_control();
+    void _send_motor_command() const;
 
-    // --- 成员变量 ---
     mecanum_kin_t *_kinematics{nullptr};
-
-    struct motor_ctx_t
-    {
-        motor_base_t *wheels[4]{nullptr}; // FL, FR, BL, BR
-        motor_base_t *yaw_motor{nullptr};
-    };
-
-    struct pid_ctx_t
-    {
-        pid_t *follow_pid{nullptr};
-        pid_t *wheel_pid[4]{nullptr};
-    };
 
     struct data_ctx_t
     {
-        float current_yaw_error{0}; // 归一化后的偏航误差 (-PI ~ PI)
+        float current_yaw_error{0.0f};
 
         bool wheel_online[4]{};
         float current_wheel_rpm[4]{};
+        float current_wheel_torque[4]{};
+        float current_wheel_temp[4]{};
         float target_wheel_rpm[4]{};
         float out_wheel_torque[4]{};
+
+        float real_vx{0.0f};
+        float real_vy{0.0f};
+        float real_wz{0.0f};
+
+        float total_predicted_power{0.0f};
+        float buffer_energy{0.0f};
     };
 
     struct mec_context_t
     {
-        motor_ctx_t motor;
-        pid_ctx_t pid;
+        mec_deps_t::motor_deps_t motor;
+        mec_deps_t::pid_deps_t pid;
         data_ctx_t data;
-        mec_cmd_t *cmd{};
-        supercap_drv_t::chassis_cmd_t supercap_cmd{};
-        supercap_drv_t::cap_feedback_t cap_feedback{};
+
+        mec_cmd_t *cmd{nullptr};
         powermeter_drv_t *powermeter{nullptr};
         powermeter_data powermeter_feedback{};
-        power_control_drv_t::motor_data_t power_motor_data[4]{};
+        supercap_drv_t::chassis_cmd_t supercap_cmd{};
+        supercap_drv_t::cap_feedback_t cap_feedback{};
+        power_node_t *power_motor_data[4]{};
     };
-    float buffer_engy;
 
     mec_context_t _ctx;
 
-    // =====================================================
-    // 状态定义 (HFSM)
-    // =====================================================
     using owner = mec_chassis_t;
 
-    struct state_passive_t : public state_t<owner>
+    struct state_passive_t final : public state_t<owner>
     {
         void enter(owner *owner) override;
         void execute(owner *owner) override;
         void exit(owner *owner) override;
     };
 
-    struct state_active_t : public state_t<owner>
+    struct state_active_t final : public state_t<owner>
     {
         void enter(owner *owner) override;
         void execute(owner *owner) override;
@@ -128,15 +128,12 @@ class mec_chassis_t final : public module_base_t<mec_chassis_t, mec_cmd_t,mec_cf
     state_active_t _state_active;
     fsm_t<owner> _main_fsm;
 
-    // =====================================================
-    // 物理参数常量
-    // =====================================================
-    static constexpr float WHEEL_RADIUS = 0.076f; // m
-    static constexpr float WHEELBASE    = 0.380f; // m
-    static constexpr float TRACK_WIDTH  = 0.380f; // m
-
-    static constexpr float YAW_OFFSET_RAD = 0.796136022f; // 云台归中时的机械偏移量
+    static constexpr float WHEEL_RADIUS  = 0.076f;
+    static constexpr float WHEELBASE     = 0.380f;
+    static constexpr float TRACK_WIDTH   = 0.380f;
+    static constexpr float YAW_OFFSET_RAD = 0.796136022f;
 };
 
 } // namespace pyro
-#endif
+
+#endif // __PYRO_MEC_CHASSIS_H__

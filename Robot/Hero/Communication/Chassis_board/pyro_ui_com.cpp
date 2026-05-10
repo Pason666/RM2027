@@ -4,7 +4,7 @@
  */
 
 #include "pyro_ui_com.h"
-
+#include "pyro_ui_drv.h"
 #include "pyro_board_drv.h"
 #include "pyro_module_base.h"
 #include "pyro_referee.h"
@@ -40,7 +40,7 @@ static void info_update_test()
         board_drv_t::get_instance().get_g2c_rx_data().sling_mode;
     ui_ctx.fric_en_flag = board_drv_t::get_instance().get_g2c_rx_data().fric_en;
     ui_ctx.fric_error_flag =
-        board_drv_t::get_instance().get_g2c_rx_data().firc_err;
+        board_drv_t::get_instance().get_g2c_rx_data().fric_err;
     ui_ctx.yaw_rad =
         hybrid_chassis_t::instance()->get_ctx().data.current_yaw_error;
     ui_ctx.pitch_rad =
@@ -138,6 +138,15 @@ void ui_com::draw_static()
         .draw_float("SPD", ui_operate::ADD, cfg_text::val_layer,
                     ui_color::GREEN, 20, 2, cfg_text::spd_x, cfg_text::spd_y,
                     0.0f);
+    // 5. 交叉线的ADD占位
+    _drv->draw_line("FL1", ui_operate::ADD, cfg_fric::cross_layer,
+                           ui_color::MAGENTA, 3, 0,0,0,0)
+        .draw_line("FL2", ui_operate::ADD, cfg_fric::cross_layer,
+                           ui_color::MAGENTA, 3, 0,0,0,0)
+        .draw_line("LL1", ui_operate::ADD, cfg_lob::cross_layer,
+                           ui_color::ORANGE, 3,0,0,0,0)
+        .draw_line("LL2", ui_operate::ADD, cfg_lob::cross_layer,
+                           ui_color::ORANGE, 3, 0,0,0,0);
 
     _drv->flush();
 }
@@ -193,58 +202,71 @@ void ui_com::draw_fric_state()
 {
     bool curr_ready = _ctx.fric_en_flag;
     bool last_ready = _last_ctx.fric_en_flag;
-
-    if (curr_ready != last_ready || _force_refresh_flag)
+    float cross_line_reduce_k = sqrt__2;
+    bool cross_line = false;
+    ui_color circle_color = ui_color::PINK;
+    ui_color cross_line_color = ui_color::MAGENTA;
+    if (curr_ready!=last_ready || _force_refresh_flag)
     {
         if (curr_ready)
         {
-            _drv->clear_layer(cfg_fric::cross_layer);
-            _drv->draw_circle("FRC", ui_operate::MODIFY, cfg_fric::layer,
-                              ui_color::GREEN, 3, cfg_fric::x, cfg_fric::y,
-                              cfg_fric::r);
+            circle_color = ui_color::GREEN;
+            if (_ctx.fric_error_flag)
+            {
+                cross_line_color = ui_color::ORANGE;
+                cross_line_reduce_k = 1;
+                cross_line = true;
+            }
         }
         else
         {
-            _drv->draw_circle("FRC", ui_operate::MODIFY, cfg_fric::layer,
-                              ui_color::PINK, 3, cfg_fric::x, cfg_fric::y,
-                              cfg_fric::r)
-                .draw_line("FL1", ui_operate::ADD, cfg_fric::cross_layer,
-                           ui_color::MAGENTA, 3, cfg_fric::x - cfg_fric::r,
-                           cfg_fric::y + cfg_fric::r, cfg_fric::x + cfg_fric::r,
-                           cfg_fric::y - cfg_fric::r)
-                .draw_line("FL2", ui_operate::ADD, cfg_fric::cross_layer,
-                           ui_color::MAGENTA, 3, cfg_fric::x + cfg_fric::r,
-                           cfg_fric::y + cfg_fric::r, cfg_fric::x - cfg_fric::r,
-                           cfg_fric::y - cfg_fric::r);
+            cross_line = true;
         }
+        _drv->draw_circle("FRC", ui_operate::MODIFY, cfg_fric::layer,
+                        circle_color, 3, cfg_fric::x, cfg_fric::y,
+                        cfg_fric::r)
+            .draw_line("FL1", ui_operate::ADD, cfg_fric::cross_layer,
+                        cross_line_color, 3,
+                        (cfg_fric::x - cfg_fric::r*cross_line_reduce_k)*cross_line,
+                        (cfg_fric::y + cfg_fric::r*cross_line_reduce_k)*cross_line,
+                        (cfg_fric::x + cfg_fric::r*cross_line_reduce_k)*cross_line,
+                        (cfg_fric::y - cfg_fric::r*cross_line_reduce_k)*cross_line)
+            .draw_line("FL2", ui_operate::ADD, cfg_fric::cross_layer,
+                        cross_line_color, 3,
+                        (cfg_fric::x + cfg_fric::r*cross_line_reduce_k)*cross_line,
+                        (cfg_fric::y + cfg_fric::r*cross_line_reduce_k)*cross_line,
+                        (cfg_fric::x - cfg_fric::r*cross_line_reduce_k)*cross_line,
+                        (cfg_fric::y - cfg_fric::r*cross_line_reduce_k)*cross_line);
     }
+
 }
 
 void ui_com::draw_lob_state()
 {
     if (_ctx.sling_flag != _last_ctx.sling_flag || _force_refresh_flag)
     {
+        ui_color circle_color = ui_color::WHITE;
+        bool cross_line = _ctx.sling_flag;
         if (_ctx.sling_flag)
         {
-            _drv->draw_circle("LOB", ui_operate::MODIFY, cfg_lob::layer,
-                              ui_color::YELLOW, 3, cfg_lob::x, cfg_lob::y,
+
+            circle_color = ui_color::YELLOW;
+        }
+        _drv->draw_circle("LOB", ui_operate::MODIFY, cfg_lob::layer,
+                              circle_color, 3, cfg_lob::x, cfg_lob::y,
                               cfg_lob::r)
-                .draw_line("LL1", ui_operate::ADD, cfg_lob::cross_layer,
-                           ui_color::ORANGE, 3, cfg_lob::x,
-                           cfg_lob::y + cfg_lob::r + 25, cfg_lob::x,
-                           cfg_lob::y - cfg_lob::r - 25)
-                .draw_line("LL2", ui_operate::ADD, cfg_lob::cross_layer,
-                           ui_color::ORANGE, 3, cfg_lob::x - cfg_lob::r - 25,
-                           cfg_lob::y, cfg_lob::x + cfg_lob::r + 25,
+            .draw_line("LL1", ui_operate::MODIFY, cfg_lob::cross_layer,
+                           ui_color::ORANGE, 3,
+                           cfg_lob::x,
+                           (cfg_lob::y + cfg_lob::r + 25)*cross_line,
+                           cfg_lob::x,
+                           (cfg_lob::y - cfg_lob::r - 25)*cross_line)
+            .draw_line("LL2", ui_operate::MODIFY, cfg_lob::cross_layer,
+                           ui_color::ORANGE, 3,
+                           (cfg_lob::x - cfg_lob::r - 25)*cross_line,
+                           cfg_lob::y,
+                           (cfg_lob::x + cfg_lob::r + 25)*cross_line,
                            cfg_lob::y);
-        }
-        else
-        {
-            _drv->clear_layer(cfg_lob::cross_layer);
-            _drv->draw_circle("LOB", ui_operate::MODIFY, cfg_lob::layer,
-                              ui_color::WHITE, 3, cfg_lob::x, cfg_lob::y,
-                              cfg_lob::r);
-        }
     }
 }
 

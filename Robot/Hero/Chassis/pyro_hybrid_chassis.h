@@ -95,6 +95,7 @@ class hybrid_chassis_t final
     // --- 派生方法 ---
     void _power_control_init();
     void _kinematics_solve();
+    void _supercap_control();
     void _power_control();
     void _mecanum_control();
     void _track_control();

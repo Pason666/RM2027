@@ -71,7 +71,7 @@ void chassis_rxcmd()
 
     const auto &rx_data  = board_drv_ptr->get_g2c_rx_data();
     hybrid_cmd_ptr->vx   = 2.0f * static_cast<float>(rx_data.vx) / 127.0f;
-    hybrid_cmd_ptr->vy   = 2.0f * static_cast<float>(rx_data.vy) / 127.0f;
+    hybrid_cmd_ptr->vy   = 1.0f * static_cast<float>(rx_data.vy) / 127.0f;
     hybrid_cmd_ptr->wz   = 2.0f * static_cast<float>(rx_data.wz) / 127.0f;
     hybrid_cmd_ptr->mode = rx_data.active ? pyro::cmd_base_t::mode_t::ACTIVE
                                           : pyro::cmd_base_t::mode_t::PASSIVE;
@@ -147,7 +147,7 @@ void deps_init()
         new pid_t(0.3f, 0.0008f, 0.0002f, 1.0f, 10.0f, 20, 1, 10, 1, 4);
 
     hybrid_deps_ptr->pid_deps.follow_yaw_pid =
-        new pid_t(5.0f, 0.0f, 0.1f, 0.0f, 10.0f, 200, 1, 100, 1, 4);
+        new pid_t(8.0f, 0.0f, 0.1f, 0.0f, 10.0f, 200, 1, 100, 1, 4);
 
     hybrid_deps_ptr->pid_deps.track_pid[0] =
         new pid_t(0.02f, 0.0001f, 0.00002f, 0.5f, 11.0f, 20, 1, 10, 1, 4);
@@ -162,6 +162,16 @@ void deps_init()
         360.0f, 0.1f, 10.0f, 20.0f, 200.0f, 200, 1, 100, 1, 4,
         pid_t::INTEGRAL_LIMIT | pid_t::OUTPUT_FILTER |
             pid_t::DERIVATIVE_FILTER | pid_t::DERIVATIVE_ON_MEASUREMENT);
+
+    // 检测传动质量用参数
+    // hybrid_deps_ptr->pid_deps.leg_pos_pid[0] =
+    // new pid_t(32.2f, 0.005f, 0.008f, 0.01f, 20.0f, 20, 1, 10, 1, 4);
+    // hybrid_deps_ptr->pid_deps.leg_pos_pid[1] =
+    //     new pid_t(32.2f, 0.005f, 0.008f, 0.01f, 20.0f, 20, 1, 10, 1, 4);
+    // hybrid_deps_ptr->pid_deps.leg_vel_pid[0] =
+    //     new pid_t(1400.0f, 0.005f, 0.00f, 5.0f, 200.0f, 20, 1, 10, 1, 4);
+    // hybrid_deps_ptr->pid_deps.leg_vel_pid[1] =
+    //     new pid_t(1400.0f, 0.005f, 0.00f, 5.0f, 200.0f, 20, 1, 10, 1, 4);
 
     hybrid_deps_ptr->pid_deps.leg_pos_pid[0] =
         new pid_t(11.2f, 0.005f, 0.008f, 0.01f, 0.4f, 20, 1, 10, 1, 4);

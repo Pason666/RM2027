@@ -256,6 +256,24 @@ void hybrid_chassis_t::_update_feedback()
 
     _ctx.data.buf_energy =
         referee_drv_t::get_instance()->get_data().power_heat.buffer_energy;
+
+    // 4. 更新 cap_tx 数据
+    _ctx.supercap_cmd.power_referee = 0;
+    _ctx.supercap_cmd.power_limit_referee =
+        referee_drv_t::get_instance()
+            ->get_data()
+            .robot_status.chassis_power_limit;
+    _ctx.supercap_cmd.power_buffer_limit_referee = 60.0f;
+    _ctx.supercap_cmd.power_buffer_referee =
+        referee_drv_t::get_instance()->get_data().power_heat.buffer_energy;
+    _ctx.supercap_cmd.use_cap           = 1;
+    _ctx.supercap_cmd.kill_chassis_user = 0;
+    _ctx.supercap_cmd.speed_up_user_now = 0;
+
+    // 5. 更新 cap_rx 数据
+    _ctx.cap_feedback = supercap_drv_t::get_instance()->get_feedback();
+
+    _ctx.powermeter->get_data(_ctx.powermeter_feedback);
 }
 
 // =========================================================
@@ -313,6 +331,14 @@ void hybrid_chassis_t::_kinematics_solve()
     float vx_chassis    = _ctx.cmd->vx * c_theta + _ctx.cmd->vy * s_theta;
     float vy_chassis    = -_ctx.cmd->vx * s_theta + _ctx.cmd->vy * c_theta;
 
+
+    if (abs(final_wz) > 3.0f)
+    {
+        vx_chassis *= 0.22f;
+        vy_chassis *= 0.22f;
+    }
+
+
     if (_ctx.cmd->crossing_en)
     {
         vx_chassis = std::clamp(vx_chassis, -0.5f, 0.5f);
@@ -320,39 +346,39 @@ void hybrid_chassis_t::_kinematics_solve()
 
 
 
-    int offline_count       = 0;
-    auto missing_wheel      = hybrid_kin_t::missing_mec_e::NONE;
+    int offline_count  = 0;
+    auto missing_wheel = hybrid_kin_t::missing_mec_e::NONE;
 
-    // // 根据数组索引对应找出具体离线的轮子 (0:FL, 1:FR, 2:BL, 3:BR)
-    // if (!_ctx.data.wheel_online[0])
-    // {
-    //     offline_count++;
-    //     missing_wheel = hybrid_kin_t::missing_mec_e::FL;
-    // }
-    // if (!_ctx.data.wheel_online[1])
-    // {
-    //     offline_count++;
-    //     missing_wheel = hybrid_kin_t::missing_mec_e::FR;
-    // }
-    // if (!_ctx.data.wheel_online[2])
-    // {
-    //     offline_count++;
-    //     missing_wheel = hybrid_kin_t::missing_mec_e::BL;
-    // }
-    // if (!_ctx.data.wheel_online[3])
-    // {
-    //     offline_count++;
-    //     missing_wheel = hybrid_kin_t::missing_mec_e::BR;
-    // }
-    //
-    // // 如果有两个或以上的轮子离线，失去冗余控制能力，强制速度全为 0
-    // if (offline_count >= 2)
-    // {
-    //     vx_chassis    = 0.0f;
-    //     vy_chassis    = 0.0f;
-    //     final_wz      = 0.0f;
-    //     missing_wheel = hybrid_kin_t::missing_mec_e::NONE; // 速度全为0
-    // }
+    // 根据数组索引对应找出具体离线的轮子 (0:FL, 1:FR, 2:BL, 3:BR)
+    if (!_ctx.data.wheel_online[0])
+    {
+        offline_count++;
+        missing_wheel = hybrid_kin_t::missing_mec_e::FL;
+    }
+    if (!_ctx.data.wheel_online[1])
+    {
+        offline_count++;
+        missing_wheel = hybrid_kin_t::missing_mec_e::FR;
+    }
+    if (!_ctx.data.wheel_online[2])
+    {
+        offline_count++;
+        missing_wheel = hybrid_kin_t::missing_mec_e::BL;
+    }
+    if (!_ctx.data.wheel_online[3])
+    {
+        offline_count++;
+        missing_wheel = hybrid_kin_t::missing_mec_e::BR;
+    }
+
+    // 如果有两个或以上的轮子离线，失去冗余控制能力，强制速度全为 0
+    if (offline_count >= 2)
+    {
+        vx_chassis    = 0.0f;
+        vy_chassis    = 0.0f;
+        final_wz      = 0.0f;
+        missing_wheel = hybrid_kin_t::missing_mec_e::NONE; // 速度全为0
+    }
 
     // -------------------------------------------------------------
     // 4. 运动学解算 (带入缺失轮枚举)
@@ -387,6 +413,71 @@ void hybrid_chassis_t::_kinematics_solve()
     _ctx.data.target_pitch_rad = NORMAL_PITCH;
 }
 
+void hybrid_chassis_t::_supercap_control()
+{
+    // NOLINTBEGIN
+    static bool _last_status = false;
+    static uint32_t _timer   = 0;
+    static bool _delay_done  = false;
+
+    bool current_status      = referee_drv_t::get_instance()
+                              ->get_data()
+                              .robot_status.power_management_chassis_output;
+
+    if (current_status)
+    {
+        // --- 情况 A：Chassis 有输出 ---
+        if (!_last_status)
+        {
+            // 刚切到有输出状态：重置计时器和延迟标志
+            _timer      = 0;
+            _delay_done = false;
+        }
+
+        if (!_delay_done)
+        {
+            // 1. 处理 1000 tick 的初始延迟
+            if (++_timer >= 1000)
+            {
+                _delay_done               = true;
+                _timer                    = 0; // 重置用于后续的 10 tick 周期
+                // 达到 1000 tick 时立即发送第一次开启指令
+                _ctx.supercap_cmd.use_cap = 1;
+                supercap_drv_t::get_instance()->send_cmd(_ctx.supercap_cmd);
+            }
+        }
+        else
+        {
+            // 2. 延迟结束后，以 10 tick 为周期发送
+            if (++_timer >= 10)
+            {
+                _timer                    = 0;
+                _ctx.supercap_cmd.use_cap = 1;
+                supercap_drv_t::get_instance()->send_cmd(
+                    _ctx.supercap_cmd); // NOLINT
+            }
+        }
+    }
+    else
+    {
+        // --- 情况 B：Chassis 无输出 ---
+        if (_last_status)
+        {
+            // 刚切换到无输出状态：发送一次 use_cap = 0
+            _ctx.supercap_cmd.use_cap = 0;
+            supercap_drv_t::get_instance()->send_cmd(
+                _ctx.supercap_cmd); // NOLINT
+            // 重置状态位，防止重复发送
+            _delay_done = false;
+            _timer      = 0;
+        }
+    }
+    // 更新旧状态
+    _last_status = current_status;
+    // NOLINTEND
+}
+
+
 void hybrid_chassis_t::_power_control()
 {
     // 1. 将底层反馈与 PID 输出的期望扭矩传入功率控制节点
@@ -416,11 +507,22 @@ void hybrid_chassis_t::_power_control()
 
     // 2. 调用核心求解器进行动态功率限制
 
-    power_controller_t::get_instance().solve(
-        referee_drv_t::get_instance()
-            ->get_data()
-            .robot_status.chassis_power_limit,
-        referee_drv_t::get_instance()->get_data().power_heat.buffer_energy, 0);
+    if (_ctx.cap_feedback.vot_cap >= 1800)
+    {
+        power_controller_t::get_instance().solve(
+            referee_drv_t::get_instance()
+                ->get_data()
+                .robot_status.chassis_power_limit,
+            referee_drv_t::get_instance()->get_data().power_heat.buffer_energy, 80);
+    }
+    else
+    {
+        power_controller_t::get_instance().solve(
+            referee_drv_t::get_instance()
+                ->get_data()
+                .robot_status.chassis_power_limit,
+            referee_drv_t::get_instance()->get_data().power_heat.buffer_energy, 0);
+    }
 
     // 3. 将解算后的安全指令写回到底盘数据上下文中，等待发送
     for (int i = 0; i < 4; i++)
@@ -557,6 +659,7 @@ void hybrid_chassis_t::_leg_length_control()
     // 使用专为长度控制放宽的限幅 LEG_LENGTH_MIN_POS (0.0f) 加上缓冲，
     // 确保收腿指令能引导机构钻入最深处的物理限位
     const float target_theta = LEG_LENGTH_MIN_POS + LEG_LENGTH_POS_BUFFER_RAD;
+    // const float target_theta = 1.4f;
     const float target_y =
         evaluate_polynomial(target_theta, YB_POLY_COEF, YB_POLY_DEGREE);
 
@@ -702,6 +805,8 @@ void hybrid_chassis_t::_send_motor_command() const
 void hybrid_chassis_t::_fsm_execute()
 {
     _ctx.cmd = &_current_cmd;
+
+    _supercap_control();
 
     if (cmd_base_t::mode_t::ACTIVE == _ctx.cmd->mode)
         _main_fsm.change_state(&_state_active);

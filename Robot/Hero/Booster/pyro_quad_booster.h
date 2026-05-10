@@ -127,6 +127,8 @@ class quad_booster_t final
         float target_trig_rad{0};
         float target_trig_radps{0};
 
+        float target_shoot_speed{0};
+
         float current_fric_torque[4]{};
         // 输出
         float out_fric_torque[4]{};

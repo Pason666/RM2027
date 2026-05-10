@@ -21,11 +21,22 @@ extern "C"
 {
     void hero_chassis_thread(void *argument)
     {
+        static bool prev_chassis_output = false;
+
         while (true)
         {
-            if (referee_drv_t::get_instance()
+            bool current_chassis_output =
+                referee_drv_t::get_instance()
                     ->get_data()
-                    .robot_status.power_management_chassis_output)
+                    .robot_status.power_management_chassis_output;
+
+            if (current_chassis_output && !prev_chassis_output)
+            {
+                vTaskDelay(pdMS_TO_TICKS(100));
+            }
+            prev_chassis_output = current_chassis_output;
+
+            if (current_chassis_output)
             {
                 if (board_drv_ptr->check_online())
                 {

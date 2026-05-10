@@ -163,6 +163,8 @@ void quad_booster_t::_speed_control()
     auto &shoot_data = _ctx.cmd->sling_mode ? _ctx.shoot_sling_data
                                             : _ctx.shoot_normal_data;
 
+    _ctx.data.target_shoot_speed = shoot_data.target_speed;
+
     shoot_data.ball_speed[2] = shoot_data.ball_speed[1];
     shoot_data.ball_speed[1] = shoot_data.ball_speed[0];
     shoot_data.ball_speed[0] = shoot_event.shoot_speed;

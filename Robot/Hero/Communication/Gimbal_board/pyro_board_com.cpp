@@ -106,7 +106,28 @@ static void process_gimbal_logic(uint32_t notify_val)
     // tx_data.active      = false;
 
 
-
+    if (abs(screw_gimbal_t::instance()->get_ctx().data.relative_pitch_rad) >=
+        1.0f)
+    {
+        tx_data.pitch_rad = 32767;
+    }
+    else
+    {
+        tx_data.pitch_rad = static_cast<int16_t>(
+            screw_gimbal_t::instance()->get_ctx().data.relative_pitch_rad *
+            32767.0f);
+    }
+    if (quad_booster_t::instance()->get_ctx().data.target_shoot_speed < 0.0f ||
+        quad_booster_t::instance()->get_ctx().data.target_shoot_speed > 20.0f)
+    {
+        tx_data.target_shoot_spd = 250;
+    }
+    else
+    {
+        tx_data.target_shoot_spd = static_cast<uint8_t>(
+            quad_booster_t::instance()->get_ctx().data.target_shoot_speed *
+            10.0f);
+    }
     tx_data.fric_en    = quad_booster_t::instance()->get_ctx().cmd->fric_on;
     tx_data.fric_err   = quad_booster_t::instance()->get_ctx().data.fric_err;
     tx_data.sling_mode = quad_booster_t::instance()->get_ctx().cmd->sling_mode;
@@ -155,8 +176,7 @@ extern "C"
                                     board_com_task_handle,
                                     EVENT_BIT_SLING_TOGGLE);
         pyro::btn_broker::subscribe(&vrc.keys.c, pyro::btn_event_t::PRESS_DOWN,
-                                    board_com_task_handle,
-                                    EVENT_BIT_C_PRESS);
+                                    board_com_task_handle, EVENT_BIT_C_PRESS);
         vTaskDelete(nullptr);
     }
 }

@@ -33,6 +33,8 @@ extern "C"
 {
     void hero_gimbal_thread(void *argument)
     {
+        static bool prev_gimbal_output = false;
+
         while (true)
         {
             uint32_t notify_val = 0;
@@ -49,9 +51,22 @@ extern "C"
             // 同步给底层 HFSM 状态机
             screw_gimbal_cmd_ptr->sling_mode = is_sling_mode;
 
+            bool current_gimbal_output = false;
             if (board_drv_ptr->check_online())
             {
-                if (board_drv_ptr->get_c2g_rx_data().gimbal_output)
+                current_gimbal_output =
+                    board_drv_ptr->get_c2g_rx_data().gimbal_output;
+            }
+
+            if (current_gimbal_output && !prev_gimbal_output)
+            {
+                vTaskDelay(pdMS_TO_TICKS(100));
+            }
+            prev_gimbal_output = current_gimbal_output;
+
+            if (board_drv_ptr->check_online())
+            {
+                if (current_gimbal_output)
                 {
                     if (vt03_drv_t::instance().check_online())
                     {

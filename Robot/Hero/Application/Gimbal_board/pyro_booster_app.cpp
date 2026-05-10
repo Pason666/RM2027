@@ -125,15 +125,29 @@ extern "C"
 
     void hero_booster_thread(void *argument)
     {
+        static bool prev_gimbal_output = false;
+
         while (true)
         {
             uint32_t notify_val = 0;
             xTaskNotifyWait(0x00, UINT32_MAX, &notify_val, 0);
 
+            bool current_gimbal_output = false;
+            if (board_drv_ptr->check_online())
+            {
+                current_gimbal_output =
+                    board_drv_ptr->get_c2g_rx_data().gimbal_output;
+            }
+
+            if (current_gimbal_output && !prev_gimbal_output)
+            {
+                vTaskDelay(pdMS_TO_TICKS(1500));
+            }
+            prev_gimbal_output = current_gimbal_output;
 
             if (board_drv_ptr->check_online())
             {
-                if (board_drv_ptr->get_c2g_rx_data().gimbal_output)
+                if (current_gimbal_output)
                 {
                     if (vt03_drv_t::instance().check_online())
                     {

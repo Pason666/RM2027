@@ -9,7 +9,6 @@
 
 namespace pyro
 {
-
 // ==========================================
 // 1. UI 数据上下文 (Context)
 // 外部需要上屏幕的数据全部放进这里
@@ -38,7 +37,7 @@ struct ui_ctx_t
 // ==========================================
 class ui_com
 {
-  public:
+public:
     ui_com() = default;
 
     // 绑定底层驱动
@@ -56,7 +55,7 @@ class ui_com
     // 全局刷新 (清空所有 -> 绘制静态 -> 绘制动态)
     void refresh();
 
-  private:
+private:
     ui_drv_t *_drv = nullptr;
 
     ui_ctx_t _ctx;                   // 当前状态
@@ -71,7 +70,6 @@ class ui_com
     void draw_spd();
     void draw_super_cap();
 };
-
-} // namespace pyro
-
+}
+static constexpr float sqrt__2 = 0.707f;//二分之根号2
 #endif // PYRO_UI_COM_H

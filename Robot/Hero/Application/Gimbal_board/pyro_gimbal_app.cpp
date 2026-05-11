@@ -45,7 +45,7 @@ extern "C"
             {
                 is_sling_mode = !is_sling_mode;
             }
-            // is_sling_mode = true;
+            is_sling_mode = true;
 
 
             // 同步给底层 HFSM 状态机
@@ -269,7 +269,11 @@ void deps_init()
         new pid_t(4.0f, 0.0f, 0.0f, 0.3f, 3.0f, 80, 2, 20, 3, 4);
     screw_gimbal_deps->pid_deps.yaw_relative_spd =
         new pid_t(10.0f, 0.0f, 0.0f, 0.3f, 3.0f, 80, 1, 10, 2, 4);
-    screw_gimbal_deps->pid_deps.yaw_leso =
+    screw_gimbal_deps->pid_deps.yaw_pos_leso =
+        new leso_t<3>(50,12.632f,20.0f); // LESO 参数配置
+    screw_gimbal_deps->pid_deps.yaw_spd_leso =
+        new leso_t<2>(50,12.632f,20.0f); // LESO 参数配置
+    screw_gimbal_deps->pid_deps.yaw_pos_imu_leso =
         new leso_t<3>(50,12.632f,20.0f); // LESO 参数配置
 
     // // 1. LESO: 降低带宽到 50，略微增大 b (14.0) 以软化前馈输出，限幅保持 20.0A

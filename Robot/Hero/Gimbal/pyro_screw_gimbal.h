@@ -58,6 +58,8 @@ struct screw_gimbal_deps_t
         // 【新增】吊射模式下用于 Yaw 轴机械角前馈补偿的 LESO
         leso_t<3> *yaw_pos_leso{nullptr};
         leso_t<2> *yaw_spd_leso{nullptr};
+
+        leso_t<3> *yaw_pos_imu_leso{nullptr};
     };
 
     motor_deps_t motor_deps{};
@@ -176,6 +178,9 @@ class screw_gimbal_t final
         // 输出
         float out_pitch_torque{0};
         float out_yaw_torque{0};
+
+        // 调试用
+        float pos_imu_leso_z1;
     };
 
     // 总 Context

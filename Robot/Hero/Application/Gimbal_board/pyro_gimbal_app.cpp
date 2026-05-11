@@ -45,7 +45,7 @@ extern "C"
             {
                 is_sling_mode = !is_sling_mode;
             }
-            is_sling_mode = true;
+            // is_sling_mode = true;
 
 
             // 同步给底层 HFSM 状态机

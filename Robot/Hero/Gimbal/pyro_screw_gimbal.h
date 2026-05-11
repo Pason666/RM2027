@@ -181,6 +181,8 @@ class screw_gimbal_t final
 
         // 调试用
         float pos_imu_leso_z1;
+        float pos_leso_z0;
+        float spd_leso_z0;
     };
 
     // 总 Context

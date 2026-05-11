@@ -112,12 +112,14 @@ void screw_gimbal_t::_update_feedback()
         _ctx.pid.yaw_pos_leso->update(_ctx.data.relative_yaw_motor_rad, last_yaw_u);
         _ctx.pid.yaw_pos_imu_leso->update(_ctx.data.yaw_imu_rad, last_yaw_u);
         _ctx.data.pos_imu_leso_z1 = _ctx.pid.yaw_pos_imu_leso->get_z(1); // 供调试观察 LESO 内部状态
+        _ctx.data.pos_leso_z0 = _ctx.pid.yaw_pos_leso->get_z(0); // 供调试观察 LESO 内部状态
     }
     if (_ctx.pid.yaw_spd_leso != nullptr)
     {
         // 取上一次计算出的最终力矩作为已知控制输入 u
         float last_yaw_u = _ctx.data.out_yaw_torque;
         _ctx.pid.yaw_spd_leso->update(_ctx.data.yaw_imu_radps, last_yaw_u);
+        _ctx.data.spd_leso_z0 = _ctx.pid.yaw_spd_leso->get_z(0); // 供调试观察 LESO 内部状态
     }
 }
 
@@ -222,7 +224,7 @@ void screw_gimbal_t::_gimbal_sling_control()
 
     // --- Yaw 纯机械相对角控制 (Sling专用) ---
     _ctx.data.relative_yaw_error_rad =
-        _ctx.data.relative_yaw_motor_rad - _ctx.data.target_yaw_rad;
+        _ctx.data.relative_yaw_motor_rad- _ctx.data.target_yaw_rad;
 
     _ctx.data.target_yaw_radps =
         _ctx.pid.yaw_relative_pos->calculate(0.0f,_ctx.data.relative_yaw_error_rad);

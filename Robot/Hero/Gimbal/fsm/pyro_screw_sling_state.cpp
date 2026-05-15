@@ -1,6 +1,8 @@
 #include "pyro_screw_gimbal.h"
 #include "screw_config.h"
 #include "pyro_algo_common.h"
+#include "pyro_board_drv.h"
+
 #include <algorithm>
 
 namespace pyro
@@ -9,7 +11,8 @@ void screw_gimbal_t::fsm_active_t::sling_state_t::enter(owner *owner)
 {
     // 切换到 Sling 模式时，对齐相对角目标
     owner->_ctx.data.target_yaw_rad = owner->_ctx.data.relative_yaw_motor_rad;
-    owner->_ctx.data.target_pitch_rad = owner->_ctx.data.current_pitch_motor_rad;
+    owner->_ctx.data.target_pitch_rad =
+        owner->_ctx.data.current_pitch_motor_rad;
 
 
 
@@ -27,14 +30,42 @@ void screw_gimbal_t::fsm_active_t::sling_state_t::execute(owner *owner)
     owner->_ctx.data.target_pitch_rad += owner->_ctx.cmd->pitch_delta_angle;
     owner->_ctx.data.target_yaw_rad += owner->_ctx.cmd->yaw_delta_angle;
 
-    owner->_ctx.data.target_yaw_rad = pyro::loop_fp32_constrain(owner->_ctx.data.target_yaw_rad, -PI, PI);
+    static uint8_t last_sling_pitch_flag = 0;
+    if (owner->_ctx.cmd->sling_pitch_flag != last_sling_pitch_flag)
+    {
+        // 如果 Pitch 也需要被 WASD 控制，则在这里直接累加
+        const float robot_x =
+            static_cast<float>(
+                board_drv_t::get_instance().get_c2g_rx_data().robot_x) /
+            65535.0f * 28.0f;
+        const float robot_y =
+            static_cast<float>(
+                board_drv_t::get_instance().get_c2g_rx_data().robot_y) /
+            65535.0f * 18.0f;
+        const bool robot_color = board_drv_t::get_instance().get_c2g_rx_data().robot_color;
+        const float target_x = robot_color ? 25.593f : 2.407f;
+        const float target_y = robot_color ? 25.593f : 2.407f;
+        constexpr float target_z = 1.080f;
+        const float delta_x = fabs(target_x - robot_x);
+        const float delta_y = fabs(target_y - robot_y);
+        constexpr float delta_z = target_z - 0.75f;
+        const float target_solved_imu_pitch =
+        owner->_ctx.data.target_pitch_rad = solveIdealPitch(delta_x, delta_y, delta_z, 16.2f).value_or(owner->_ctx.data.target_pitch_rad);
+        last_sling_pitch_flag = owner->_ctx.cmd->sling_pitch_flag;
+    }
+
+    owner->_ctx.data.target_yaw_rad =
+        pyro::loop_fp32_constrain(owner->_ctx.data.target_yaw_rad, -PI, PI);
 
     // Pitch 绝对限幅
-    owner->_ctx.data.target_pitch_rad = std::clamp(owner->_ctx.data.target_pitch_rad, PITCH_MIN_RELATIVE_RAD, PITCH_MAX_RELATIVE_RAD);
+    owner->_ctx.data.target_pitch_rad =
+        std::clamp(owner->_ctx.data.target_pitch_rad, PITCH_MIN_RELATIVE_RAD,
+                   PITCH_MAX_RELATIVE_RAD);
 
     // Yaw 相对限幅 (基于配置极值)
     // owner->_ctx.data.target_relative_yaw_rad = std::clamp(
-    //     owner->_ctx.data.target_relative_yaw_rad, YAW_MIN_RELATIVE_RAD, YAW_MAX_RELATIVE_RAD);
+    //     owner->_ctx.data.target_relative_yaw_rad, YAW_MIN_RELATIVE_RAD,
+    //     YAW_MAX_RELATIVE_RAD);
 
     // 执行纯机械角控制与发送指令
     owner->_gimbal_sling_control();

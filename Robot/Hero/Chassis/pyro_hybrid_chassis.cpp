@@ -453,6 +453,10 @@ void hybrid_chassis_t::_supercap_control()
             {
                 _timer                    = 0;
                 _ctx.supercap_cmd.use_cap = 1;
+                _ctx.supercap_cmd.power_buffer_referee =
+                referee_drv_t::get_instance()
+                    ->get_data()
+                    .power_heat.buffer_energy;
                 supercap_drv_t::get_instance()->send_cmd(
                     _ctx.supercap_cmd); // NOLINT
             }
@@ -513,7 +517,8 @@ void hybrid_chassis_t::_power_control()
             referee_drv_t::get_instance()
                 ->get_data()
                 .robot_status.chassis_power_limit,
-            referee_drv_t::get_instance()->get_data().power_heat.buffer_energy, 80);
+            referee_drv_t::get_instance()->get_data().power_heat.buffer_energy,
+            80);
     }
     else
     {
@@ -521,7 +526,8 @@ void hybrid_chassis_t::_power_control()
             referee_drv_t::get_instance()
                 ->get_data()
                 .robot_status.chassis_power_limit,
-            referee_drv_t::get_instance()->get_data().power_heat.buffer_energy, 0);
+            referee_drv_t::get_instance()->get_data().power_heat.buffer_energy,
+            0);
     }
 
     // 3. 将解算后的安全指令写回到底盘数据上下文中，等待发送

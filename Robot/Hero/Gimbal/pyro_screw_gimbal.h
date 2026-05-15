@@ -21,6 +21,7 @@ struct screw_gimbal_cmd_t final : public cmd_base_t
 
     bool trigger_calibration;
     bool sling_mode;
+    bool sling_pitch_flag;
     bool autoaim_mode;
     float target_pitch;
     float target_yaw;

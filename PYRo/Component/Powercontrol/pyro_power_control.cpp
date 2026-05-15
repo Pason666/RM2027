@@ -38,7 +38,7 @@ void power_controller_t::config_buffer_loop(const float safe_energy,
 
 void power_controller_t::config_buffer_loop(float safe_energy)
 {
-    config_buffer_loop(safe_energy, 1.0f, 0.05f, 0.0f);
+    config_buffer_loop(safe_energy, 0.5f, 0.05f, 0.0f);
 }
 
 

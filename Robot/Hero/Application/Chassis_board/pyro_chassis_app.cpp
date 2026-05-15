@@ -88,6 +88,7 @@ void chassis_rxcmd()
                                           : pyro::cmd_base_t::mode_t::PASSIVE;
     hybrid_cmd_ptr->crossing_en = rx_data.track_en;
     hybrid_cmd_ptr->leg_retract = rx_data.leg_retract;
+    hybrid_cmd_ptr->leg_calibration = rx_data.leg_calibration;
 }
 
 

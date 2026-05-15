@@ -28,7 +28,8 @@ struct screw_gimbal_cmd_t final : public cmd_base_t
 
     screw_gimbal_cmd_t()
         : pitch_delta_angle(0.0f), yaw_delta_angle(0.0f),
-          trigger_calibration(false), sling_mode(false), autoaim_mode(false),
+          trigger_calibration(false), sling_mode(false),
+          sling_pitch_flag(false), autoaim_mode(false),
           target_pitch(0.0f), target_yaw(0.0f)
     {
     }

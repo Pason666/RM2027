@@ -16,6 +16,7 @@ constexpr uint32_t EVENT_BIT_TRACK_TOGGLE   = (1 << 0);
 constexpr uint32_t EVENT_BIT_RETRACT_TOGGLE = (1 << 1);
 constexpr uint32_t EVENT_BIT_SLING_TOGGLE   = (1 << 2);
 constexpr uint32_t EVENT_BIT_C_PRESS        = (1 << 3);
+constexpr uint32_t EVENT_BIT_LEG_CALIBRATION = (1 << 4);
 
 static TaskHandle_t board_com_task_handle   = nullptr;
 static board_drv_t *board_drv_ptr           = nullptr;
@@ -34,6 +35,10 @@ static void process_gimbal_logic(uint32_t notify_val)
         if (notify_val & EVENT_BIT_SLING_TOGGLE)
         {
             sling_mode = !sling_mode;
+        }
+        if (notify_val & EVENT_BIT_LEG_CALIBRATION)
+        {
+            tx_data.leg_calibration = !tx_data.leg_calibration;
         }
 
         if (sling_mode)
@@ -73,14 +78,7 @@ static void process_gimbal_logic(uint32_t notify_val)
                 {
                     tx_data.track_en = !tx_data.track_en;
                 }
-                if (tx_data.track_en)
-                {
-                    if (notify_val & EVENT_BIT_RETRACT_TOGGLE)
-                    {
-                        tx_data.leg_retract = !tx_data.leg_retract;
-                    }
-                }
-                else
+                if (!tx_data.track_en)
                 {
                     tx_data.leg_retract = false;
                 }
@@ -88,10 +86,7 @@ static void process_gimbal_logic(uint32_t notify_val)
         }
         if (notify_val & EVENT_BIT_C_PRESS)
         {
-            if (vrc.keys.ctrl.current_level)
-            {
-                tx_data.ui_refresh = !tx_data.ui_refresh;
-            }
+            tx_data.ui_refresh = !tx_data.ui_refresh;
         }
     }
     else
@@ -166,12 +161,12 @@ extern "C"
                     configMAX_PRIORITIES - 3, &board_com_task_handle);
 
         auto &vrc = pyro::rc_drv_t::read();
-        pyro::btn_broker::subscribe(
-            &vrc.buttons.pause, pyro::btn_event_t::PRESS_DOWN,
-            board_com_task_handle, EVENT_BIT_TRACK_TOGGLE);
-        pyro::btn_broker::subscribe(
-            &vrc.buttons.fn_r, pyro::btn_event_t::PRESS_DOWN,
-            board_com_task_handle, EVENT_BIT_RETRACT_TOGGLE);
+        pyro::btn_broker::subscribe(&vrc.keys.g, pyro::btn_event_t::PRESS_DOWN,
+                                    board_com_task_handle,
+                                    EVENT_BIT_TRACK_TOGGLE);
+        pyro::btn_broker::subscribe(&vrc.keys.z, pyro::btn_event_t::PRESS_DOWN,
+                                    board_com_task_handle,
+                                    EVENT_BIT_LEG_CALIBRATION);
         pyro::btn_broker::subscribe(&vrc.keys.r, pyro::btn_event_t::PRESS_DOWN,
                                     board_com_task_handle,
                                     EVENT_BIT_SLING_TOGGLE);

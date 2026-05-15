@@ -808,9 +808,30 @@ void hybrid_chassis_t::_send_motor_command() const
 // 核心运行时与状态机
 // =========================================================
 
+void hybrid_chassis_t::_calibrate_leg_offsets()
+{
+    if (!_ctx.motor.leg[0] || !_ctx.motor.leg[1])
+    {
+        return;
+    }
+
+    LEFT_LEG_OFFSET_RAD  = _ctx.motor.leg[0]->get_current_position();
+    RIGHT_LEG_OFFSET_RAD = _ctx.motor.leg[1]->get_current_position();
+    _ctx.data.current_leg_rad[0] = 0.0f;
+    _ctx.data.current_leg_rad[1] = 0.0f;
+    _ctx.data.target_leg_rad[0]  = 0.0f;
+    _ctx.data.target_leg_rad[1]  = 0.0f;
+}
+
 void hybrid_chassis_t::_fsm_execute()
 {
     _ctx.cmd = &_current_cmd;
+
+    if (_ctx.cmd->leg_calibration != _last_leg_calibration_flag)
+    {
+        _last_leg_calibration_flag = _ctx.cmd->leg_calibration;
+        _calibrate_leg_offsets();
+    }
 
     _supercap_control();
 

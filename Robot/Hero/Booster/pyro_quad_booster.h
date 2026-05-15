@@ -16,13 +16,14 @@ struct quad_booster_cmd_t final : public cmd_base_t
 {
     bool fric_on; // 摩擦轮开启
     bool sling_mode;
+    uint8_t reset_count;
 
     uint8_t fire_count; // 拨弹计数器，替代 fire_enable
 
     float trig_target_spd; // 新增：拨弹盘目标速度
 
     quad_booster_cmd_t()
-        : fric_on(false), sling_mode(false), fire_count(0),
+        : fric_on(false), sling_mode(false), reset_count(0), fire_count(0),
           trig_target_spd(0.0f)
     {
     }
@@ -108,6 +109,7 @@ class quad_booster_t final
         uint8_t internal_fire_count{0}; // 内部拨弹计数器追踪
 
         bool fric_err;
+        uint8_t internal_reset_count{0};
 
         float launch_delay_timer[3]{}; // 发射延时计时器
         float signal_timer{0};         // 信号持续时间计时器

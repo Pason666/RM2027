@@ -1,180 +1,296 @@
 #include "pyro_algo_common.h"
 
+#include "arm_math.h"
+#include <cmath>
+
 namespace pyro
 {
-    // ---------------- 原有基础算法保留 ----------------
-    float wrap2pi_f32(float input) {
-        return fmodf(input, 2 * PI);
-    }
 
-    float radps_to_rpm(const float radps) {
-        return radps * 9.5492966f;
-    }
+float wrap2pi_f32(const float input)
+{
+    return std::fmod(input, 2.0f * PI);
+}
 
-    float calculate_angle_diff(float current, float target) {
-        const float diff = std::fabs(current - target);
-        return std::fmin(diff, 2 * PI - diff);
-    }
+float radps_to_rpm(const float radps)
+{
+    return radps * 9.5492966f;
+}
 
-    float evaluate_polynomial(const float x, const float *coeffs, const uint32_t degree) {
-        float result = coeffs[0];
-        for (uint32_t i = 1; i <= degree; ++i) {
-            result = result * x + coeffs[i];
-        }
-        return result;
-    }
+float calculate_angle_diff(const float current, const float target)
+{
+    const float diff = std::fabs(current - target);
+    return std::fmin(diff, 2.0f * PI - diff);
+}
 
-    float mps_to_rpm(const float mps, const float radius) {
-        if (radius < 1e-4f) return 0.0f;
-        return (mps / radius) * 9.5492966f;
+float evaluate_polynomial(const float x, const float *coeffs,
+                          const uint32_t degree)
+{
+    float result = coeffs[0];
+    for (uint32_t i = 1; i <= degree; ++i)
+    {
+        result = result * x + coeffs[i];
     }
+    return result;
+}
 
-    float rpm_to_mps(const float rpm, const float radius) {
-        return rpm * radius / 9.5492966f;
+float mps_to_rpm(const float mps, const float radius)
+{
+    if (radius < 1.0e-4f)
+    {
+        return 0.0f;
     }
+    return (mps / radius) * 9.5492966f;
+}
 
-    float loop_fp32_constrain(float val, const float min_val, const float max_val) {
-        const float len = max_val - min_val;
-        if (len < 1e-6f) return val;
-        while (val > max_val) val -= len;
-        while (val < min_val) val += len;
+float rpm_to_mps(const float rpm, const float radius)
+{
+    return rpm * radius / 9.5492966f;
+}
+
+float loop_fp32_constrain(float val, const float min_val, const float max_val)
+{
+    const float len = max_val - min_val;
+    if (len < 1.0e-6f)
+    {
         return val;
     }
+    while (val > max_val)
+    {
+        val -= len;
+    }
+    while (val < min_val)
+    {
+        val += len;
+    }
+    return val;
+}
 
-    // ---------------- 弹道积分模型与牛顿法构建 ----------------
-    namespace { 
-        inline double f_func(double p) {
-            double sq = std::sqrt(1.0 + p * p);
-            return p * sq + std::log(p + sq);
+namespace
+{
+// Ballistic model constants. kDrag is the fitted quadratic air-drag coefficient
+// used by the integral model; keep it in one place for field calibration.
+constexpr float kDrag    =  0.0112f; // 二次空气阻力系数，需随弹速/弹丸/场地标定
+constexpr float kGravity = 9.81f;    // 重力加速度，单位 m/s^2
+constexpr float kDenominatorMin = 1.0e-6f; // 积分分母下限，避免接近奇点时除零
+constexpr float kJacobianStep   = 1.0e-4f; // 有限差分步长，过小易受浮点噪声影响
+constexpr float kSingularEpsilon =
+    1.0e-6f; // 雅可比行列式阈值，小于该值视为不可逆
+constexpr float kSolveTolerance = 1.0e-3f; // 残差收敛阈值，单位约等于米
+constexpr int kIntegralSteps    = 60;      // Simpson 积分分段数，需为偶数
+constexpr int kMaxIterations    = 30; // Newton 最大迭代次数，防止异常输入卡死
+
+float safeSqrt(const float value)
+{
+    float result = 0.0f;
+    // CMSIS-DSP sqrt keeps this path in f32 and avoids accidental double math.
+    arm_sqrt_f32(value > 0.0f ? value : 0.0f, &result);
+    return result;
+}
+
+float trajectoryFunc(const float p)
+{
+    // p is dy/dx, i.e. tan(theta). This is the primitive function that appears
+    // after rewriting the drag model with slope as the integration variable.
+    const float sq = safeSqrt(1.0f + p * p);
+    return p * sq + std::log(p + sq);
+}
+
+float calcIntegralX(const float p0, const float p1, const float c,
+                    const float k)
+{
+    // Simpson integration from terminal slope p1 to initial slope p0. The
+    // result is the horizontal displacement predicted by the current state.
+    const float dp = (p0 - p1) / static_cast<float>(kIntegralSteps);
+    float sum      = 0.0f;
+
+    for (int i = 0; i <= kIntegralSteps; ++i)
+    {
+        const float p     = p1 + static_cast<float>(i) * dp;
+        float denominator = c - trajectoryFunc(p);
+        if (denominator < kDenominatorMin)
+        {
+            denominator = kDenominatorMin;
         }
 
-        double calcIntegralX(double p0, double p1, double c, double k) {
-            constexpr int N = 60;
-            double dp = (p0 - p1) / N;
-            double sum = 0.0;
-            for (int i = 0; i <= N; ++i) {
-                double p = p1 + i * dp;
-                double denominator = c - f_func(p);
-                if (denominator <= 1e-6) denominator = 1e-6;
-                double val = 1.0 / denominator;
-                double weight = (i == 0 || i == N) ? 1.0 : ((i % 2 == 1) ? 4.0 : 2.0);
-                sum += weight * val;
-            }
-            return (dp / 3.0) * sum / k;
-        }
-
-        double calcIntegralY(double p0, double p1, double c, double k) {
-            constexpr int N = 60;
-            double dp = (p0 - p1) / N;
-            double sum = 0.0;
-            for (int i = 0; i <= N; ++i) {
-                double p = p1 + i * dp;
-                double denominator = c - f_func(p);
-                if (denominator <= 1e-6) denominator = 1e-6;
-                double val = p / denominator;
-                double weight = (i == 0 || i == N) ? 1.0 : ((i % 2 == 1) ? 4.0 : 2.0);
-                sum += weight * val;
-            }
-            return (dp / 3.0) * sum / k;
-        }
-
-        // [核心修改点]：剔除 Eigen，使用二维数组和代数公式直接求逆
-        bool calcJacobianInv(double p0, double p1, double v0, double k, double g, double x0, double y0, double J_inv[2][2]) {
-            constexpr double eps = 1e-5;
-
-            // 1. 基准值计算
-            double c_base = g * (1.0 + p0 * p0) / (k * v0 * v0) + f_func(p0);
-            double D0_base = x0 - calcIntegralX(p0, p1, c_base, k);
-            double D1_base = y0 - calcIntegralY(p0, p1, c_base, k);
-
-            // 2. 扰动 p1 求偏导
-            double p1_eps = p1 + eps;
-            double x_p1 = calcIntegralX(p0, p1_eps, c_base, k);
-            double y_p1 = calcIntegralY(p0, p1_eps, c_base, k);
-            double dD0_dp1 = (x0 - x_p1 - D0_base) / eps;
-            double dD1_dp1 = (y0 - y_p1 - D1_base) / eps;
-
-            // 3. 扰动 p0 求偏导
-            double p0_eps = p0 + eps;
-            double c_eps = g * (1.0 + p0_eps * p0_eps) / (k * v0 * v0) + f_func(p0_eps);
-            double x_p0 = calcIntegralX(p0_eps, p1, c_eps, k);
-            double y_p0 = calcIntegralY(p0_eps, p1, c_eps, k);
-            double dD0_dp0 = (x0 - x_p0 - D0_base) / eps;
-            double dD1_dp0 = (y0 - y_p0 - D1_base) / eps;
-
-            // 4. 构建 2x2 雅可比矩阵：
-            // J = [ a, b ]
-            //     [ c, d ]
-            double a = dD0_dp1;
-            double b = dD0_dp0;
-            double c = dD1_dp1;
-            double d = dD1_dp0;
-
-            // 5. 使用代数公式计算 2x2 矩阵求逆（比 DSP 库更快）
-            double det = a * d - b * c;
-            if (std::abs(det) < 1e-6) {
-                return false; // 矩阵奇异，求解失败
-            }
-
-            double inv_det = 1.0 / det;
-            J_inv[0][0] = d * inv_det;
-            J_inv[0][1] = -b * inv_det;
-            J_inv[1][0] = -c * inv_det;
-            J_inv[1][1] = a * inv_det;
-
-            return true;
-        }
+        const float weight = (i == 0 || i == kIntegralSteps) ? 1.0f
+                             : ((i & 1) != 0)                ? 4.0f
+                                                             : 2.0f;
+        sum += weight / denominator;
     }
 
-    // ---------------- 主干解算函数 ----------------
-    std::optional<double> solveIdealPitch(
-        double delta_x, double delta_y, double delta_z, double v0, double pitch_guess)
+    return (dp / 3.0f) * sum / k;
+}
+
+float calcIntegralY(const float p0, const float p1, const float c,
+                    const float k)
+{
+    // Same integration interval as X, with an extra slope multiplier to obtain
+    // vertical displacement.
+    const float dp = (p0 - p1) / static_cast<float>(kIntegralSteps);
+    float sum      = 0.0f;
+
+    for (int i = 0; i <= kIntegralSteps; ++i)
     {
-        constexpr double k = 0.01903;
-        constexpr double g = 9.81;
-        constexpr int max_iter = 30;
-        constexpr double tolerance = 1e-5;
-
-        double x0 = std::sqrt(delta_x * delta_x + delta_y * delta_y);
-        double y0 = delta_z;
-
-        double v_x_approx = v0 * std::cos(pitch_guess);
-        if (v_x_approx < 1e-3) return std::nullopt;
-
-        double t_approx = x0 / v_x_approx;
-
-        // 状态变量提取为简单的 double 类型
-        double p0 = std::tan(pitch_guess);
-        double p1 = (v0 * std::sin(pitch_guess) - g * t_approx) / v_x_approx;
-
-        // [核心修改点]：替换 Eigen 向量和矩阵
-        double D0, D1;
-        double J_inv[2][2];
-
-        for (int i = 0; i < max_iter; ++i) {
-            double c = g * (1.0 + p0 * p0) / (k * v0 * v0) + f_func(p0);
-
-            D0 = x0 - calcIntegralX(p0, p1, c, k);
-            D1 = y0 - calcIntegralY(p0, p1, c, k);
-
-            // 替换 Eigen 的 D.norm()
-            if (std::sqrt(D0 * D0 + D1 * D1) < tolerance) {
-                return std::atan(p0);
-            }
-
-            if (!calcJacobianInv(p0, p1, v0, k, g, x0, y0, J_inv)) {
-                break;
-            }
-
-            // [核心修改点]：展开矩阵乘法 R += J_inv * D
-            double dp1 = J_inv[0][0] * D0 + J_inv[0][1] * D1;
-            double dp0 = J_inv[1][0] * D0 + J_inv[1][1] * D1;
-
-            p1 += dp1;
-            p0 += dp0;
+        const float p     = p1 + static_cast<float>(i) * dp;
+        float denominator = c - trajectoryFunc(p);
+        if (denominator < kDenominatorMin)
+        {
+            denominator = kDenominatorMin;
         }
 
+        const float weight = (i == 0 || i == kIntegralSteps) ? 1.0f
+                             : ((i & 1) != 0)                ? 4.0f
+                                                             : 2.0f;
+        sum += weight * p / denominator;
+    }
+
+    return (dp / 3.0f) * sum / k;
+}
+
+float calcIntegralC(const float p0, const float v0)
+{
+    // c is the conserved term derived from initial slope and muzzle speed.
+    return kGravity * (1.0f + p0 * p0) / (kDrag * v0 * v0) + trajectoryFunc(p0);
+}
+
+bool calcJacobianInv(const float p0, const float p1, const float v0,
+                     const float x0, const float y0, float (&j_inv_data)[4])
+{
+    // Residual D = target displacement - predicted displacement.
+    // The Newton state is [p1, p0]^T, so columns are finite differences with
+    // respect to terminal slope p1 and initial slope p0.
+    const float c_base  = calcIntegralC(p0, v0);
+    const float d0_base = x0 - calcIntegralX(p0, p1, c_base, kDrag);
+    const float d1_base = y0 - calcIntegralY(p0, p1, c_base, kDrag);
+
+    // First column: perturb terminal slope p1 while c stays unchanged.
+    const float p1_eps  = p1 + kJacobianStep;
+    const float x_p1    = calcIntegralX(p0, p1_eps, c_base, kDrag);
+    const float y_p1    = calcIntegralY(p0, p1_eps, c_base, kDrag);
+    const float dD0_dp1 = (x0 - x_p1 - d0_base) / kJacobianStep;
+    const float dD1_dp1 = (y0 - y_p1 - d1_base) / kJacobianStep;
+
+    // Second column: perturb initial slope p0, which also changes c.
+    const float p0_eps  = p0 + kJacobianStep;
+    const float c_eps   = calcIntegralC(p0_eps, v0);
+    const float x_p0    = calcIntegralX(p0_eps, p1, c_eps, kDrag);
+    const float y_p0    = calcIntegralY(p0_eps, p1, c_eps, kDrag);
+    const float dD0_dp0 = (x0 - x_p0 - d0_base) / kJacobianStep;
+    const float dD1_dp0 = (y0 - y_p0 - d1_base) / kJacobianStep;
+
+    float j_data[4]     = {
+        dD0_dp1,
+        dD0_dp0,
+        dD1_dp1,
+        dD1_dp0,
+    };
+
+    const float det = dD0_dp1 * dD1_dp0 - dD0_dp0 * dD1_dp1;
+    if (std::fabs(det) < kSingularEpsilon)
+    {
+        return false;
+    }
+
+    arm_matrix_instance_f32 j{};
+    arm_matrix_instance_f32 j_inv{};
+    arm_mat_init_f32(&j, 2, 2, j_data);
+    arm_mat_init_f32(&j_inv, 2, 2, j_inv_data);
+
+    // Use CMSIS-DSP for the matrix inverse so this remains consistent with the
+    // rest of the control and filter code on Cortex-M.
+    return arm_mat_inverse_f32(&j, &j_inv) == ARM_MATH_SUCCESS;
+}
+
+bool calcNewtonStep(float (&j_inv_data)[4], const float d0, const float d1,
+                    float &dp1, float &dp0)
+{
+    // step = inv(J) * D. The caller adds this step to [p1, p0].
+    float d_data[2]    = {d0, d1};
+    float step_data[2] = {};
+
+    arm_matrix_instance_f32 j_inv{};
+    arm_matrix_instance_f32 d{};
+    arm_matrix_instance_f32 step{};
+    arm_mat_init_f32(&j_inv, 2, 2, j_inv_data);
+    arm_mat_init_f32(&d, 2, 1, d_data);
+    arm_mat_init_f32(&step, 2, 1, step_data);
+
+    if (arm_mat_mult_f32(&j_inv, &d, &step) != ARM_MATH_SUCCESS)
+    {
+        return false;
+    }
+
+    dp1 = step_data[0];
+    dp0 = step_data[1];
+    return true;
+}
+} // namespace
+
+std::optional<float> solveIdealPitch(const float delta_x, const float delta_y,
+                                     const float delta_z, const float v0,
+                                     const float pitch_guess)
+{
+    if (v0 < 1.0e-3f)
+    {
         return std::nullopt;
     }
+
+    // Convert the 3D target offset into the 2D ballistic plane.
+    const float x0         = safeSqrt(delta_x * delta_x + delta_y * delta_y);
+    const float y0         = delta_z;
+
+    // A near-vertical initial guess makes the horizontal time estimate
+    // unstable.
+    const float v_x_approx = v0 * std::cos(pitch_guess);
+    if (v_x_approx < 1.0e-3f)
+    {
+        return std::nullopt;
+    }
+
+    // Initial slopes: p0 is muzzle slope, p1 is an ideal no-drag terminal slope
+    // used only to seed Newton iteration.
+    const float t_approx = x0 / v_x_approx;
+    float p0             = std::tan(pitch_guess);
+    float p1 = (v0 * std::sin(pitch_guess) - kGravity * t_approx) / v_x_approx;
+
+    for (int i = 0; i < kMaxIterations; ++i)
+    {
+        // D = target - prediction. Once D is small enough, atan(p0) is the
+        // solved pitch angle.
+        const float c        = calcIntegralC(p0, v0);
+        const float d0       = x0 - calcIntegralX(p0, p1, c, kDrag);
+        const float d1       = y0 - calcIntegralY(p0, p1, c, kDrag);
+        const float residual = safeSqrt(d0 * d0 + d1 * d1);
+
+        if (residual < kSolveTolerance)
+        {
+            return std::atan(p0);
+        }
+
+        // Solve the local linear system using DSP matrix primitives.
+        float j_inv_data[4] = {};
+        if (!calcJacobianInv(p0, p1, v0, x0, y0, j_inv_data))
+        {
+            return std::nullopt;
+        }
+
+        float dp1 = 0.0f;
+        float dp0 = 0.0f;
+        if (!calcNewtonStep(j_inv_data, d0, d1, dp1, dp0))
+        {
+            return std::nullopt;
+        }
+
+        p1 += dp1;
+        p0 += dp0;
+
+        if (!std::isfinite(p0) || !std::isfinite(p1))
+        {
+            return std::nullopt;
+        }
+    }
+
+    return std::nullopt;
+}
 
 } // namespace pyro

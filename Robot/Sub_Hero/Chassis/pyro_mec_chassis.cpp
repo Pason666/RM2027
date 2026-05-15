@@ -52,7 +52,7 @@ void mec_chassis_t::_power_control_init()
         node = power_controller_t::get_instance().register_motor(params);
     }
 
-    power_controller_t::get_instance().config_buffer_loop(60.0f);
+    power_controller_t::get_instance().config_buffer_loop(40.0f);
 }
 
 void mec_chassis_t::_update_feedback()
@@ -277,6 +277,7 @@ void mec_chassis_t::_send_motor_command() const
     for (int i = 0; i < 4; i++)
     {
         _ctx.motor.wheels[i]->send_torque(_ctx.data.out_wheel_torque[i]);
+        // _ctx.motor.wheels[i]->send_torque(0);
     }
 }
 

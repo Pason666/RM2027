@@ -48,7 +48,7 @@ void power_controller_t::solve(const float referee_power_limit,
 {
     // 1. [裁判系统端] 仅根据缓冲能量计算基础的功率补偿
     float p_adjust =
-        _buffer_pid.calculate(_safe_energy_ref, current_buffer_energy);
+        -_buffer_pid.calculate(_safe_energy_ref, current_buffer_energy);
 
     // 极端危险状态的强力惩罚机制，强行从上限中抠出功率回血
     if (current_buffer_energy < DANGER_ENERGY_THRESH)

@@ -4,6 +4,7 @@
  */
 
 #include "pyro_board_drv.h"
+#include "pyro_dr16_rc_drv.h"
 #include "pyro_module_base.h"
 #include "pyro_quad_booster.h"
 #include "pyro_rc_base_drv.h"
@@ -70,6 +71,23 @@ static void process_gimbal_logic(uint32_t notify_val)
             {
                 tx_data.ui_refresh = !tx_data.ui_refresh;
             }
+        }
+    }
+    else if (dr16_drv_t::instance().check_online())
+    {
+        if (sw_pos_t::MID != vrc.switches.right.current_pos)
+        {
+            tx_data.active      = false;
+            tx_data.vx          = 0;
+            tx_data.vy          = 0;
+            tx_data.wz          = 0;
+        }
+        else
+        {
+            tx_data.active = true;
+            tx_data.vx     = static_cast<int8_t>(vrc.axes.ly * 127);
+            tx_data.vy     = static_cast<int8_t>(- vrc.axes.lx * 127);
+            tx_data.wz     = 0;
         }
     }
     else

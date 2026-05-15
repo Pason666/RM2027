@@ -52,7 +52,7 @@ extern "C"
     void hero_chassis_init(void *argument)
     {
         board_drv_ptr = &board_drv_t::get_instance(board_drv_t::role_t::CHASSIS,
-                                                   can_hub_t::can1);
+                                                   can_hub_t::can2);
         mec_cmd_ptr     = new pyro::mec_cmd_t();
         mec_chassis_ptr = pyro::mec_chassis_t::instance();
 

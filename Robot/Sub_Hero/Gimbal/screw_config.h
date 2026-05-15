@@ -54,7 +54,7 @@ constexpr float PITCH_MAX_RELATIVE_RAD   = -0.1f;  // Pitch 轴最大角度 (rad
 constexpr float PITCH_MIN_IMU_RAD        = -0.75f;  // IMU 读数最小角度 (rad)
 constexpr float PITCH_MAX_IMU_RAD        = -0.2f;  // IMU 读数最大角度 (rad)
 
-constexpr float YAW_OFFSET_RAD           = 1.61298084f;
+constexpr float YAW_OFFSET_RAD           = -0.074f;
 constexpr float YAW_MIN_RELATIVE_RAD     = -1.5f;  // Yaw 轴相对最小角度(待调整)
 constexpr float YAW_MAX_RELATIVE_RAD     = 1.5f;   // Yaw 轴相对最大角度(待调整)
 

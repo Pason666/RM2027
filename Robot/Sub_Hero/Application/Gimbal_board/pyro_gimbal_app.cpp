@@ -224,7 +224,7 @@ void deps_init()
     // Yaw: 使用 DJI GM6020 (ID 2, CAN1)
 
     screw_gimbal_deps->motor_deps.yaw = new dji_gm_6020_motor_drv_t(
-        dji_motor_tx_frame_t::id_3, can_hub_t::can1);
+        dji_motor_tx_frame_t::id_2, can_hub_t::can1);
 
 
     // 3. 初始化串级 PID
@@ -238,7 +238,7 @@ void deps_init()
         new pid_t(11.5f, 0.108f, 0.01f, 0.5f, 10.0f, 40, 1, 10, 1,
                   4); // 位置环输出为 rad/s，限制在电机可接受范围内
     screw_gimbal_deps->pid_deps.pitch_spd =
-        new pid_t(11000.0f, 51.0f, 7.0f, 500.0f, 10000.0f, 20, 1, 10, 1,
+        new pid_t(11000.0f, 51.0f, 7.0f, 500.0f, 11000.0f, 20, 1, 10, 1,
                   4); // 输出限制匹配电机 Nm 级
 
     screw_gimbal_deps->pid_deps.pitch_auto_pos =

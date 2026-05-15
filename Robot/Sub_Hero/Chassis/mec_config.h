@@ -4,6 +4,6 @@
 constexpr float WHEEL_RADIUS  = 0.076f;
 constexpr float WHEELBASE     = 0.380f;
 constexpr float TRACK_WIDTH   = 0.380f;
-constexpr float YAW_OFFSET_RAD = 0.796136022f;
+constexpr float YAW_OFFSET_RAD = -0.074f;
 
 #endif

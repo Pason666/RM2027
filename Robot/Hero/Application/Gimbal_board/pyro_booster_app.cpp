@@ -257,7 +257,7 @@ void deps_init()
         new pid_t(11.315f, 0.03f, 0.004f, 2.5f, 20, 240, 1, 80, 1, 4);
 
     quad_deps_ptr->pid_deps.trigger_pos_pid =
-        new pid_t(6.30f, 0.03f, 0.0015f, 0.3f, 2.0f, 40, 1, 20, 1, 4);
+        new pid_t(8.0f, 0.03f, 0.0015f, 0.3f, 2.0f, 40, 1, 20, 1, 4);
     quad_deps_ptr->pid_deps.trigger_spd_pid =
-        new pid_t(0.92f, 0.08f, 0.0015f, 0.5f, 5.0f, 30, 1, 20, 1, 4);
+        new pid_t(0.9f, 0.8f, 0.0015f, 2.0f, 5.0f, 30, 1, 20, 1, 4);
 }

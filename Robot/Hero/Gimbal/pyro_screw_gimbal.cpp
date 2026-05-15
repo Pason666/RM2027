@@ -230,7 +230,7 @@ void screw_gimbal_t::_gimbal_sling_control()
         _ctx.pid.yaw_relative_pos->calculate(0.0f,_ctx.data.relative_yaw_error_rad);
 
     float yaw_pid_out = _ctx.pid.yaw_relative_spd->calculate(
-        _ctx.data.target_yaw_radps,_ctx.data.pos_imu_leso_z1);
+        _ctx.data.target_yaw_radps,_ctx.data.yaw_imu_radps);
 
     // 【修改点】：使用 LESO 估计的总扰动进行前馈补偿，替代原先的施密特触发器逻辑
     float yaw_leso_comp = 0.0f;

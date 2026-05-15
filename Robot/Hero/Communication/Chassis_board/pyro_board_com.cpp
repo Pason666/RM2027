@@ -43,6 +43,8 @@ static void process_chassis_logic()
         }
         tx_data.gimbal_output = referee->get_data().robot_status.power_management_gimbal_output;
         tx_data.booster_output = referee->get_data().robot_status.power_management_shooter_output;
+        tx_data.heat_limit = referee->get_data().robot_status.shooter_barrel_heat_limit;
+        tx_data.heat = referee->get_data().power_heat.shooter_42mm_barrel_heat;
     }
     // 3. 接收逻辑
     if (board_drv_ptr->check_online())

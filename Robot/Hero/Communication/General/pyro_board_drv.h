@@ -57,6 +57,8 @@ class board_drv_t
         bool gimbal_output  : 1;
         bool booster_output : 1;
         bool reserved_bit   : 6;
+        uint8_t heat;
+        uint8_t heat_limit;
     };
 
     /* ---------------------------------------------------- */

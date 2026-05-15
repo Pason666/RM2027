@@ -86,7 +86,7 @@ void hybrid_chassis_t::_power_control_init()
     // }
 
     // 初始化缓冲能量 PID (安全缓冲参考值设为 60J,pid默认值)
-    power_controller_t::get_instance().config_buffer_loop(60.0f);
+    power_controller_t::get_instance().config_buffer_loop(40.0f);
 }
 
 

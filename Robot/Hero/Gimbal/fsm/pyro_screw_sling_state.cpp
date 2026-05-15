@@ -30,7 +30,7 @@ void screw_gimbal_t::fsm_active_t::sling_state_t::execute(owner *owner)
     owner->_ctx.data.target_pitch_rad += owner->_ctx.cmd->pitch_delta_angle;
     owner->_ctx.data.target_yaw_rad += owner->_ctx.cmd->yaw_delta_angle;
 
-    static uint8_t last_sling_pitch_flag = 0;
+    static bool last_sling_pitch_flag = false;
     if (owner->_ctx.cmd->sling_pitch_flag != last_sling_pitch_flag)
     {
         // 如果 Pitch 也需要被 WASD 控制，则在这里直接累加
@@ -41,7 +41,7 @@ void screw_gimbal_t::fsm_active_t::sling_state_t::execute(owner *owner)
         const float robot_y =
             static_cast<float>(
                 board_drv_t::get_instance().get_c2g_rx_data().robot_y) /
-            65535.0f * 18.0f;
+            65535.0f * 15.0f;
         const bool robot_color = board_drv_t::get_instance().get_c2g_rx_data().robot_color;
         const float target_x = robot_color ? 25.593f : 2.407f;
         const float target_y = robot_color ? 25.593f : 2.407f;
@@ -49,8 +49,10 @@ void screw_gimbal_t::fsm_active_t::sling_state_t::execute(owner *owner)
         const float delta_x = fabs(target_x - robot_x);
         const float delta_y = fabs(target_y - robot_y);
         constexpr float delta_z = target_z - 0.75f;
-        const float target_solved_imu_pitch =
-        owner->_ctx.data.target_pitch_rad = solveIdealPitch(delta_x, delta_y, delta_z, 16.2f).value_or(owner->_ctx.data.target_pitch_rad);
+        if (auto pitch = solveIdealPitch(delta_x, delta_y, delta_z, 16.2f))
+        {
+            owner->_ctx.data.target_pitch_rad = *pitch;
+        }
         last_sling_pitch_flag = owner->_ctx.cmd->sling_pitch_flag;
     }
 

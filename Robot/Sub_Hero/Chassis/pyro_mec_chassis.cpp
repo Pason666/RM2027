@@ -3,7 +3,7 @@
 #include "pyro_algo_common.h"
 #include "pyro_dji_motor_drv.h"
 #include "pyro_referee.h"
-
+#include "mec_config.h"
 #include <algorithm>
 #include <arm_math.h>
 #include <cmath>

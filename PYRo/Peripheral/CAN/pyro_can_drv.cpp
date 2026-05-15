@@ -4,6 +4,58 @@
 
 namespace pyro
 {
+namespace
+{
+constexpr uint32_t CAN_NOTIFY_FLAGS =
+    FDCAN_IT_RX_FIFO0_NEW_MESSAGE | FDCAN_IT_RX_FIFO0_FULL |
+    FDCAN_IT_RX_FIFO0_MESSAGE_LOST | FDCAN_IT_ERROR_WARNING |
+    FDCAN_IT_ERROR_PASSIVE | FDCAN_IT_BUS_OFF |
+    FDCAN_IT_ARB_PROTOCOL_ERROR | FDCAN_IT_DATA_PROTOCOL_ERROR;
+
+void abort_pending_tx(FDCAN_HandleTypeDef *hfdcan)
+{
+    if (nullptr == hfdcan)
+        return;
+
+    const uint32_t pending = hfdcan->Instance->TXBRP;
+    if (0U != pending)
+        (void)HAL_FDCAN_AbortTxRequest(hfdcan, pending);
+}
+
+status_t reactivate_can_notifications(FDCAN_HandleTypeDef *hfdcan)
+{
+    if (HAL_OK != HAL_FDCAN_ActivateNotification(hfdcan, CAN_NOTIFY_FLAGS, 0))
+        return PYRO_ERROR;
+
+    return PYRO_OK;
+}
+
+status_t recover_bus_off(FDCAN_HandleTypeDef *hfdcan)
+{
+    FDCAN_ProtocolStatusTypeDef protocol_status{};
+
+    if (HAL_OK != HAL_FDCAN_GetProtocolStatus(hfdcan, &protocol_status))
+        return PYRO_ERROR;
+
+    if (0U == protocol_status.BusOff)
+        return PYRO_OK;
+
+    abort_pending_tx(hfdcan);
+
+    (void)HAL_FDCAN_Stop(hfdcan);
+    hfdcan->ErrorCode = HAL_FDCAN_ERROR_NONE;
+
+    if (HAL_OK != HAL_FDCAN_Start(hfdcan))
+        return PYRO_ERROR;
+
+    const status_t notify_status = reactivate_can_notifications(hfdcan);
+    if (PYRO_OK != notify_status)
+        return notify_status;
+
+    return PYRO_BUSY;
+}
+} // namespace
+
 // ==========================================
 // can_msg_buffer_t Implementation
 // ==========================================
@@ -97,14 +149,22 @@ pyro::status_t can_drv_t::start() const
 {
     if (HAL_OK != HAL_FDCAN_Start(_hfdcan))
         return pyro::PYRO_ERROR;
-    if (HAL_OK != HAL_FDCAN_ActivateNotification(
-                      _hfdcan, FDCAN_IT_RX_FIFO0_NEW_MESSAGE, 0))
-        return pyro::PYRO_ERROR;
-    return pyro::PYRO_OK;
+
+    return reactivate_can_notifications(_hfdcan);
 }
 
 pyro::status_t can_drv_t::send_msg(const uint32_t id, const uint8_t *data) const
 {
+    if (nullptr == _hfdcan || nullptr == data)
+        return pyro::PYRO_PARAM_ERROR;
+
+    if (HAL_FDCAN_STATE_BUSY != _hfdcan->State)
+        return pyro::PYRO_BUSY;
+
+    const status_t recover_status = recover_bus_off(_hfdcan);
+    if (PYRO_OK != recover_status)
+        return recover_status;
+
     FDCAN_TxHeaderTypeDef tx_header;
 
     tx_header.IdType              = FDCAN_STANDARD_ID;
@@ -117,10 +177,32 @@ pyro::status_t can_drv_t::send_msg(const uint32_t id, const uint8_t *data) const
     tx_header.TxEventFifoControl  = FDCAN_NO_TX_EVENTS;
     tx_header.MessageMarker       = 0;
 
-    if (HAL_OK != HAL_FDCAN_AddMessageToTxFifoQ(_hfdcan, &tx_header, data))
+    taskENTER_CRITICAL();
+    if (0U == HAL_FDCAN_GetTxFifoFreeLevel(_hfdcan))
     {
+        abort_pending_tx(_hfdcan);
+        _hfdcan->ErrorCode &= ~HAL_FDCAN_ERROR_FIFO_FULL;
+        taskEXIT_CRITICAL();
+        return pyro::PYRO_BUSY;
+    }
+
+    const HAL_StatusTypeDef hal_status =
+        HAL_FDCAN_AddMessageToTxFifoQ(_hfdcan, &tx_header, data);
+
+    if (HAL_OK != hal_status)
+    {
+        if (0U != (_hfdcan->ErrorCode & HAL_FDCAN_ERROR_FIFO_FULL))
+        {
+            abort_pending_tx(_hfdcan);
+            _hfdcan->ErrorCode &= ~HAL_FDCAN_ERROR_FIFO_FULL;
+            taskEXIT_CRITICAL();
+            return pyro::PYRO_BUSY;
+        }
+
+        taskEXIT_CRITICAL();
         return pyro::PYRO_ERROR;
     }
+    taskEXIT_CRITICAL();
 
     return pyro::PYRO_OK;
 }

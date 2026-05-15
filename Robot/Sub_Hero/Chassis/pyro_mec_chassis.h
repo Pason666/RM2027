@@ -127,11 +127,6 @@ class mec_chassis_t final
     state_passive_t _state_passive;
     state_active_t _state_active;
     fsm_t<owner> _main_fsm;
-
-    static constexpr float WHEEL_RADIUS  = 0.076f;
-    static constexpr float WHEELBASE     = 0.380f;
-    static constexpr float TRACK_WIDTH   = 0.380f;
-    static constexpr float YAW_OFFSET_RAD = 0.796136022f;
 };
 
 } // namespace pyro

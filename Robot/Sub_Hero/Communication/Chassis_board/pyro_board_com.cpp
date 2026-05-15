@@ -29,18 +29,18 @@ static void process_chassis_logic()
     auto *referee                      = referee_drv_t::get_instance();
     if (referee)
     {
-        const auto &ref_data = referee->get_data();
+        const auto &ref_data      = referee->get_data();
         const auto &referee_shoot = referee->get_data().shoot;
-        if (referee_shoot.launching_num != last_launching_num)
+        if (ref_data.shoot_launching_count != last_launching_num)
         {
             board_drv_t::event_shoot_t shoot_event{};
             shoot_event.shoot_speed   = referee_shoot.initial_speed;
-            shoot_event.launching_num = referee_shoot.launching_num;
+            shoot_event.launching_num = ref_data.shoot_launching_count;
 
-            status_t ret = board_drv_ptr->send_event(
+            status_t ret              = board_drv_ptr->send_event(
                 board_drv_t::EVENT_C2G_SHOOT, shoot_event);
             (void)ret;
-            last_launching_num = referee_shoot.launching_num;
+            last_launching_num = ref_data.shoot_launching_count;
         }
         tx_data.chassis_output =
             ref_data.robot_status.power_management_chassis_output;
@@ -48,10 +48,9 @@ static void process_chassis_logic()
             ref_data.robot_status.power_management_gimbal_output;
         tx_data.booster_output =
             ref_data.robot_status.power_management_shooter_output;
-        tx_data.chassis_power_limit =
-            ref_data.robot_status.chassis_power_limit;
-        tx_data.chassis_buffer_energy = static_cast<int16_t>(
-            ref_data.power_heat.buffer_energy * 100.0f);
+        tx_data.chassis_power_limit = ref_data.robot_status.chassis_power_limit;
+        tx_data.chassis_buffer_energy =
+            static_cast<int16_t>(ref_data.power_heat.buffer_energy * 100.0f);
         tx_data.supercap_voltage = static_cast<uint16_t>(
             mec_chassis_t::instance()->get_ctx().cap_feedback.vot_cap);
     }

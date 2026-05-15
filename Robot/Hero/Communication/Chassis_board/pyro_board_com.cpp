@@ -29,22 +29,28 @@ static void process_chassis_logic()
     auto *referee                      = referee_drv_t::get_instance();
     if (referee)
     {
-        const auto &referee_shoot = referee->get_data().shoot;
-        if (referee_shoot.launching_num != last_launching_num)
+        const auto &ref_data      = referee->get_data();
+        const auto &referee_shoot = ref_data.shoot;
+        if (ref_data.shoot_launching_count != last_launching_num)
         {
             board_drv_t::event_shoot_t shoot_event{};
             shoot_event.shoot_speed   = referee_shoot.initial_speed;
-            shoot_event.launching_num = referee_shoot.launching_num;
+            shoot_event.launching_num = ref_data.shoot_launching_count;
 
             status_t ret;
             ret = board_drv_ptr->send_event(board_drv_t::EVENT_C2G_SHOOT,
-                                      shoot_event);
-            last_launching_num = referee_shoot.launching_num;
+                                            shoot_event);
+            last_launching_num = ref_data.shoot_launching_count;
         }
-        tx_data.gimbal_output = referee->get_data().robot_status.power_management_gimbal_output;
-        tx_data.booster_output = referee->get_data().robot_status.power_management_shooter_output;
-        tx_data.heat_limit = referee->get_data().robot_status.shooter_barrel_heat_limit;
-        tx_data.heat = referee->get_data().power_heat.shooter_42mm_barrel_heat;
+        tx_data.gimbal_output =
+            ref_data.robot_status.power_management_gimbal_output;
+        tx_data.booster_output =
+            ref_data.robot_status.power_management_shooter_output;
+        tx_data.robot_color = ref_data.robot_status.robot_id >= 100 ? 1 : 0;
+        tx_data.heat_limit = ref_data.robot_status.shooter_barrel_heat_limit;
+        tx_data.heat       = ref_data.power_heat.shooter_42mm_barrel_heat;
+        tx_data.robot_x = static_cast<uint16_t>(ref_data.robot_pos.x / 28.0f * 65535.0f);
+        tx_data.robot_y = static_cast<uint16_t>(ref_data.robot_pos.y / 15.0f * 65535.0f);
     }
     // 3. 接收逻辑
     if (board_drv_ptr->check_online())

@@ -67,10 +67,8 @@ float loop_fp32_constrain(float val, const float min_val, const float max_val)
 
 namespace
 {
-// Ballistic model constants. kDrag is the fitted quadratic air-drag coefficient
-// used by the integral model; keep it in one place for field calibration.
-constexpr float kDrag    =  0.0112f; // 二次空气阻力系数，需随弹速/弹丸/场地标定
-constexpr float kGravity = 9.81f;    // 重力加速度，单位 m/s^2
+constexpr float kDrag    = 0.0112f; // 二次空气阻力系数，需随弹丸和场地标定
+constexpr float kGravity = 9.81f;   // 重力加速度，单位 m/s^2
 constexpr float kDenominatorMin = 1.0e-6f; // 积分分母下限，避免接近奇点时除零
 constexpr float kJacobianStep   = 1.0e-4f; // 有限差分步长，过小易受浮点噪声影响
 constexpr float kSingularEpsilon =
@@ -226,13 +224,61 @@ bool calcNewtonStep(float (&j_inv_data)[4], const float d0, const float d1,
 }
 } // namespace
 
-std::optional<float> solveIdealPitch(const float delta_x, const float delta_y,
-                                     const float delta_z, const float v0,
-                                     const float pitch_guess)
+std::optional<float> solveParabolicPitch(const float delta_x,
+                                         const float delta_y,
+                                         const float delta_z, const float v0,
+                                         const bool use_high_root)
 {
     if (v0 < 1.0e-3f)
     {
         return std::nullopt;
+    }
+
+    const float x = safeSqrt(delta_x * delta_x + delta_y * delta_y);
+    if (x < 1.0e-4f)
+    {
+        return std::nullopt;
+    }
+
+    // y = x*tan(theta) - g*x^2/(2*v0^2) * (1 + tan(theta)^2)
+    // Let u = tan(theta), a = g*x^2/(2*v0^2):
+    // a*u^2 - x*u + (a + y) = 0.
+    const float v0_sq = v0 * v0;
+    const float a     = kGravity * x * x / (2.0f * v0_sq);
+    const float disc  = x * x - 4.0f * a * (a + delta_z);
+    if (disc < 0.0f || a < 1.0e-6f)
+    {
+        return std::nullopt;
+    }
+
+    const float sqrt_disc = safeSqrt(disc);
+    const float tan_pitch = use_high_root ? ((x + sqrt_disc) / (2.0f * a))
+                                          : ((x - sqrt_disc) / (2.0f * a));
+
+    if (!std::isfinite(tan_pitch))
+    {
+        return std::nullopt;
+    }
+
+    return std::atan(tan_pitch);
+}
+
+std::optional<float> solveIdealPitch(const float delta_x, const float delta_y,
+                                     const float delta_z, const float v0,
+                                     std::optional<float> pitch_guess)
+{
+    if (v0 < 1.0e-3f)
+    {
+        return std::nullopt;
+    }
+
+    if (!pitch_guess.has_value())
+    {
+        pitch_guess = solveParabolicPitch(delta_x, delta_y, delta_z, v0, false);
+        if (!pitch_guess.has_value())
+        {
+            return std::nullopt;
+        }
     }
 
     // Convert the 3D target offset into the 2D ballistic plane.
@@ -241,7 +287,7 @@ std::optional<float> solveIdealPitch(const float delta_x, const float delta_y,
 
     // A near-vertical initial guess makes the horizontal time estimate
     // unstable.
-    const float v_x_approx = v0 * std::cos(pitch_guess);
+    const float v_x_approx = v0 * std::cos(*pitch_guess);
     if (v_x_approx < 1.0e-3f)
     {
         return std::nullopt;
@@ -250,8 +296,8 @@ std::optional<float> solveIdealPitch(const float delta_x, const float delta_y,
     // Initial slopes: p0 is muzzle slope, p1 is an ideal no-drag terminal slope
     // used only to seed Newton iteration.
     const float t_approx = x0 / v_x_approx;
-    float p0             = std::tan(pitch_guess);
-    float p1 = (v0 * std::sin(pitch_guess) - kGravity * t_approx) / v_x_approx;
+    float p0             = std::tan(*pitch_guess);
+    float p1 = (v0 * std::sin(*pitch_guess) - kGravity * t_approx) / v_x_approx;
 
     for (int i = 0; i < kMaxIterations; ++i)
     {

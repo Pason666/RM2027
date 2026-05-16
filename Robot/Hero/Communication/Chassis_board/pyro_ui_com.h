@@ -24,6 +24,9 @@ struct ui_ctx_t
     float pitch_rad                              = 0.0f;  // rad
     float target_shoot_spd                       = 0.0f;  // m/s
     float super_cap_voltage                      = 0.0f;  // V
+    float position_x                             = 0.0f;
+    float position_y                             = 0.0f;
+    bool mecanum_online[4]                          ={false};
     bool refresh_flag                            = false; // T/F本身无含义，仅检测变化
     static constexpr float super_cap_voltage_max = 26.0f;
 
@@ -74,7 +77,10 @@ private:
     void draw_spd();
     void draw_super_cap();
     void draw_trail_state();
+    void draw_pos();
+    void draw_relative_pos();
 };
 }
 static constexpr float sqrt__2 = 0.707f;//二分之根号2
+static constexpr float sqrt_2 = 1.414f;//根号2
 #endif // PYRO_UI_COM_H

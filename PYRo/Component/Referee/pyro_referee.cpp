@@ -273,7 +273,7 @@ bool referee_drv_t::send_ui_interaction(const uint16_t sub_cmd_id,
     }
     bool ret =
         _send_interaction_packet_base(sub_cmd_id, get_client_id(), data, len);
-    vTaskDelay(pdMS_TO_TICKS(32));
+    vTaskDelay(pdMS_TO_TICKS(40));
     return ret;
 }
 

@@ -67,7 +67,7 @@ float loop_fp32_constrain(float val, const float min_val, const float max_val)
 
 namespace
 {
-constexpr float kDrag    = 0.0112f; // 二次空气阻力系数，需随弹丸和场地标定
+constexpr float kDrag    = 0.0093307845f; // 二次空气阻力系数，需随弹丸和场地标定
 constexpr float kGravity = 9.78534603f;   // 重力加速度，单位 m/s^2
 constexpr float kDenominatorMin = 1.0e-6f; // 积分分母下限，避免接近奇点时除零
 constexpr float kJacobianStep   = 1.0e-4f; // 有限差分步长，过小易受浮点噪声影响
@@ -76,6 +76,10 @@ constexpr float kSingularEpsilon =
 constexpr float kSolveTolerance = 1.0e-2f; // 残差收敛阈值，单位约等于米
 constexpr int kIntegralSteps    = 60;      // Simpson 积分分段数，需为偶数
 constexpr int kMaxIterations    = 30; // Newton 最大迭代次数，防止异常输入卡死
+
+constexpr float kSlopeGapMin    = 1.0e-5f;
+constexpr float kSlopeLimit     = 50.0f;
+constexpr int kLineSearchSteps  = 8;
 
 float safeSqrt(const float value)
 {
@@ -202,7 +206,7 @@ bool calcJacobianInv(const float p0, const float p1, const float v0,
 bool calcNewtonStep(float (&j_inv_data)[4], const float d0, const float d1,
                     float &dp1, float &dp0)
 {
-    // step = inv(J) * D. The caller adds this step to [p1, p0].
+    // step = inv(J) * D. The Newton update subtracts this step from [p1, p0].
     float d_data[2]    = {d0, d1};
     float step_data[2] = {};
 
@@ -221,6 +225,36 @@ bool calcNewtonStep(float (&j_inv_data)[4], const float d0, const float d1,
     dp1 = step_data[0];
     dp0 = step_data[1];
     return true;
+}
+
+bool isValidSlopeState(const float p0, const float p1)
+{
+    return std::isfinite(p0) && std::isfinite(p1) &&
+           std::fabs(p0) < kSlopeLimit && std::fabs(p1) < kSlopeLimit &&
+           p0 > p1 + kSlopeGapMin;
+}
+
+bool calcResidual(const float p0, const float p1, const float v0,
+                  const float x0, const float y0, float &d0, float &d1,
+                  float &residual)
+{
+    if (!isValidSlopeState(p0, p1))
+    {
+        return false;
+    }
+
+    const float c = calcIntegralC(p0, v0);
+    const float x = calcIntegralX(p0, p1, c, kDrag);
+    const float y = calcIntegralY(p0, p1, c, kDrag);
+    if (!std::isfinite(c) || !std::isfinite(x) || !std::isfinite(y))
+    {
+        return false;
+    }
+
+    d0       = x0 - x;
+    d1       = y0 - y;
+    residual = safeSqrt(d0 * d0 + d1 * d1);
+    return std::isfinite(residual);
 }
 } // namespace
 
@@ -303,10 +337,13 @@ std::optional<float> solveIdealPitch(const float delta_x, const float delta_y,
     {
         // D = target - prediction. Once D is small enough, atan(p0) is the
         // solved pitch angle.
-        const float c        = calcIntegralC(p0, v0);
-        const float d0       = x0 - calcIntegralX(p0, p1, c, kDrag);
-        const float d1       = y0 - calcIntegralY(p0, p1, c, kDrag);
-        const float residual = safeSqrt(d0 * d0 + d1 * d1);
+        float d0       = 0.0f;
+        float d1       = 0.0f;
+        float residual = 0.0f;
+        if (!calcResidual(p0, p1, v0, x0, y0, d0, d1, residual))
+        {
+            return std::nullopt;
+        }
 
         if (residual < kSolveTolerance)
         {
@@ -327,10 +364,30 @@ std::optional<float> solveIdealPitch(const float delta_x, const float delta_y,
             return std::nullopt;
         }
 
-        p1 += dp1;
-        p0 += dp0;
+        bool accepted = false;
+        float scale   = 1.0f;
+        for (int j = 0; j < kLineSearchSteps; ++j)
+        {
+            const float next_p1 = p1 - scale * dp1;
+            const float next_p0 = p0 - scale * dp0;
 
-        if (!std::isfinite(p0) || !std::isfinite(p1))
+            float next_d0       = 0.0f;
+            float next_d1       = 0.0f;
+            float next_residual = 0.0f;
+            if (calcResidual(next_p0, next_p1, v0, x0, y0, next_d0, next_d1,
+                             next_residual) &&
+                next_residual < residual)
+            {
+                p1       = next_p1;
+                p0       = next_p0;
+                accepted = true;
+                break;
+            }
+
+            scale *= 0.5f;
+        }
+
+        if (!accepted)
         {
             return std::nullopt;
         }

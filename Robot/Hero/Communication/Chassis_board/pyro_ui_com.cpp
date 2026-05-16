@@ -13,6 +13,7 @@
 #include "pyro_hybrid_chassis.h"
 #include "pyro_supercap_drv.h"
 
+
 using namespace pyro;
 
 // ==========================================
@@ -126,7 +127,6 @@ void ui_com::draw_static()
         .draw_line("PBR", ui_operate::ADD, cfg_cap::layer + 1, ui_color::ORANGE,
                    50, cfg_cap::cx - cfg_cap::hw, cfg_cap::cy,
                    cfg_cap::cx - cfg_cap::hw, cfg_cap::cy);
-
     // 3. 绘制静态文本标签
     _drv->draw_string("YAW", ui_operate::ADD, cfg_text::layer, ui_color::GREEN,
                       20, 2, cfg_text::yaw_x - cfg_text::label_offset,
@@ -134,7 +134,6 @@ void ui_com::draw_static()
     _drv->draw_string("PIH", ui_operate::ADD, cfg_text::layer, ui_color::GREEN,
                       20, 2, cfg_text::pitch_x - cfg_text::label_offset,
                       cfg_text::pitch_y, "PITCH");
-
     // 4. 浮点数值的 ADD 占位
     _drv->draw_float("YDG", ui_operate::ADD, cfg_text::val_layer,
                      ui_color::GREEN, 20, 2, cfg_text::yaw_x, cfg_text::yaw_y,

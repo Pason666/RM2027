@@ -1,3 +1,4 @@
+#include "pyro_board_drv.h"
 #include "pyro_dwt_drv.h"
 #include "pyro_quad_booster.h"
 
@@ -19,12 +20,45 @@ void quad_booster_t::fsm_active_t::state_ready_t::execute(owner *owner)
         owner->_ctx.data.internal_fire_count = owner->_ctx.cmd->fire_count;
 
         owner->_ctx.data.signal_timer = dwt_drv_t::get_timeline_ms();
-        owner->_ctx.data.target_trig_rad -= PI / 3.0f; // 每次拨弹60度
+        bool heat_ok = false;
+        uint8_t heat_limit = board_drv_t::get_instance().get_c2g_rx_data().heat_limit;
+        uint8_t heat = board_drv_t::get_instance().get_c2g_rx_data().heat;
 
-        // 新增：每次改变目标值后立即归一化
-        owner->_ctx.data.target_trig_rad = quad_booster_t::_normalize_angle(owner->_ctx.data.target_trig_rad);
+        if (0xFF == heat_limit)
+        {
+            heat_ok = true;
+        }
+        else
+        {
+            if (heat_limit <= 110)
+            {
+                if (0 == heat)
+                {
+                    heat_ok = true;
+                }
+            }
+            else
+            {
+                if (heat + 110 < heat_limit)
+                {
+                    heat_ok = true;
+                }
+                else
+                {
+                    heat_ok = false;
+                }
+            }
+        }
 
-        request_switch(&owner->_state_active._busy_state);
+        if (heat_ok)
+        {
+            owner->_ctx.data.target_trig_rad -= PI / 3.0f; // 每次拨弹60度
+
+            // 新增：每次改变目标值后立即归一化
+            owner->_ctx.data.target_trig_rad = quad_booster_t::_normalize_angle(owner->_ctx.data.target_trig_rad);
+
+            request_switch(&owner->_state_active._busy_state);
+        }
     }
 
     // 循环判断摩擦轮转速，不符合要求则退回interim状态

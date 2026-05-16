@@ -58,7 +58,12 @@ class board_drv_t
         bool chassis_output : 1;
         bool gimbal_output  : 1;
         bool booster_output : 1;
-        bool reserved_bit   : 5;
+        uint8_t robot_color : 1;
+        bool reserved_bit   : 4;
+        uint8_t heat;
+        uint8_t heat_limit;
+        uint16_t robot_x;
+        uint16_t robot_y;
     };
 
     /* ---------------------------------------------------- */

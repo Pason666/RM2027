@@ -105,11 +105,21 @@ void screw_gimbal_t::_update_feedback()
     // =========================================================
     // 5. LESO 观测器更新 (全时段连续追踪，防止切入时状态突跳)
     // =========================================================
-    if (_ctx.pid.yaw_leso != nullptr)
+    if (_ctx.pid.yaw_pos_leso != nullptr)
     {
         // 取上一次计算出的最终力矩作为已知控制输入 u
         float last_yaw_u = _ctx.data.out_yaw_torque;
-        _ctx.pid.yaw_leso->update(_ctx.data.relative_yaw_motor_rad, last_yaw_u);
+        _ctx.pid.yaw_pos_leso->update(_ctx.data.relative_yaw_motor_rad, last_yaw_u);
+        _ctx.pid.yaw_pos_imu_leso->update(_ctx.data.yaw_imu_rad, last_yaw_u);
+        _ctx.data.pos_imu_leso_z1 = _ctx.pid.yaw_pos_imu_leso->get_z(1);
+        _ctx.data.pos_leso_z0 = _ctx.pid.yaw_pos_leso->get_z(0);
+    }
+    if (_ctx.pid.yaw_spd_leso != nullptr)
+    {
+        // 取上一次计算出的最终力矩作为已知控制输入 u
+        float last_yaw_u = _ctx.data.out_yaw_torque;
+        _ctx.pid.yaw_spd_leso->update(_ctx.data.yaw_imu_radps, last_yaw_u);
+        _ctx.data.spd_leso_z0 = _ctx.pid.yaw_spd_leso->get_z(0);
     }
 }
 
@@ -224,12 +234,12 @@ void screw_gimbal_t::_gimbal_sling_control()
 
     // 【修改点】：使用 LESO 估计的总扰动进行前馈补偿，替代原先的施密特触发器逻辑
     float yaw_leso_comp = 0.0f;
-    if (_ctx.pid.yaw_leso != nullptr)
+    if (_ctx.pid.yaw_pos_leso != nullptr)
     {
         // 获取实时观测出的阻尼与摩擦总扰动
-        float estimated_disturbance = _ctx.pid.yaw_leso->get_disturbance();
+        float estimated_disturbance = _ctx.pid.yaw_pos_leso->get_disturbance();
         // 控制律: u = PID_out - z3 / b
-        yaw_leso_comp = -estimated_disturbance / _ctx.pid.yaw_leso->get_b();
+        yaw_leso_comp = -estimated_disturbance / _ctx.pid.yaw_pos_leso->get_b();
     }
 
     _ctx.data.out_yaw_torque = yaw_pid_out + yaw_leso_comp;

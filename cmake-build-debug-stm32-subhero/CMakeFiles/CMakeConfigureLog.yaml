@@ -1,0 +1,12 @@
+
+---
+events:
+  -
+    kind: "message-v1"
+    backtrace:
+      - "E:/Develop/Cmake/share/cmake-4.0/Modules/CMakeDetermineSystem.cmake:200 (message)"
+      - "CMakeLists.txt:19 (project)"
+    message: |
+      The target system is: Generic -  - arm
+      The host system is: Windows - 10.0.22631 - AMD64
+...

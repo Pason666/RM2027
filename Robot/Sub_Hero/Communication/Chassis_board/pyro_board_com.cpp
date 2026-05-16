@@ -53,6 +53,11 @@ static void process_chassis_logic()
             static_cast<int16_t>(ref_data.power_heat.buffer_energy * 100.0f);
         tx_data.supercap_voltage = static_cast<uint16_t>(
             mec_chassis_t::instance()->get_ctx().cap_feedback.vot_cap);
+        tx_data.robot_color = ref_data.robot_status.robot_id >= 100 ? 1 : 0;
+        tx_data.heat_limit = ref_data.robot_status.shooter_barrel_heat_limit;
+        tx_data.heat       = ref_data.power_heat.shooter_42mm_barrel_heat;
+        tx_data.robot_x = static_cast<uint16_t>(ref_data.robot_pos.x / 28.0f * 65535.0f);
+        tx_data.robot_y = static_cast<uint16_t>(ref_data.robot_pos.y / 15.0f * 65535.0f);
     }
     // 3. 接收逻辑
     if (board_drv_ptr->check_online())

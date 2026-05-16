@@ -13,16 +13,15 @@
 
 namespace pyro
 {
-class dm_motor_drv_t;
-}
-using namespace pyro;
 
-extern float read_time;
 
 // 定义任务通知的位掩码 (Event Bits)
-constexpr uint32_t EVENT_BIT_FRIC_TOGGLE  = (1 << 0);
-constexpr uint32_t EVENT_BIT_FIRE         = (1 << 1);
-constexpr uint32_t EVENT_BIT_SLING_TOGGLE = (1 << 2); // 新增：吊射模式切换位
+constexpr uint32_t EVENT_BIT_FRIC_TOGGLE       = (1 << 0);
+constexpr uint32_t EVENT_BIT_FIRE              = (1 << 1);
+constexpr uint32_t EVENT_BIT_SHOOT_DATA_TOGGLE = (1 << 2);
+constexpr uint32_t EVENT_BIT_FRIC_ON           = (1 << 3);
+constexpr uint32_t EVENT_BIT_FRIC_OFF          = (1 << 4);
+constexpr uint32_t EVENT_BIT_TRIGGER_RESET     = (1 << 5);
 
 static TaskHandle_t booster_task_handle   = nullptr;
 static pyro::quad_booster_t *quad_booster_ptr         = nullptr;
@@ -85,12 +84,25 @@ extern "C"
             quad_booster_cmd_ptr->fric_on = !quad_booster_cmd_ptr->fric_on;
         }
 
-        // 处理吊射模式切换
-        if (notify_val & EVENT_BIT_SLING_TOGGLE)
+        // Q/E set fric state, V switches shoot-data, B resets trigger wheel.
+        if (notify_val & EVENT_BIT_FRIC_ON)
+        {
+            quad_booster_cmd_ptr->fric_on = true;
+        }
+        if (notify_val & EVENT_BIT_FRIC_OFF)
+        {
+            quad_booster_cmd_ptr->fric_on = false;
+        }
+
+        if (notify_val & EVENT_BIT_SHOOT_DATA_TOGGLE)
         {
             is_sling_mode = !is_sling_mode;
         }
         quad_booster_cmd_ptr->sling_mode = is_sling_mode;
+        if (notify_val & EVENT_BIT_TRIGGER_RESET)
+        {
+            quad_booster_cmd_ptr->reset_count++;
+        }
 
         if (pyro::sw_pos_t::DOWN == vrc.switches.gear.current_pos)
         {
@@ -199,12 +211,17 @@ extern "C"
                                     pyro::btn_event_t::PRESS_DOWN,
                                     booster_task_handle, EVENT_BIT_FRIC_TOGGLE);
         pyro::btn_broker::subscribe(&vrc.keys.q, pyro::btn_event_t::PRESS_DOWN,
-                                    booster_task_handle, EVENT_BIT_FRIC_TOGGLE);
+                                    booster_task_handle, EVENT_BIT_FRIC_ON);
+        pyro::btn_broker::subscribe(&vrc.keys.e, pyro::btn_event_t::PRESS_DOWN,
+                                    booster_task_handle, EVENT_BIT_FRIC_OFF);
 
-        // 绑定键盘 R 键到吊射模式切换
-        pyro::btn_broker::subscribe(&vrc.keys.r, pyro::btn_event_t::PRESS_DOWN,
+        // V switches the booster shoot-data set.
+        pyro::btn_broker::subscribe(&vrc.keys.v, pyro::btn_event_t::PRESS_DOWN,
                                     booster_task_handle,
-                                    EVENT_BIT_SLING_TOGGLE);
+                                    EVENT_BIT_SHOOT_DATA_TOGGLE);
+        pyro::btn_broker::subscribe(&vrc.keys.b, pyro::btn_event_t::PRESS_DOWN,
+                                    booster_task_handle,
+                                    EVENT_BIT_TRIGGER_RESET);
 
         pyro::btn_broker::subscribe(&vrc.buttons.trigger,
                                     pyro::btn_event_t::PRESS_DOWN,
@@ -257,7 +274,8 @@ void deps_init()
         new pid_t(11.315f, 0.03f, 0.004f, 2.5f, 20, 240, 1, 80, 1, 4);
 
     quad_deps_ptr->pid_deps.trigger_pos_pid =
-        new pid_t(6.30f, 0.03f, 0.0015f, 0.3f, 2.0f, 40, 1, 20, 1, 4);
+        new pid_t(8.0f, 0.03f, 0.0015f, 0.3f, 2.0f, 40, 1, 20, 1, 4);
     quad_deps_ptr->pid_deps.trigger_spd_pid =
-        new pid_t(0.92f, 0.08f, 0.0015f, 0.5f, 5.0f, 30, 1, 20, 1, 4);
+        new pid_t(0.9f, 0.8f, 0.0015f, 2.0f, 5.0f, 30, 1, 20, 1, 4);
+}
 }

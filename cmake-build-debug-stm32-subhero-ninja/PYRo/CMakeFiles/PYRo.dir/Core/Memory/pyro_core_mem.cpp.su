@@ -1,0 +1,4 @@
+E:/Develop/a_PYRo/PYRo-Hero/PYRo/Core/Memory/pyro_core_mem.cpp:4:7:void* operator new(std::size_t)	24	static
+E:/Develop/a_PYRo/PYRo-Hero/PYRo/Core/Memory/pyro_core_mem.cpp:10:7:void* operator new [](std::size_t)	24	static
+E:/Develop/a_PYRo/PYRo-Hero/PYRo/Core/Memory/pyro_core_mem.cpp:16:6:void operator delete(void*)	16	static
+E:/Develop/a_PYRo/PYRo-Hero/PYRo/Core/Memory/pyro_core_mem.cpp:21:6:void operator delete [](void*)	16	static

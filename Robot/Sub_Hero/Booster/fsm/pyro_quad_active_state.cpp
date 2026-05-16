@@ -14,12 +14,20 @@ void quad_booster_t::fsm_active_t::on_enter(owner *owner)
     owner->_ctx.motor.fric_wheels[1]->enable();
     owner->_ctx.motor.fric_wheels[2]->enable();
     owner->_ctx.motor.fric_wheels[3]->enable();
+    owner->_ctx.data.internal_reset_count = owner->_ctx.cmd->reset_count;
 
     change_state(&_homing_state);
 }
 
 void quad_booster_t::fsm_active_t::on_execute(owner *owner)
 {
+    if (owner->_ctx.cmd->reset_count != owner->_ctx.data.internal_reset_count)
+    {
+        owner->_ctx.data.internal_reset_count = owner->_ctx.cmd->reset_count;
+        change_state(&_homing_state);
+        return;
+    }
+
     // 1. 弹速闭环更新
     owner->_speed_control();
 
@@ -56,9 +64,9 @@ void quad_booster_t::fsm_active_t::on_execute(owner *owner)
     owner->_launch_delay_calculate();
 
     // 3. 拨弹盘堵转判断
-    constexpr float STALL_TIME_THRESHOLD   = 400.0f;
-    constexpr float STALL_TORQUE_THRESHOLD = 1.2f;
-    constexpr float STALL_SPEED_THRESHOLD  = 0.4f;
+    constexpr float STALL_TIME_THRESHOLD   = 800.0f;
+    constexpr float STALL_TORQUE_THRESHOLD = 1.6f;
+    constexpr float STALL_SPEED_THRESHOLD  = 0.1f;
 
     static float stall_start_time          = 0.0f;
     static uint16_t clear_stall_counter    = 0;

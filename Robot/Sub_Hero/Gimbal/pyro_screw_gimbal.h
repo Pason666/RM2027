@@ -21,13 +21,15 @@ struct screw_gimbal_cmd_t final : public cmd_base_t
 
     bool trigger_calibration;
     bool sling_mode;
+    bool sling_pitch_flag;
     bool autoaim_mode;
     float target_pitch;
     float target_yaw;
 
     screw_gimbal_cmd_t()
         : pitch_delta_angle(0.0f), yaw_delta_angle(0.0f),
-          trigger_calibration(false), sling_mode(false), autoaim_mode(false),
+          trigger_calibration(false), sling_mode(false),
+          sling_pitch_flag(false), autoaim_mode(false),
           target_pitch(0.0f), target_yaw(0.0f)
     {
     }
@@ -56,7 +58,10 @@ struct screw_gimbal_deps_t
         pid_t *yaw_relative_spd{nullptr};
 
         // 【新增】吊射模式下用于 Yaw 轴机械角前馈补偿的 LESO
-        leso_t<3> *yaw_leso{nullptr};
+        leso_t<3> *yaw_pos_leso{nullptr};
+        leso_t<2> *yaw_spd_leso{nullptr};
+
+        leso_t<3> *yaw_pos_imu_leso{nullptr};
     };
 
     motor_deps_t motor_deps{};
@@ -175,6 +180,11 @@ class screw_gimbal_t final
         // 输出
         float out_pitch_torque{0};
         float out_yaw_torque{0};
+
+        // 调试用
+        float pos_imu_leso_z1;
+        float pos_leso_z0;
+        float spd_leso_z0;
     };
 
     // 总 Context

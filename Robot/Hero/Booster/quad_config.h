@@ -7,5 +7,7 @@ constexpr float FRIC2_RADIUS = 0.03f; // 摩擦轮半径 (m)
 // constexpr float TRIGGER_OFFSET = 0.334f;
 
 constexpr float TRIGGER_OFFSET = -0.105f; //越小越紧
+constexpr float TRIGGER_FEED_DIR = -1.0f;
+
 #endif
 

@@ -62,7 +62,7 @@ static void process_gimbal_logic(uint32_t notify_val)
                                                  : vrc.keys.d.current_level
                                                      ? -127
                                                      : -vrc.axes.lx * 127);
-                tx_data.wz = 0;
+                tx_data.wz = static_cast<int8_t>(vrc.keys.shift.current_level ? 127 : vrc.axes.wheel * 127);
             }
         }
         if (notify_val & EVENT_BIT_C_PRESS)

@@ -197,7 +197,7 @@ void quad_booster_t::_speed_control()
                                 (w1 * e1 * std::abs(e1)) +
                                 (w2 * e2 * std::abs(e2));
 
-    float speed_increment =
+    [[maybe_unused]] float speed_increment =
         _ctx.pid.ball_speed_pid->calculate(0.0f, signed_weighted_mse);
 
     // shoot_data.fric1_mps += speed_increment;
@@ -254,11 +254,12 @@ void quad_booster_t::_trigger_position_control()
     constexpr float TRIG_FF_SPEED_DEADBAND = 1.0f;
     constexpr float TRIG_FF_TORQUE = 0.505f;
 
-    if (_ctx.data.target_trig_radps < -TRIG_FF_SPEED_DEADBAND)
+    const float feed_speed = _ctx.data.target_trig_radps * TRIGGER_FEED_DIR;
+    if (feed_speed > TRIG_FF_SPEED_DEADBAND)
     {
-        ff_torque = -TRIG_FF_TORQUE;
+        ff_torque = TRIGGER_FEED_DIR * TRIG_FF_TORQUE;
     }
-    else if (_ctx.data.target_trig_radps > 0.0f)
+    else if (feed_speed < 0.0f)
     {
         ff_torque = 0.0f;
     }
@@ -276,9 +277,10 @@ void quad_booster_t::_trigger_speed_control()
     constexpr float TRIG_FF_SPEED_DEADBAND = 0.5f;
     constexpr float TRIG_FF_TORQUE         = 0.505f;
 
-    if (_ctx.data.target_trig_radps < -TRIG_FF_SPEED_DEADBAND)
+    if (_ctx.data.target_trig_radps * TRIGGER_FEED_DIR >
+        TRIG_FF_SPEED_DEADBAND)
     {
-        ff_torque = -TRIG_FF_TORQUE;
+        ff_torque = TRIGGER_FEED_DIR * TRIG_FF_TORQUE;
     }
 
     _ctx.data.out_trig_torque =

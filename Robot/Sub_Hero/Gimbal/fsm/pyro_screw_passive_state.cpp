@@ -30,7 +30,8 @@ void screw_gimbal_t::fsm_passive_t::on_execute(owner *owner)
     }
 
     owner->_ctx.data.target_yaw_rad = pyro::loop_fp32_constrain(owner->_ctx.data.yaw_imu_rad, -PI, PI);
-    owner->_ctx.data.target_relative_yaw_rad = owner->_ctx.data.relative_yaw_motor_rad;
+    owner->_ctx.data.target_relative_yaw_rad =
+        owner->_ctx.data.relative_yaw_motor_wrapped_rad;
 
     owner->_ctx.motor.pitch->send_torque(0);
     owner->_ctx.motor.yaw->send_torque(0);

@@ -54,10 +54,34 @@ void screw_gimbal_t::_update_feedback()
     _ctx.data.last_pitch_rotor_rad = now_pitch_rotor_rad;
 
     // Yaw相对角与相对角速度解算
-    float current_angle =
-        _ctx.motor.yaw->get_current_position() - YAW_OFFSET_RAD;
+    const float now_yaw_rotor_rad = _ctx.motor.yaw->get_current_position();
+    if (!_ctx.data.yaw_wrap_initialized)
+    {
+        _ctx.data.last_yaw_rotor_rad   = now_yaw_rotor_rad;
+        _ctx.data.total_yaw_motor_rad  = now_yaw_rotor_rad;
+        _ctx.data.yaw_wrap_initialized = true;
+    }
+    else
+    {
+        float delta_yaw_rotor =
+            now_yaw_rotor_rad - _ctx.data.last_yaw_rotor_rad;
+        if (delta_yaw_rotor > PI)
+        {
+            delta_yaw_rotor -= 2.0f * PI;
+        }
+        else if (delta_yaw_rotor < -PI)
+        {
+            delta_yaw_rotor += 2.0f * PI;
+        }
+
+        _ctx.data.total_yaw_motor_rad += delta_yaw_rotor;
+        _ctx.data.last_yaw_rotor_rad = now_yaw_rotor_rad;
+    }
+
     _ctx.data.relative_yaw_motor_rad =
-        loop_fp32_constrain(current_angle, -PI, PI);
+        _ctx.data.total_yaw_motor_rad - YAW_OFFSET_RAD;
+    _ctx.data.relative_yaw_motor_wrapped_rad =
+        loop_fp32_constrain(now_yaw_rotor_rad - YAW_OFFSET_RAD, -PI, PI);
     _ctx.data.relative_yaw_motor_radps = _ctx.motor.yaw->get_current_rotate();
 
     // 读取 IMU 数据
@@ -105,7 +129,9 @@ void screw_gimbal_t::_update_feedback()
     // =========================================================
     // 5. LESO 观测器更新 (全时段连续追踪，防止切入时状态突跳)
     // =========================================================
-    if (_ctx.pid.yaw_pos_leso != nullptr)
+    const bool use_sling_leso = _current_cmd.sling_mode;
+    if (use_sling_leso && _ctx.pid.yaw_pos_leso != nullptr &&
+        _ctx.pid.yaw_pos_imu_leso != nullptr)
     {
         // 取上一次计算出的最终力矩作为已知控制输入 u
         float last_yaw_u = _ctx.data.out_yaw_torque;
@@ -113,13 +139,22 @@ void screw_gimbal_t::_update_feedback()
         _ctx.pid.yaw_pos_imu_leso->update(_ctx.data.yaw_imu_rad, last_yaw_u);
         _ctx.data.pos_imu_leso_z1 = _ctx.pid.yaw_pos_imu_leso->get_z(1);
         _ctx.data.pos_leso_z0 = _ctx.pid.yaw_pos_leso->get_z(0);
+        _ctx.data.pos_leso_z1 = _ctx.pid.yaw_pos_leso->get_z(1);
+        _ctx.data.pos_leso_out =
+            -_ctx.pid.yaw_pos_leso->get_z(2) / _ctx.pid.yaw_pos_leso->get_b();
     }
-    if (_ctx.pid.yaw_spd_leso != nullptr)
+    if (use_sling_leso && _ctx.pid.yaw_spd_leso != nullptr)
     {
         // 取上一次计算出的最终力矩作为已知控制输入 u
         float last_yaw_u = _ctx.data.out_yaw_torque;
         _ctx.pid.yaw_spd_leso->update(_ctx.data.yaw_imu_radps, last_yaw_u);
         _ctx.data.spd_leso_z0 = _ctx.pid.yaw_spd_leso->get_z(0);
+    }
+    if (use_sling_leso && _ctx.pid.yaw_spd_imu_leso != nullptr)
+    {
+        float last_yaw_u = _ctx.data.out_yaw_torque;
+        _ctx.pid.yaw_spd_imu_leso->update(_ctx.data.yaw_imu_radps, last_yaw_u);
+        _ctx.data.spd_imu_leso_z0 = _ctx.pid.yaw_spd_imu_leso->get_z(0);
     }
 }
 
@@ -230,7 +265,7 @@ void screw_gimbal_t::_gimbal_sling_control()
         _ctx.pid.yaw_relative_pos->calculate(0.0f,_ctx.data.relative_yaw_error_rad);
 
     float yaw_pid_out = _ctx.pid.yaw_relative_spd->calculate(
-        _ctx.data.target_yaw_radps,_ctx.data.yaw_imu_radps);
+        _ctx.data.target_yaw_radps, _ctx.data.spd_imu_leso_z0);
 
     // 【修改点】：使用 LESO 估计的总扰动进行前馈补偿，替代原先的施密特触发器逻辑
     float yaw_leso_comp = 0.0f;
@@ -289,6 +324,7 @@ screw_gimbal_t::gimbal_context_t& screw_gimbal_t::get_ctx()
     return _ctx;
 }
 
+
 void screw_gimbal_t::_send_motor_command(gimbal_context_t *ctx)
 {
     ctx->motor.pitch->send_torque(ctx->data.out_pitch_torque);
@@ -330,7 +366,8 @@ void screw_gimbal_t::_calculate_relative_angles()
     _ctx.data.chassis_pitch_rad = std::asin(sinp);
 
     float raw_yaw_error =
-        gimbal_yaw_imu - chassis_yaw_imu - _ctx.data.relative_yaw_motor_rad;
+        gimbal_yaw_imu - chassis_yaw_imu -
+        _ctx.data.relative_yaw_motor_wrapped_rad;
     raw_yaw_error          = pyro::loop_fp32_constrain(raw_yaw_error, -PI, PI);
 
     const float half_err   = raw_yaw_error * 0.5f;
@@ -444,7 +481,7 @@ float screw_gimbal_t::_calculate_pitch_compensation(bool is_autoaim) const
         is_init = true;
     }
 
-    float current_friction_mag = 0.0f;
+    float current_friction_mag = 2.0f;
     if (std::abs(_ctx.data.current_jacobian) > 0.001f)
     {
         current_friction_mag = equivalent_joint_friction / _ctx.data.current_jacobian;

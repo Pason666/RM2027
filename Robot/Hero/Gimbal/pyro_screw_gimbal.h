@@ -103,6 +103,7 @@ class screw_gimbal_t final
     void _communicate_chassis();
     void _calculate_relative_angles();
     void _handle_dynamic_calibration();
+    void _apply_yaw_relative_limit();
 
     // --- 核心运动学 (纯数学模型，需外部传入任意角度解算) ---
     bool _calibrate_pitch_offset();
@@ -166,6 +167,7 @@ class screw_gimbal_t final
         float relative_pitch_rad{0};
         float relative_roll_rad{0};
         float relative_yaw_motor_rad{0};
+        float relative_yaw_motor_wrapped_rad{0};
         float relative_yaw_motor_radps{0};
 
         // 目标与误差

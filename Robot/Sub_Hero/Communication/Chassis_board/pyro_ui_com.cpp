@@ -3,11 +3,15 @@
 #include "pyro_board_drv.h"
 #include "pyro_can_drv.h"
 #include "pyro_com_canrx.h"
+#include "pyro_core_def.h"
 #include "pyro_mec_chassis.h"
 #include "pyro_module_base.h"
 #include "pyro_referee.h"
 #include "pyro_supercap_drv.h"
 #include "pyro_ui_drv.h"
+
+#include <cmath>
+#include <cstring>
 
 using namespace pyro;
 
@@ -25,6 +29,7 @@ static void info_update_test()
 {
     const auto &rx_data = board_drv_t::get_instance().get_g2c_rx_data();
     auto &chassis_ctx   = mec_chassis_t::instance()->get_ctx();
+    const auto &ref_data = referee_ptr->get_data();
 
     ui_ctx.sling_flag       = rx_data.sling_mode;
     ui_ctx.fric_en_flag     = rx_data.fric_en;
@@ -36,11 +41,23 @@ static void info_update_test()
         static_cast<float>(rx_data.target_shoot_spd) / 10.0f;
     ui_ctx.super_cap_voltage =
         static_cast<float>(chassis_ctx.cap_feedback.vot_cap);
+    ui_ctx.position_x  = ref_data.robot_pos.x;
+    ui_ctx.position_y  = ref_data.robot_pos.y;
     ui_ctx.refresh_flag = rx_data.ui_refresh;
+    std::memcpy(ui_ctx.mecanum_online, chassis_ctx.data.wheel_online,
+                sizeof(ui_ctx.mecanum_online));
 }
 
 namespace
 {
+struct cfg_relative_pos
+{
+    static constexpr uint16_t x = 100, y = 600, chassis_scale = 70;
+    static constexpr uint8_t chassis_layer = 2, gimbal_layer = 3;
+    static constexpr uint8_t gimbal_r = 20, cannon_length = 50, cannon_width = 15;
+    static constexpr uint8_t cannon_offset_r = 18;
+};
+
 struct cfg_fric
 {
     static constexpr uint16_t x = 1800, y = 730, r = 50;
@@ -58,6 +75,7 @@ struct cfg_text
     static constexpr uint16_t yaw_x = 1815, yaw_y = 440;
     static constexpr uint16_t pitch_x = 1815, pitch_y = 380;
     static constexpr uint16_t spd_x = 1790, spd_y = 650;
+    static constexpr uint16_t pos_x = 200, pos_y = 800;
     static constexpr uint16_t label_offset = 210;
     static constexpr uint8_t layer = 3, val_layer = 4;
 };
@@ -107,16 +125,28 @@ void ui_com::draw_static()
                       ui_color::GREEN, 20, 2,
                       cfg_text::pitch_x - cfg_text::label_offset,
                       cfg_text::pitch_y, "PITCH");
+    _drv->draw_string("POX", ui_operate::ADD, cfg_text::layer,
+                      ui_color::GREEN, 20, 2, cfg_text::pos_x,
+                      cfg_text::pos_y, "X:");
+    _drv->draw_string("POY", ui_operate::ADD, cfg_text::layer,
+                      ui_color::GREEN, 20, 2, cfg_text::pos_x + 100,
+                      cfg_text::pos_y, "Y:");
 
     _drv->draw_float("YDG", ui_operate::ADD, cfg_text::val_layer,
-                    ui_color::GREEN, 20, 2, cfg_text::yaw_x, cfg_text::yaw_y,
-                    0.0f)
+                     ui_color::GREEN, 20, 2, cfg_text::yaw_x,
+                     cfg_text::yaw_y, 0.0f)
         .draw_float("PDG", ui_operate::ADD, cfg_text::val_layer,
                     ui_color::GREEN, 20, 2, cfg_text::pitch_x,
                     cfg_text::pitch_y, 0.0f)
         .draw_float("SPD", ui_operate::ADD, cfg_text::val_layer,
-                    ui_color::GREEN, 20, 2, cfg_text::spd_x, cfg_text::spd_y,
-                    0.0f)
+                    ui_color::GREEN, 20, 2, cfg_text::spd_x,
+                    cfg_text::spd_y, 0.0f)
+        .draw_float("PSX", ui_operate::ADD, cfg_text::val_layer,
+                    ui_color::GREEN, 20, 2, cfg_text::pos_x + 30,
+                    cfg_text::pos_y, 0.0f)
+        .draw_float("PSY", ui_operate::ADD, cfg_text::val_layer,
+                    ui_color::GREEN, 20, 2, cfg_text::pos_x + 130,
+                    cfg_text::pos_y, 0.0f)
         .draw_line("FL1", ui_operate::ADD, cfg_fric::cross_layer,
                    ui_color::MAGENTA, 3, 1, 1, 1, 1)
         .draw_line("FL2", ui_operate::ADD, cfg_fric::cross_layer,
@@ -125,6 +155,53 @@ void ui_com::draw_static()
                    ui_color::ORANGE, 3, 1, 1, 1, 1)
         .draw_line("LL2", ui_operate::ADD, cfg_lob::cross_layer,
                    ui_color::ORANGE, 3, 1, 1, 1, 1);
+
+    _drv->draw_rect("CS1", ui_operate::ADD, cfg_relative_pos::chassis_layer,
+                   ui_color::WHITE, 5, cfg_relative_pos::x,
+                   cfg_relative_pos::y,
+                   cfg_relative_pos::x + cfg_relative_pos::chassis_scale,
+                   cfg_relative_pos::y +
+                       cfg_relative_pos::chassis_scale * sqrt_2)
+        .draw_circle("GMA", ui_operate::ADD, cfg_relative_pos::gimbal_layer,
+                     ui_color::WHITE, 5,
+                     cfg_relative_pos::x + cfg_relative_pos::chassis_scale / 2,
+                     cfg_relative_pos::y +
+                         cfg_relative_pos::chassis_scale / 2 * sqrt_2,
+                     cfg_relative_pos::gimbal_r)
+        .draw_line("GL1", ui_operate::ADD, cfg_relative_pos::chassis_layer,
+                   ui_color::WHITE, cfg_relative_pos::cannon_width,
+                   cfg_relative_pos::x + cfg_relative_pos::chassis_scale / 2 +
+                       cfg_relative_pos::cannon_offset_r * std::cos(PI),
+                   cfg_relative_pos::y +
+                       cfg_relative_pos::chassis_scale / 2 * sqrt_2 +
+                       cfg_relative_pos::cannon_offset_r * std::sin(PI),
+                   cfg_relative_pos::x + cfg_relative_pos::chassis_scale / 2 +
+                       (cfg_relative_pos::cannon_offset_r +
+                        cfg_relative_pos::cannon_length) *
+                           std::cos(PI),
+                   cfg_relative_pos::y +
+                       cfg_relative_pos::chassis_scale / 2 * sqrt_2 +
+                       (cfg_relative_pos::cannon_offset_r +
+                        cfg_relative_pos::cannon_length) *
+                           std::sin(PI))
+        .draw_line("GL2", ui_operate::ADD, cfg_relative_pos::gimbal_layer,
+                   ui_color::ALLY, cfg_relative_pos::cannon_width - 5,
+                   cfg_relative_pos::x + cfg_relative_pos::chassis_scale / 2 +
+                       cfg_relative_pos::cannon_offset_r *
+                           std::cos(_ctx.yaw_rad + PI / 2),
+                   cfg_relative_pos::y +
+                       cfg_relative_pos::chassis_scale / 2 * sqrt_2 +
+                       cfg_relative_pos::cannon_offset_r *
+                           std::sin(_ctx.yaw_rad + PI / 2),
+                   cfg_relative_pos::x + cfg_relative_pos::chassis_scale / 2 +
+                       (cfg_relative_pos::cannon_offset_r +
+                        cfg_relative_pos::cannon_length - 5) *
+                           std::cos(_ctx.yaw_rad + PI / 2),
+                   cfg_relative_pos::y +
+                       cfg_relative_pos::chassis_scale / 2 * sqrt_2 +
+                       (cfg_relative_pos::cannon_offset_r +
+                        cfg_relative_pos::cannon_length - 5) *
+                           std::sin(_ctx.yaw_rad + PI / 2));
     _drv->flush();
 }
 
@@ -138,9 +215,11 @@ void ui_com::draw_dynamic()
     draw_yaw();
     draw_pitch();
     draw_spd();
+    draw_pos();
     draw_fric_state();
     draw_lob_state();
     draw_super_cap();
+    draw_relative_pos();
     _drv->flush();
     _force_refresh_flag = false;
 }
@@ -176,6 +255,16 @@ void ui_com::draw_spd()
     _drv->draw_float("SPD", ui_operate::MODIFY, cfg_text::val_layer,
                      ui_color::GREEN, 20, 2, cfg_text::spd_x, cfg_text::spd_y,
                      _ctx.target_shoot_spd);
+}
+
+void ui_com::draw_pos()
+{
+    _drv->draw_float("PSX", ui_operate::MODIFY, cfg_text::val_layer,
+                     ui_color::GREEN, 20, 2, cfg_text::pos_x + 30,
+                     cfg_text::pos_y, _ctx.position_x)
+        .draw_float("PSY", ui_operate::MODIFY, cfg_text::val_layer,
+                    ui_color::GREEN, 20, 2, cfg_text::pos_x + 130,
+                    cfg_text::pos_y, _ctx.position_y);
 }
 
 void ui_com::draw_fric_state()
@@ -223,16 +312,16 @@ void ui_com::draw_fric_state()
                            !cross_line)
             .draw_line("FL2", ui_operate::MODIFY, cfg_fric::cross_layer,
                        cross_line_color, 3,
-                       (cfg_fric::x + cfg_fric::r * cross_line_reduce_k) *
-                               cross_line +
-                           !cross_line,
-                       (cfg_fric::y + cfg_fric::r * cross_line_reduce_k) *
-                               cross_line +
-                           !cross_line,
                        (cfg_fric::x - cfg_fric::r * cross_line_reduce_k) *
                                cross_line +
                            !cross_line,
                        (cfg_fric::y - cfg_fric::r * cross_line_reduce_k) *
+                               cross_line +
+                           !cross_line,
+                       (cfg_fric::x + cfg_fric::r * cross_line_reduce_k) *
+                               cross_line +
+                           !cross_line,
+                       (cfg_fric::y + cfg_fric::r * cross_line_reduce_k) *
                                cross_line +
                            !cross_line);
     }
@@ -288,6 +377,58 @@ void ui_com::draw_super_cap()
                     50, start_x, cfg_cap::cy, end_x, cfg_cap::cy);
 }
 
+void ui_com::draw_relative_pos()
+{
+    ui_color rect_color = ui_color::WHITE;
+    for (bool online : _ctx.mecanum_online)
+    {
+        if (!online)
+        {
+            rect_color = ui_color::MAGENTA;
+            break;
+        }
+    }
+
+    const float yaw = _ctx.yaw_rad + PI / 2.0f;
+    _drv->draw_line("GL1", ui_operate::MODIFY, cfg_relative_pos::chassis_layer,
+                    ui_color::WHITE, cfg_relative_pos::cannon_width,
+                    cfg_relative_pos::x + cfg_relative_pos::chassis_scale / 2 +
+                        cfg_relative_pos::cannon_offset_r * std::cos(yaw),
+                    cfg_relative_pos::y +
+                        cfg_relative_pos::chassis_scale / 2 * sqrt_2 +
+                        cfg_relative_pos::cannon_offset_r * std::sin(yaw),
+                    cfg_relative_pos::x + cfg_relative_pos::chassis_scale / 2 +
+                        (cfg_relative_pos::cannon_offset_r +
+                         cfg_relative_pos::cannon_length) *
+                            std::cos(yaw),
+                    cfg_relative_pos::y +
+                        cfg_relative_pos::chassis_scale / 2 * sqrt_2 +
+                        (cfg_relative_pos::cannon_offset_r +
+                         cfg_relative_pos::cannon_length) *
+                            std::sin(yaw))
+        .draw_line("GL2", ui_operate::MODIFY, cfg_relative_pos::gimbal_layer,
+                   ui_color::ALLY, cfg_relative_pos::cannon_width - 5,
+                   cfg_relative_pos::x + cfg_relative_pos::chassis_scale / 2 +
+                       cfg_relative_pos::cannon_offset_r * std::cos(yaw),
+                   cfg_relative_pos::y +
+                       cfg_relative_pos::chassis_scale / 2 * sqrt_2 +
+                       cfg_relative_pos::cannon_offset_r * std::sin(yaw),
+                   cfg_relative_pos::x + cfg_relative_pos::chassis_scale / 2 +
+                       (cfg_relative_pos::cannon_offset_r +
+                        cfg_relative_pos::cannon_length - 5) *
+                           std::cos(yaw),
+                   cfg_relative_pos::y +
+                       cfg_relative_pos::chassis_scale / 2 * sqrt_2 +
+                       (cfg_relative_pos::cannon_offset_r +
+                        cfg_relative_pos::cannon_length - 5) *
+                           std::sin(yaw))
+        .draw_rect("CS1", ui_operate::MODIFY, cfg_relative_pos::chassis_layer,
+                   rect_color, 5, cfg_relative_pos::x, cfg_relative_pos::y,
+                   cfg_relative_pos::x + cfg_relative_pos::chassis_scale,
+                   cfg_relative_pos::y +
+                       cfg_relative_pos::chassis_scale * sqrt_2);
+}
+
 bool ui_com::refresh_check()
 {
     return _last_ctx.refresh_flag != _ctx.refresh_flag;
@@ -312,13 +453,13 @@ extern "C"
 
             if (referee_ptr->is_online())
             {
+                hero_ui.update_ctx(ui_ctx);
                 if (hero_ui.refresh_check())
                 {
                     hero_ui.refresh();
                 }
                 else
                 {
-                    hero_ui.update_ctx(ui_ctx);
                     hero_ui.draw_dynamic();
                 }
             }

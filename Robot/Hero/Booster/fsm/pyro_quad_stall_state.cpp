@@ -22,7 +22,9 @@ void quad_booster_t::fsm_active_t::state_stall_t::enter(owner *owner)
 
         // 2. 拨叉有6个槽位，间距为 PI/3。用四舍五入(round)找出离当前位置最近的档位序号
         // 严格寻找 target 减小（正转）方向上的最近预置位
-        float n = std::floor(delta / (PI / 3.0f));
+        float n = (TRIGGER_FEED_DIR < 0.0f)
+                      ? std::floor(delta / (PI / 3.0f))
+                      : std::ceil(delta / (PI / 3.0f));
 
         // 3. 计算出最近的绝对目标角度
         owner->_ctx.data.target_trig_rad = TRIGGER_OFFSET + n * (PI / 3.0f);
@@ -44,11 +46,11 @@ void quad_booster_t::fsm_active_t::state_stall_t::enter(owner *owner)
             owner->_ctx.data.target_trig_rad   = owner->_ctx.data.current_trig_rad;
             owner->_ctx.data.target_trig_radps = 0;
         }
-        // 什么都不做
     }
     else
     {
-        owner->_ctx.data.target_trig_rad += PI / 3.0f; // 正常发弹时的堵转反转退弹逻辑
+        owner->_ctx.data.target_trig_rad -=
+            TRIGGER_FEED_DIR * PI / 3.0f; // 正常发弹时的堵转反转退弹逻辑
     }
 
     // 新增：保证目标值在 [-PI, PI] 合法范围内

@@ -1,6 +1,7 @@
 #include "pyro_board_drv.h"
 #include "pyro_dwt_drv.h"
 #include "pyro_quad_booster.h"
+#include "quad_config.h"
 
 namespace pyro
 {
@@ -52,7 +53,8 @@ void quad_booster_t::fsm_active_t::state_ready_t::execute(owner *owner)
 
         if (heat_ok)
         {
-            owner->_ctx.data.target_trig_rad -= PI / 3.0f; // 每次拨弹60度
+            owner->_ctx.data.target_trig_rad +=
+                TRIGGER_FEED_DIR * PI / 3.0f; // 每次拨弹60度
 
             // 新增：每次改变目标值后立即归一化
             owner->_ctx.data.target_trig_rad = quad_booster_t::_normalize_angle(owner->_ctx.data.target_trig_rad);

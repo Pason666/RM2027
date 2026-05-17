@@ -62,6 +62,7 @@ struct screw_gimbal_deps_t
         leso_t<2> *yaw_spd_leso{nullptr};
 
         leso_t<3> *yaw_pos_imu_leso{nullptr};
+        leso_t<2> *yaw_spd_imu_leso{nullptr};
     };
 
     motor_deps_t motor_deps{};
@@ -135,6 +136,10 @@ class screw_gimbal_t final
         float last_pitch_rotor_rad{0};
         float total_pitch_motor_rad{0};
 
+        bool yaw_wrap_initialized{false};
+        float last_yaw_rotor_rad{0};
+        float total_yaw_motor_rad{0};
+
         // --- 反馈 (含 Offset) ---
         float current_pitch_motor_rad{0};
         float current_pitch_motor_radps{0};
@@ -165,6 +170,7 @@ class screw_gimbal_t final
         float relative_pitch_rad{0};
         float relative_roll_rad{0};
         float relative_yaw_motor_rad{0};
+        float relative_yaw_motor_wrapped_rad{0};
         float relative_yaw_motor_radps{0};
 
         // 目标与误差
@@ -183,7 +189,10 @@ class screw_gimbal_t final
 
         // 调试用
         float pos_imu_leso_z1;
+        float spd_imu_leso_z0;
         float pos_leso_z0;
+        float pos_leso_z1;
+        float pos_leso_out;
         float spd_leso_z0;
     };
 

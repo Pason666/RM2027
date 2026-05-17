@@ -34,20 +34,7 @@ void screw_gimbal_t::fsm_active_t::sling_state_t::execute(owner *owner)
     if (owner->_ctx.cmd->sling_pitch_flag != last_sling_pitch_flag)
     {
         // 如果 Pitch 也需要被 WASD 控制，则在这里直接累加
-        const float robot_x =
-            static_cast<float>(
-                board_drv_t::get_instance().get_c2g_rx_data().robot_x) /
-            65535.0f * 28.0f;
-        const float robot_y =
-            static_cast<float>(
-                board_drv_t::get_instance().get_c2g_rx_data().robot_y) /
-            65535.0f * 15.0f;
-        const bool robot_color = board_drv_t::get_instance().get_c2g_rx_data().robot_color;
-        const float target_x = robot_color ? 25.593f : 2.407f;
-        const float target_y = robot_color ? 25.593f : 2.407f;
         constexpr float target_z = 1.080f;
-        const float delta_x = fabs(target_x - robot_x);
-        const float delta_y = fabs(target_y - robot_y);
         constexpr float delta_z = target_z - 0.75f;
         // if (auto pitch = solveIdealPitch(delta_x, delta_y, delta_z, 16.2f))
         // {
@@ -64,7 +51,8 @@ void screw_gimbal_t::fsm_active_t::sling_state_t::execute(owner *owner)
     }
 
     owner->_ctx.data.target_yaw_rad =
-        pyro::loop_fp32_constrain(owner->_ctx.data.target_yaw_rad, -PI, PI);
+        std::clamp(owner->_ctx.data.target_yaw_rad, YAW_MIN_RELATIVE_RAD,
+                   YAW_MAX_RELATIVE_RAD);
 
     // Pitch 绝对限幅
     owner->_ctx.data.target_pitch_rad =

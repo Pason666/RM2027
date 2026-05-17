@@ -1,8 +1,0 @@
-E:/Develop/arm_gnu/14.3 rel1/arm-none-eabi/include/c++/14.3.1/arm-none-eabi/thumb/v7e-m+dp/hard/bits/gthr-default.h:229:1:int __gthread_key_delete(__gthread_key_t)	16	static
-E:/Develop/a_PYRo/PYRo-Hero/robot/sub_hero/Booster/fsm/pyro_quad_temp_state.cpp:6:6:virtual void pyro::quad_booster_t::state_temp_t::enter(pyro::quad_booster_t::owner*)	16	static
-E:/Develop/a_PYRo/PYRo-Hero/robot/sub_hero/Booster/fsm/pyro_quad_temp_state.cpp:11:6:virtual void pyro::quad_booster_t::state_temp_t::execute(pyro::quad_booster_t::owner*)	16	static
-E:/Develop/a_PYRo/PYRo-Hero/robot/sub_hero/Booster/fsm/pyro_quad_temp_state.cpp:19:6:virtual void pyro::quad_booster_t::state_temp_t::exit(pyro::quad_booster_t::owner*)	16	static
-E:/Develop/a_PYRo/PYRo-Hero/PYRo/Core/FSM/pyro_core_fsm.h:34:13:pyro::state_t<Context>::~state_t() [with Context = pyro::quad_booster_t]	16	static
-E:/Develop/a_PYRo/PYRo-Hero/PYRo/Core/FSM/pyro_core_fsm.h:34:13:pyro::state_t<Context>::~state_t() [with Context = pyro::quad_booster_t]	16	static
-E:/Develop/a_PYRo/PYRo-Hero/robot/sub_hero/Booster/pyro_quad_booster.h:225:12:pyro::quad_booster_t::state_temp_t::~state_temp_t()	16	static
-E:/Develop/a_PYRo/PYRo-Hero/robot/sub_hero/Booster/pyro_quad_booster.h:225:12:virtual pyro::quad_booster_t::state_temp_t::~state_temp_t()	16	static

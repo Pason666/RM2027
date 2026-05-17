@@ -63,7 +63,7 @@ static void process_gimbal_logic(uint32_t notify_val)
             }
             else
             {
-                // tx_data.active = true;
+                tx_data.active = true;
                 tx_data.vx = static_cast<int8_t>(vrc.keys.w.current_level ? 127
                                                  : vrc.keys.s.current_level
                                                      ? -127
@@ -98,7 +98,8 @@ static void process_gimbal_logic(uint32_t notify_val)
         tx_data.track_en    = false;
         tx_data.leg_retract = false;
     }
-    tx_data.active      = false;
+    // tx_data.active      = false;
+    // tx_data.active      = true;
 
 
     if (abs(screw_gimbal_t::instance()->get_ctx().data.relative_pitch_rad) >=

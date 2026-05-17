@@ -1,5 +1,0 @@
-E:/Develop/a_PYRo/PYRo-Hero/PYRo/Core/Memory/pyro_core_dma_heap.c:65:8:pvPortDmaMalloc	48	static
-E:/Develop/a_PYRo/PYRo-Hero/PYRo/Core/Memory/pyro_core_dma_heap.c:196:7:vPortDmaFree	32	static
-E:/Develop/a_PYRo/PYRo-Hero/PYRo/Core/Memory/pyro_core_dma_heap.c:250:14:prvDmaHeapInit	24	static
-E:/Develop/a_PYRo/PYRo-Hero/PYRo/Core/Memory/pyro_core_dma_heap.c:298:13:prvInsertDmaBlockIntoFreeList	24	static
-E:/Develop/a_PYRo/PYRo-Hero/PYRo/Core/Memory/pyro_core_dma_heap.c:347:7:vPortGetDmaHeapStats	32	static

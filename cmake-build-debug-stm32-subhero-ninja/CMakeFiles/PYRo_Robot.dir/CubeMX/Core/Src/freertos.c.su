@@ -1,5 +1,0 @@
-E:/Develop/a_PYRo/PYRo-Hero/CubeMX/Core/Src/freertos.c:72:6:vApplicationGetIdleTaskMemory	24	static
-E:/Develop/a_PYRo/PYRo-Hero/CubeMX/Core/Src/freertos.c:86:6:MX_FREERTOS_Init	104	static
-E:/Develop/a_PYRo/PYRo-Hero/CubeMX/Core/Src/freertos.c:133:13:StartDefaultTask	16	static
-E:/Develop/a_PYRo/PYRo-Hero/CubeMX/Core/Src/freertos.c:151:13:start_demo_task	16	static
-E:/Develop/a_PYRo/PYRo-Hero/CubeMX/Core/Src/freertos.c:169:13:start_mission_planer_task	16	static

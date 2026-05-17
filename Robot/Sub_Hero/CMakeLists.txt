@@ -67,6 +67,10 @@ if (BOARD STREQUAL "GIMBAL_BOARD")
             ${CMAKE_CURRENT_SOURCE_DIR}/Communication/General
             ${CMAKE_CURRENT_SOURCE_DIR}
     )
+    target_compile_definitions(PYRo PRIVATE
+            GIMBAL_BOARD=1
+            BOARD=GIMBAL_BOARD
+    )
     target_compile_definitions(PYRo PUBLIC
             DR16_UART=PYRO_UART5
             VT03_UART=PYRO_UART1
@@ -102,7 +106,10 @@ elseif (BOARD STREQUAL "CHASSIS_BOARD")
             ${CMAKE_CURRENT_SOURCE_DIR}/Communication/General
             ${CMAKE_CURRENT_SOURCE_DIR}
     )
-
+    target_compile_definitions(PYRo PRIVATE
+            CHASSIS_BOARD=2
+            BOARD=CHASSIS_BOARD
+    )
     target_compile_definitions(PYRo PUBLIC
             REFEREE_UART=PYRO_UART1
             SUPERCAP_UART=PYRO_UART7

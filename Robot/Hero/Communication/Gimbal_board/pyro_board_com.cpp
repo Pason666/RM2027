@@ -12,14 +12,14 @@
 
 using namespace pyro;
 
-constexpr uint32_t EVENT_BIT_TRACK_TOGGLE   = (1 << 0);
-constexpr uint32_t EVENT_BIT_RETRACT_TOGGLE = (1 << 1);
-constexpr uint32_t EVENT_BIT_SLING_TOGGLE   = (1 << 2);
-constexpr uint32_t EVENT_BIT_C_PRESS        = (1 << 3);
+constexpr uint32_t EVENT_BIT_TRACK_TOGGLE    = (1 << 0);
+constexpr uint32_t EVENT_BIT_RETRACT_TOGGLE  = (1 << 1);
+constexpr uint32_t EVENT_BIT_SLING_TOGGLE    = (1 << 2);
+constexpr uint32_t EVENT_BIT_C_PRESS         = (1 << 3);
 constexpr uint32_t EVENT_BIT_LEG_CALIBRATION = (1 << 4);
 
-static TaskHandle_t board_com_task_handle   = nullptr;
-static board_drv_t *board_drv_ptr           = nullptr;
+static TaskHandle_t board_com_task_handle    = nullptr;
+static board_drv_t *board_drv_ptr            = nullptr;
 
 static void process_gimbal_logic(uint32_t notify_val)
 {
@@ -63,7 +63,7 @@ static void process_gimbal_logic(uint32_t notify_val)
             }
             else
             {
-                tx_data.active = true;
+                // tx_data.active = true;
                 tx_data.vx = static_cast<int8_t>(vrc.keys.w.current_level ? 127
                                                  : vrc.keys.s.current_level
                                                      ? -127
@@ -98,7 +98,7 @@ static void process_gimbal_logic(uint32_t notify_val)
         tx_data.track_en    = false;
         tx_data.leg_retract = false;
     }
-    // tx_data.active      = false;
+    tx_data.active      = false;
 
 
     if (abs(screw_gimbal_t::instance()->get_ctx().data.relative_pitch_rad) >=
@@ -172,6 +172,9 @@ extern "C"
                                     EVENT_BIT_SLING_TOGGLE);
         pyro::btn_broker::subscribe(&vrc.keys.c, pyro::btn_event_t::PRESS_DOWN,
                                     board_com_task_handle, EVENT_BIT_C_PRESS);
+        pyro::btn_broker::subscribe(
+            &vrc.buttons.pause, pyro::btn_event_t::PRESS_DOWN,
+            board_com_task_handle, EVENT_BIT_TRACK_TOGGLE);
         vTaskDelete(nullptr);
     }
 }

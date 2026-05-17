@@ -275,15 +275,17 @@ void deps_init()
         new pid_t(5.0f, 0.0003f, 0.0001f, 0.2f, 3.0f, 100, 1, 50, 1, 4);
 
     screw_gimbal_deps->pid_deps.yaw_relative_pos =
-        new pid_t(4.0f, 0.0f, 0.0f, 0.3f, 3.0f, 80, 2, 20, 3, 4);
+        new pid_t(6.0f, 0.0f, 0.0f, 0.3f, 3.0f, 80, 2, 20, 3, 4);
     screw_gimbal_deps->pid_deps.yaw_relative_spd =
-        new pid_t(10.0f, 0.0f, 0.0f, 0.3f, 3.0f, 80, 1, 10, 2, 4);
+        new pid_t(15.0f, 0.0f, 0.2f, 0.3f, 3.0f, 80, 1, 10, 2, 4);
     screw_gimbal_deps->pid_deps.yaw_pos_leso =
         new leso_t<3>(50,12.632f,20.0f); // LESO 参数配置
     screw_gimbal_deps->pid_deps.yaw_spd_leso =
         new leso_t<2>(50,12.632f,20.0f); // LESO 参数配置
     screw_gimbal_deps->pid_deps.yaw_pos_imu_leso =
         new leso_t<3>(50,12.632f,20.0f); // LESO 参数配置
+    screw_gimbal_deps->pid_deps.yaw_spd_imu_leso =
+        new leso_t<2>(80,12.632f,20.0f);
 
     // // 1. LESO: 降低带宽到 50，略微增大 b (14.0) 以软化前馈输出，限幅保持 20.0A
     // screw_gimbal_deps->pid_deps.yaw_leso =

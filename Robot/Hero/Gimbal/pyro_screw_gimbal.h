@@ -62,6 +62,7 @@ struct screw_gimbal_deps_t
         leso_t<2> *yaw_spd_leso{nullptr};
 
         leso_t<3> *yaw_pos_imu_leso{nullptr};
+        leso_t<2> *yaw_spd_imu_leso{nullptr};
     };
 
     motor_deps_t motor_deps{};
@@ -183,7 +184,10 @@ class screw_gimbal_t final
 
         // 调试用
         float pos_imu_leso_z1;
+        float spd_imu_leso_z0;
         float pos_leso_z0;
+        float pos_leso_z1;
+        float pos_leso_out;
         float spd_leso_z0;
     };
 

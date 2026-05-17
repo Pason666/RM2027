@@ -113,6 +113,8 @@ void screw_gimbal_t::_update_feedback()
         _ctx.pid.yaw_pos_imu_leso->update(_ctx.data.yaw_imu_rad, last_yaw_u);
         _ctx.data.pos_imu_leso_z1 = _ctx.pid.yaw_pos_imu_leso->get_z(1); // 供调试观察 LESO 内部状态
         _ctx.data.pos_leso_z0 = _ctx.pid.yaw_pos_leso->get_z(0); // 供调试观察 LESO 内部状态
+        _ctx.data.pos_leso_z1 = _ctx.pid.yaw_pos_leso->get_z(1);
+        _ctx.data.pos_leso_out = - _ctx.pid.yaw_pos_leso->get_z(2) / _ctx.pid.yaw_pos_leso->get_b();
     }
     if (_ctx.pid.yaw_spd_leso != nullptr)
     {
@@ -120,6 +122,12 @@ void screw_gimbal_t::_update_feedback()
         float last_yaw_u = _ctx.data.out_yaw_torque;
         _ctx.pid.yaw_spd_leso->update(_ctx.data.yaw_imu_radps, last_yaw_u);
         _ctx.data.spd_leso_z0 = _ctx.pid.yaw_spd_leso->get_z(0); // 供调试观察 LESO 内部状态
+    }
+    if (_ctx.pid.yaw_spd_imu_leso != nullptr)
+    {
+        float last_yaw_u = _ctx.data.out_yaw_torque;
+        _ctx.pid.yaw_spd_imu_leso->update(_ctx.data.yaw_imu_radps, last_yaw_u);
+        _ctx.data.spd_imu_leso_z0 = _ctx.pid.yaw_spd_imu_leso->get_z(0);
     }
 }
 
@@ -230,7 +238,7 @@ void screw_gimbal_t::_gimbal_sling_control()
         _ctx.pid.yaw_relative_pos->calculate(0.0f,_ctx.data.relative_yaw_error_rad);
 
     float yaw_pid_out = _ctx.pid.yaw_relative_spd->calculate(
-        _ctx.data.target_yaw_radps,_ctx.data.yaw_imu_radps);
+        _ctx.data.target_yaw_radps,_ctx.data.spd_imu_leso_z0);
 
     // 【修改点】：使用 LESO 估计的总扰动进行前馈补偿，替代原先的施密特触发器逻辑
     float yaw_leso_comp = 0.0f;

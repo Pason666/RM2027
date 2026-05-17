@@ -107,6 +107,10 @@ void ui_com::update_ctx(const ui_ctx_t &new_ctx)
 {
     _last_ctx = _ctx;
     _ctx      = new_ctx;
+    if (refresh_check())
+    {
+        refresh();
+    }
 }
 
 void ui_com::draw_static()

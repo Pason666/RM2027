@@ -78,6 +78,7 @@ private:
     void draw_super_cap();
     void draw_trail_state();
     void draw_pos();
+    void draw_leg();
     void draw_relative_pos();
 };
 }

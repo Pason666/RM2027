@@ -470,7 +470,7 @@ float screw_gimbal_t::_calculate_pitch_compensation(bool is_autoaim) const
         is_init = true;
     }
 
-    float current_friction_mag = 1.0f;
+    float current_friction_mag = 2.0f;
     if (std::abs(_ctx.data.current_jacobian) > 0.001f)
     {
         current_friction_mag = equivalent_joint_friction / _ctx.data.current_jacobian;

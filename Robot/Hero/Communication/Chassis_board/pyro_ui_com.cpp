@@ -55,6 +55,8 @@ static void info_update_test()
         hybrid_chassis_t::instance()->get_ctx().cap_feedback.vot_cap);
     ui_ctx.refresh_flag = board_drv_t::get_instance().get_g2c_rx_data().ui_refresh;
     ui_ctx.track_en_flag = board_drv_t::get_instance().get_g2c_rx_data().track_en;
+    ui_ctx.position_x = referee_ptr->get_data().robot_pos.x;
+    ui_ctx.position_y = referee_ptr->get_data().robot_pos.y;
     memcpy(ui_ctx.mecanum_online,hybrid_chassis_t::instance()->get_ctx().data.wheel_online,4);
 
 }

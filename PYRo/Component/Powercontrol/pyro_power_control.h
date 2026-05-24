@@ -87,9 +87,9 @@ class power_controller_t
     ///< 最小温度修正系数(防传感器断连)
 
     // --- 缓冲能量调节阈值 ---
-    static constexpr float DANGER_ENERGY_THRESH  = 15.0f;
+    static constexpr float DANGER_ENERGY_THRESH  = 30.0f;
     ///< 触发强力惩罚机制的能量阈值 (J)
-    static constexpr float DEAD_ENERGY_THRESH    = 5.0f;
+    static constexpr float DEAD_ENERGY_THRESH    = 10.0f;
     ///< 强制切断裁判系统功率输出的能量死区阈值 (J)
     static constexpr float DANGER_PENALTY_FACTOR = 5.0f;
     ///< 危险状态回血惩罚倍率

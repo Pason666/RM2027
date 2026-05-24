@@ -3,6 +3,8 @@
 #include "pyro_bsp_uart.h"
 #include "pyro_board_drv.h"
 #include "pyro_dwt_drv.h"
+#include "pyro_referee.h"
+
 #include <cmath>
 #include "quad_config.h"
 #include <algorithm>
@@ -58,6 +60,7 @@ void quad_booster_t::_update_feedback()
     _ctx.data.current_trig_radps = _ctx.motor.trigger_wheel->get_current_rotate();
     _ctx.data.current_trig_torque = _ctx.motor.trigger_wheel->get_current_torque();
     _ctx.data.current_trig_rad = _ctx.motor.trigger_wheel->get_current_position();
+
 }
 
 void quad_booster_t::_fsm_execute()

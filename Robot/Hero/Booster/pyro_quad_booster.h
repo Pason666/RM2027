@@ -108,8 +108,9 @@ class quad_booster_t final
     struct data_ctx_t
     {
         uint8_t internal_fire_count{0}; // 内部拨弹计数器追踪
+        bool deploy_mode{false};
 
-        bool fric_err;
+        bool fric_err{};
         uint8_t internal_reset_count{0};
 
         float launch_delay_timer[3]{}; // 发射延时计时器

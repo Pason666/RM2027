@@ -46,6 +46,8 @@ static void process_chassis_logic()
             ref_data.robot_status.power_management_gimbal_output;
         tx_data.booster_output =
             ref_data.robot_status.power_management_shooter_output;
+        tx_data.chassis_output =
+            ref_data.robot_status.power_management_chassis_output;
         tx_data.robot_color = ref_data.robot_status.robot_id >= 100 ? 1 : 0;
         tx_data.heat_limit = ref_data.robot_status.shooter_barrel_heat_limit;
         tx_data.heat       = ref_data.power_heat.shooter_42mm_barrel_heat;

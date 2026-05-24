@@ -61,6 +61,9 @@ void quad_booster_t::_update_feedback()
     _ctx.data.current_trig_torque = _ctx.motor.trigger_wheel->get_current_torque();
     _ctx.data.current_trig_rad = _ctx.motor.trigger_wheel->get_current_position();
 
+    auto board_com_data = board_drv_t::get_instance().get_c2g_rx_data();
+    _ctx.data.deploy_mode = board_com_data.booster_output && !board_com_data.chassis_output;
+
 }
 
 void quad_booster_t::_fsm_execute()

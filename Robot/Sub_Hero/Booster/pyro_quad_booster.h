@@ -15,7 +15,7 @@ namespace pyro
 struct quad_booster_cmd_t final : public cmd_base_t
 {
     bool fric_on; // 摩擦轮开启
-    bool sling_mode;
+    bool force_deploy;
     uint8_t reset_count;
 
     uint8_t fire_count; // 拨弹计数器，替代 fire_enable
@@ -23,7 +23,7 @@ struct quad_booster_cmd_t final : public cmd_base_t
     float trig_target_spd; // 新增：拨弹盘目标速度
 
     quad_booster_cmd_t()
-        : fric_on(false), sling_mode(false), reset_count(0), fire_count(0),
+        : fric_on(false), force_deploy(false), reset_count(0), fire_count(0),
           trig_target_spd(0.0f)
     {
     }
@@ -85,6 +85,7 @@ class quad_booster_t final
     void _send_fric_command() const;
     void _send_trigger_command() const;
     void _launch_delay_calculate();
+    [[nodiscard]] bool _use_deploy_data() const;
 
     // 角度归一化辅助函数
     static float _normalize_angle(float angle);
@@ -107,8 +108,9 @@ class quad_booster_t final
     struct data_ctx_t
     {
         uint8_t internal_fire_count{0}; // 内部拨弹计数器追踪
+        bool deploy_mode{false};
 
-        bool fric_err;
+        bool fric_err{};
         uint8_t internal_reset_count{0};
 
         float launch_delay_timer[3]{}; // 发射延时计时器
@@ -152,7 +154,7 @@ class quad_booster_t final
         quad_deps_t::pid_deps_t pid;
         data_ctx_t data;
         shoot_data_t shoot_normal_data{16.2f, 15.5f,7.9f};
-        shoot_data_t shoot_sling_data{16.2f, 15.5f, 7.9f};
+        shoot_data_t shoot_deploy_data{16.2f, 15.5f, 7.9f};
         quad_booster_cmd_t *cmd{};
     };
 

@@ -33,9 +33,8 @@ void quad_booster_t::fsm_active_t::on_execute(owner *owner)
 
     if (owner->_ctx.cmd->fric_on)
     {
-        // 根据吊射模式切换数据引用
-        auto &shoot_data                    = owner->_ctx.cmd->sling_mode
-                                                  ? owner->_ctx.shoot_sling_data
+        auto &shoot_data                    = owner->_use_deploy_data()
+                                                  ? owner->_ctx.shoot_deploy_data
                                                   : owner->_ctx.shoot_normal_data;
 
         owner->_ctx.data.target_fric_mps[0] = shoot_data.fric2_mps;

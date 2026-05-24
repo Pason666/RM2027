@@ -20,12 +20,12 @@ using namespace pyro;
 extern float read_time;
 
 // 定义任务通知的位掩码 (Event Bits)
-constexpr uint32_t EVENT_BIT_FRIC_TOGGLE       = (1 << 0);
-constexpr uint32_t EVENT_BIT_FIRE              = (1 << 1);
-constexpr uint32_t EVENT_BIT_SHOOT_DATA_TOGGLE = (1 << 2);
-constexpr uint32_t EVENT_BIT_FRIC_ON           = (1 << 3);
-constexpr uint32_t EVENT_BIT_FRIC_OFF          = (1 << 4);
-constexpr uint32_t EVENT_BIT_TRIGGER_RESET     = (1 << 5);
+constexpr uint32_t EVENT_BIT_FRIC_TOGGLE         = (1 << 0);
+constexpr uint32_t EVENT_BIT_FIRE                = (1 << 1);
+constexpr uint32_t EVENT_BIT_FORCE_DEPLOY_TOGGLE = (1 << 2);
+constexpr uint32_t EVENT_BIT_FRIC_ON             = (1 << 3);
+constexpr uint32_t EVENT_BIT_FRIC_OFF            = (1 << 4);
+constexpr uint32_t EVENT_BIT_TRIGGER_RESET       = (1 << 5);
 
 static TaskHandle_t booster_task_handle   = nullptr;
 static pyro::quad_booster_t *quad_booster_ptr         = nullptr;
@@ -71,7 +71,7 @@ extern "C"
         auto &vrc                   = pyro::rc_drv_t::read();
 
         static uint8_t last_pc_fire = 0;
-        static bool is_sling_mode   = false; // 追踪吊射模式状态
+        static bool force_deploy    = false;
 
         if (pyro::sw_pos_t::UP == vrc.switches.gear.current_pos)
         {
@@ -88,7 +88,7 @@ extern "C"
             quad_booster_cmd_ptr->fric_on = !quad_booster_cmd_ptr->fric_on;
         }
 
-        // Q/E set fric state, V switches shoot-data, B resets trigger wheel.
+        // Q/E set fric state, Ctrl+F forces deploy shoot-data, B resets trigger wheel.
         if (notify_val & EVENT_BIT_FRIC_ON)
         {
             quad_booster_cmd_ptr->fric_on = true;
@@ -98,11 +98,12 @@ extern "C"
             quad_booster_cmd_ptr->fric_on = false;
         }
 
-        if (notify_val & EVENT_BIT_SHOOT_DATA_TOGGLE)
+        if ((notify_val & EVENT_BIT_FORCE_DEPLOY_TOGGLE) &&
+            vrc.keys.ctrl.current_level)
         {
-            is_sling_mode = !is_sling_mode;
+            force_deploy = !force_deploy;
         }
-        quad_booster_cmd_ptr->sling_mode = is_sling_mode;
+        quad_booster_cmd_ptr->force_deploy = force_deploy;
         if (notify_val & EVENT_BIT_TRIGGER_RESET)
         {
             quad_booster_cmd_ptr->reset_count++;
@@ -219,10 +220,10 @@ extern "C"
         pyro::btn_broker::subscribe(&vrc.keys.e, pyro::btn_event_t::PRESS_DOWN,
                                     booster_task_handle, EVENT_BIT_FRIC_OFF);
 
-        // V switches the booster shoot-data set.
-        pyro::btn_broker::subscribe(&vrc.keys.v, pyro::btn_event_t::PRESS_DOWN,
+        // Ctrl+F forces the booster deploy shoot-data set.
+        pyro::btn_broker::subscribe(&vrc.keys.f, pyro::btn_event_t::PRESS_DOWN,
                                     booster_task_handle,
-                                    EVENT_BIT_SHOOT_DATA_TOGGLE);
+                                    EVENT_BIT_FORCE_DEPLOY_TOGGLE);
         pyro::btn_broker::subscribe(&vrc.keys.b, pyro::btn_event_t::PRESS_DOWN,
                                     booster_task_handle,
                                     EVENT_BIT_TRIGGER_RESET);

@@ -58,6 +58,18 @@ void quad_booster_t::_update_feedback()
     _ctx.data.current_trig_radps = _ctx.motor.trigger_wheel->get_current_rotate();
     _ctx.data.current_trig_torque = _ctx.motor.trigger_wheel->get_current_torque();
     _ctx.data.current_trig_rad = _ctx.motor.trigger_wheel->get_current_position();
+
+    auto &board_drv = board_drv_t::get_instance();
+    if (board_drv.check_online())
+    {
+        auto board_com_data = board_drv.get_c2g_rx_data();
+        _ctx.data.deploy_mode =
+            board_com_data.booster_output && !board_com_data.chassis_output;
+    }
+    else
+    {
+        _ctx.data.deploy_mode = false;
+    }
 }
 
 void quad_booster_t::_fsm_execute()
@@ -159,9 +171,8 @@ void quad_booster_t::_speed_control()
     }
     last_launching_num = shoot_event.launching_num;
 
-    // 根据吊射模式切换数据引用
-    auto &shoot_data = _ctx.cmd->sling_mode ? _ctx.shoot_sling_data
-                                            : _ctx.shoot_normal_data;
+    auto &shoot_data = _use_deploy_data() ? _ctx.shoot_deploy_data
+                                          : _ctx.shoot_normal_data;
 
     _ctx.data.target_shoot_speed = shoot_data.target_speed;
 
@@ -208,7 +219,8 @@ void quad_booster_t::_speed_control()
 
 void quad_booster_t::_launch_delay_calculate()
 {
-    auto &shoot_data = _ctx.cmd->sling_mode ? _ctx.shoot_sling_data : _ctx.shoot_normal_data;
+    auto &shoot_data =
+        _use_deploy_data() ? _ctx.shoot_deploy_data : _ctx.shoot_normal_data;
 
     _ctx.data.fresh_timer++;
 
@@ -232,6 +244,12 @@ void quad_booster_t::_launch_delay_calculate()
         _ctx.data.fire_count++;
     }
 
+}
+
+bool quad_booster_t::_use_deploy_data() const
+{
+    return _ctx.data.deploy_mode ||
+           (_ctx.cmd != nullptr && _ctx.cmd->force_deploy);
 }
 
 void quad_booster_t::_fric_control()

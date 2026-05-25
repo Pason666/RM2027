@@ -13,6 +13,8 @@
 #include "pyro_hybrid_chassis.h"
 #include "pyro_supercap_drv.h"
 
+#include <cmath>
+
 
 using namespace pyro;
 
@@ -28,6 +30,10 @@ static pyro::ui_com hero_ui;  // UI 绘制控制器组件
 // ==========================================
 // 辅助与测试函数
 // ==========================================
+static pyro::ui_ctx_t sent_ui_ctx;
+static float sent_relative_yaw_rad          = 0.0f;
+static bool sent_relative_mecanum_online[4] = {false};
+
 static void uirxbooster()
 {
     // 预留的 RX booster 逻辑
@@ -53,12 +59,14 @@ static void info_update_test()
         10.0f;
     ui_ctx.super_cap_voltage = static_cast<float>(
         hybrid_chassis_t::instance()->get_ctx().cap_feedback.vot_cap);
-    ui_ctx.refresh_flag = board_drv_t::get_instance().get_g2c_rx_data().ui_refresh;
-    ui_ctx.track_en_flag = board_drv_t::get_instance().get_g2c_rx_data().track_en;
+    ui_ctx.refresh_flag =
+        board_drv_t::get_instance().get_g2c_rx_data().ui_refresh;
+    ui_ctx.track_en_flag =
+        board_drv_t::get_instance().get_g2c_rx_data().track_en;
     ui_ctx.position_x = referee_ptr->get_data().robot_pos.x;
     ui_ctx.position_y = referee_ptr->get_data().robot_pos.y;
-    memcpy(ui_ctx.mecanum_online,hybrid_chassis_t::instance()->get_ctx().data.wheel_online,4);
-
+    memcpy(ui_ctx.mecanum_online,
+           hybrid_chassis_t::instance()->get_ctx().data.wheel_online, 4);
 }
 
 // ==========================================
@@ -66,11 +74,34 @@ static void info_update_test()
 // ==========================================
 namespace
 {
+static constexpr float rad_update_threshold         = 0.01f;
+static constexpr float speed_update_threshold       = 0.1f;
+static constexpr float position_update_threshold    = 0.01f;
+static constexpr float cap_voltage_update_threshold = 0.1f;
+
+bool value_changed(float current, float sent, float threshold)
+{
+    return std::fabs(current - sent) > threshold;
+}
+
+bool mecanum_online_changed(const bool current[4], const bool sent[4])
+{
+    for (int i = 0; i < 4; i++)
+    {
+        if (current[i] != sent[i])
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
 struct cfg_relative_pos
 {
     static constexpr uint16_t x = 100, y = 600, chassis_scale = 70;
     static constexpr uint8_t chassis_layer = 2, gimbal_layer = 3;
-    static constexpr uint8_t gimbal_r = 20, cannon_length = 50, cannon_width = 15;
+    static constexpr uint8_t gimbal_r = 20, cannon_length = 50,
+                             cannon_width    = 15;
     static constexpr uint8_t cannon_offset_r = 18;
 };
 struct cfg_trail
@@ -80,19 +111,19 @@ struct cfg_trail
 };
 struct cfg_fric
 {
-    static constexpr uint16_t x = 1800, y = 730, r = 50;
+    static constexpr uint16_t x = 1770, y = 730, r = 50;
     static constexpr uint8_t layer = 2, cross_layer = 5;
 };
 struct cfg_lob
 {
-    static constexpr uint16_t x = 1800, y = 530, r = 50;
+    static constexpr uint16_t x = 1770, y = 530, r = 50;
     static constexpr uint8_t layer = 2, cross_layer = 6;
 };
 struct cfg_text
 {
-    static constexpr uint16_t yaw_x = 1800, yaw_y = 440;
-    static constexpr uint16_t pitch_x = 1800, pitch_y = 380;
-    static constexpr uint16_t spd_x = 1790, spd_y = 650;
+    static constexpr uint16_t yaw_x = 1770, yaw_y = 440;
+    static constexpr uint16_t pitch_x = 1770, pitch_y = 380;
+    static constexpr uint16_t spd_x = 1760, spd_y = 650;
     static constexpr uint16_t pos_x = 200, pos_y = 800;
     static constexpr uint16_t label_offset = 100;
     static constexpr uint8_t layer = 3, val_layer = 4;
@@ -104,6 +135,21 @@ struct cfg_cap
     static constexpr uint16_t hw = 350, hh = 30;
     static constexpr uint8_t layer = 2;
 };
+struct cfg_outpost
+{
+    static constexpr uint16_t start_x = 900, end_x = 1020;
+    static constexpr uint16_t start_y = 800, end_y = 800;
+    static constexpr uint8_t width = 3;
+    static constexpr uint8_t layer = 2;
+};
+struct cfg_base1
+{
+    static constexpr uint16_t start_x = 900, end_x = 1020;
+    static constexpr uint16_t start_y = 600, end_y = 600;
+    static constexpr uint8_t width = 3;
+    static constexpr uint8_t layer = 2;
+};
+
 } // namespace
 
 // ==========================================
@@ -150,11 +196,9 @@ void ui_com::draw_static()
                       20, 2, cfg_text::pitch_x - cfg_text::label_offset,
                       cfg_text::pitch_y, "PITCH");
     _drv->draw_string("POX", ui_operate::ADD, cfg_text::layer, ui_color::GREEN,
-                      20, 2, cfg_text::pos_x,
-                      cfg_text::pos_y, "X:");
+                      20, 2, cfg_text::pos_x, cfg_text::pos_y, "X:");
     _drv->draw_string("POY", ui_operate::ADD, cfg_text::layer, ui_color::GREEN,
-                      20, 2, cfg_text::pos_x+100,
-                      cfg_text::pos_y, "Y:");
+                      20, 2, cfg_text::pos_x + 100, cfg_text::pos_y, "Y:");
 
     // 4. 浮点数值的 ADD 占位
     _drv->draw_float("YDG", ui_operate::ADD, cfg_text::val_layer,
@@ -167,65 +211,112 @@ void ui_com::draw_static()
                     ui_color::GREEN, 20, 2, cfg_text::spd_x, cfg_text::spd_y,
                     0.0f)
         .draw_float("PSX", ui_operate::ADD, cfg_text::val_layer,
-                    ui_color::GREEN,20,2,cfg_text::pos_x+30,cfg_text::pos_y,
-                    0.0f)
+                    ui_color::GREEN, 20, 2, cfg_text::pos_x + 30,
+                    cfg_text::pos_y, 0.0f)
         .draw_float("PSY", ui_operate::ADD, cfg_text::val_layer,
-                    ui_color::GREEN,20,2,cfg_text::pos_x+130,cfg_text::pos_y,
-                    0.0f);
+                    ui_color::GREEN, 20, 2, cfg_text::pos_x + 130,
+                    cfg_text::pos_y, 0.0f);
     // 5. 交叉线的ADD占位
     _drv->draw_line("FL1", ui_operate::ADD, cfg_fric::cross_layer,
-                           ui_color::MAGENTA, 3, 1,1,1,1)
+                    ui_color::MAGENTA, 3, 1, 1, 1, 1)
         .draw_line("FL2", ui_operate::ADD, cfg_fric::cross_layer,
-                           ui_color::MAGENTA, 3, 1,1,1,1)
+                   ui_color::MAGENTA, 3, 1, 1, 1, 1)
         .draw_line("LL1", ui_operate::ADD, cfg_lob::cross_layer,
-                           ui_color::ORANGE, 3,1,1,1,1)
+                   ui_color::ORANGE, 3, 1, 1, 1, 1)
         .draw_line("LL2", ui_operate::ADD, cfg_lob::cross_layer,
-                           ui_color::ORANGE, 3, 1,1,1,1);
+                   ui_color::ORANGE, 3, 1, 1, 1, 1);
     // 5. 绘制越障模式台阶图案(静态)
-    _drv->draw_line("TR1",ui_operate::ADD, cfg_trail::layer,ui_color::WHITE,3,
-        cfg_trail::x-70,cfg_trail::y-18,
-        cfg_trail::x+45,cfg_trail::y-18)
-        .draw_line("TR2",ui_operate::ADD,cfg_trail::layer,ui_color::WHITE,3,
-        cfg_trail::x-45,cfg_trail::y-18,
-        cfg_trail::x-45,cfg_trail::y+18)
-        .draw_line("TR3",ui_operate::ADD,cfg_trail::layer,ui_color::WHITE,3,
-        cfg_trail::x-45,cfg_trail::y+18,
-        cfg_trail::x+45,cfg_trail::y+18);
+    _drv->draw_line("TR1", ui_operate::ADD, cfg_trail::layer, ui_color::WHITE,
+                    3, cfg_trail::x - 70, cfg_trail::y - 18, cfg_trail::x + 45,
+                    cfg_trail::y - 18)
+        .draw_line("TR2", ui_operate::ADD, cfg_trail::layer, ui_color::WHITE, 3,
+                   cfg_trail::x - 45, cfg_trail::y - 18, cfg_trail::x - 45,
+                   cfg_trail::y + 18)
+        .draw_line("TR3", ui_operate::ADD, cfg_trail::layer, ui_color::WHITE, 3,
+                   cfg_trail::x - 45, cfg_trail::y + 18, cfg_trail::x + 45,
+                   cfg_trail::y + 18);
     // 5. 越障模式图标占位
-    _drv->draw_circle("TF1",ui_operate::ADD, cfg_trail::additional_layer,
-                    ui_color::MAGENTA,4,cfg_trail::x,cfg_trail::y,cfg_trail::r)
-        .draw_line("TF2",ui_operate::ADD, cfg_trail::additional_layer,ui_color::MAGENTA,4,
-                cfg_trail::x-cfg_trail::r*sqrt__2,cfg_trail::y-cfg_trail::r*sqrt__2,
-                cfg_trail::x+cfg_trail::r*sqrt__2,cfg_trail::y+cfg_trail::r*sqrt__2)
-        .draw_line("TT1",ui_operate::ADD, cfg_trail::additional_layer,ui_color::GREEN,4,
-                    cfg_trail::x,cfg_trail::y-cfg_trail::r-10,
-                    cfg_trail::x,cfg_trail::y+cfg_trail::r+10)
-        .draw_line("TT2",ui_operate::ADD,cfg_trail::additional_layer,ui_color::GREEN,4,
-                    cfg_trail::x,cfg_trail::y+cfg_trail::r+10,
-                    cfg_trail::x-15,cfg_trail::y+cfg_trail::r-10)
-        .draw_line("TT3",ui_operate::ADD,cfg_trail::additional_layer,ui_color::GREEN,4,
-                    cfg_trail::x,cfg_trail::y+cfg_trail::r+10,
-                    cfg_trail::x+15,cfg_trail::y+cfg_trail::r-10);
+    _drv->draw_circle("TF1", ui_operate::ADD, cfg_trail::additional_layer,
+                      ui_color::MAGENTA, 4, cfg_trail::x, cfg_trail::y,
+                      cfg_trail::r)
+        .draw_line("TF2", ui_operate::ADD, cfg_trail::additional_layer,
+                   ui_color::MAGENTA, 4, cfg_trail::x - cfg_trail::r * sqrt__2,
+                   cfg_trail::y - cfg_trail::r * sqrt__2,
+                   cfg_trail::x + cfg_trail::r * sqrt__2,
+                   cfg_trail::y + cfg_trail::r * sqrt__2)
+        .draw_line("TT1", ui_operate::ADD, cfg_trail::additional_layer,
+                   ui_color::GREEN, 4, cfg_trail::x,
+                   cfg_trail::y - cfg_trail::r - 10, cfg_trail::x,
+                   cfg_trail::y + cfg_trail::r + 10)
+        .draw_line("TT2", ui_operate::ADD, cfg_trail::additional_layer,
+                   ui_color::GREEN, 4, cfg_trail::x,
+                   cfg_trail::y + cfg_trail::r + 10, cfg_trail::x - 15,
+                   cfg_trail::y + cfg_trail::r - 10)
+        .draw_line("TT3", ui_operate::ADD, cfg_trail::additional_layer,
+                   ui_color::GREEN, 4, cfg_trail::x,
+                   cfg_trail::y + cfg_trail::r + 10, cfg_trail::x + 15,
+                   cfg_trail::y + cfg_trail::r - 10);
     // 6. 绘制云台旋转状态(静态底盘,炮塔圆)：
-    _drv->draw_rect("CS1",ui_operate::ADD, cfg_relative_pos::chassis_layer,ui_color::WHITE,5,
-        cfg_relative_pos::x,cfg_relative_pos::y,
-        cfg_relative_pos::x+cfg_relative_pos::chassis_scale,
-        cfg_relative_pos::y+cfg_relative_pos::chassis_scale*sqrt_2)
-        .draw_circle("GMA",ui_operate::ADD, cfg_relative_pos::gimbal_layer,ui_color::WHITE,5,
-            cfg_relative_pos::x+cfg_relative_pos::chassis_scale/2,
-            cfg_relative_pos::y+cfg_relative_pos::chassis_scale/2*sqrt_2,
-            cfg_relative_pos::gimbal_r)
-    // 7. 云台图标占位
-        .draw_line("GL1",ui_operate::ADD, cfg_relative_pos::chassis_layer,ui_color::WHITE,cfg_relative_pos::cannon_width,
-            cfg_relative_pos::x+cfg_relative_pos::chassis_scale/2+cfg_relative_pos::cannon_offset_r*cos(PI),
-            cfg_relative_pos::y+cfg_relative_pos::chassis_scale/2*sqrt_2+cfg_relative_pos::cannon_offset_r*sin(PI),
-            cfg_relative_pos::x+cfg_relative_pos::chassis_scale/2+(cfg_relative_pos::cannon_offset_r+cfg_relative_pos::cannon_length)*cos(PI),
-            cfg_relative_pos::y+cfg_relative_pos::chassis_scale/2*sqrt_2+(cfg_relative_pos::cannon_offset_r+cfg_relative_pos::cannon_length)*sin(PI))
-        .draw_line("GL2",ui_operate::ADD, cfg_relative_pos::gimbal_layer,ui_color::ALLY,cfg_relative_pos::cannon_width-5,
-            cfg_relative_pos::x+cfg_relative_pos::chassis_scale/2+cfg_relative_pos::cannon_offset_r*cos(_ctx.yaw_rad+PI/2),
-            cfg_relative_pos::y+cfg_relative_pos::chassis_scale/2*sqrt_2+cfg_relative_pos::cannon_offset_r*sin(_ctx.yaw_rad+PI/2),
-            cfg_relative_pos::x+cfg_relative_pos::chassis_scale/2+(cfg_relative_pos::cannon_offset_r+cfg_relative_pos::cannon_length-5)*cos(_ctx.yaw_rad+PI/2),
-            cfg_relative_pos::y+cfg_relative_pos::chassis_scale/2*sqrt_2+(cfg_relative_pos::cannon_offset_r+cfg_relative_pos::cannon_length-5)*sin(_ctx.yaw_rad+PI/2));
+    _drv->draw_rect(
+            "CS1", ui_operate::ADD, cfg_relative_pos::chassis_layer,
+            ui_color::WHITE, 5, cfg_relative_pos::x, cfg_relative_pos::y,
+            cfg_relative_pos::x + cfg_relative_pos::chassis_scale,
+            cfg_relative_pos::y + cfg_relative_pos::chassis_scale * sqrt_2)
+        .draw_circle("GMA", ui_operate::ADD, cfg_relative_pos::gimbal_layer,
+                     ui_color::WHITE, 5,
+                     cfg_relative_pos::x + cfg_relative_pos::chassis_scale / 2,
+                     cfg_relative_pos::y +
+                         cfg_relative_pos::chassis_scale / 2 * sqrt_2,
+                     cfg_relative_pos::gimbal_r)
+        // 7. 云台图标占位
+        .draw_line(
+            "GL1", ui_operate::ADD, cfg_relative_pos::chassis_layer,
+            ui_color::WHITE, cfg_relative_pos::cannon_width,
+            cfg_relative_pos::x + cfg_relative_pos::chassis_scale / 2 +
+                cfg_relative_pos::cannon_offset_r * cos(PI),
+            cfg_relative_pos::y + cfg_relative_pos::chassis_scale / 2 * sqrt_2 +
+                cfg_relative_pos::cannon_offset_r * sin(PI),
+            cfg_relative_pos::x + cfg_relative_pos::chassis_scale / 2 +
+                (cfg_relative_pos::cannon_offset_r +
+                 cfg_relative_pos::cannon_length) *
+                    cos(PI),
+            cfg_relative_pos::y + cfg_relative_pos::chassis_scale / 2 * sqrt_2 +
+                (cfg_relative_pos::cannon_offset_r +
+                 cfg_relative_pos::cannon_length) *
+                    sin(PI))
+        .draw_line(
+            "GL2", ui_operate::ADD, cfg_relative_pos::gimbal_layer,
+            ui_color::ALLY, cfg_relative_pos::cannon_width - 5,
+            cfg_relative_pos::x + cfg_relative_pos::chassis_scale / 2 +
+                cfg_relative_pos::cannon_offset_r * cos(_ctx.yaw_rad + PI / 2),
+            cfg_relative_pos::y + cfg_relative_pos::chassis_scale / 2 * sqrt_2 +
+                cfg_relative_pos::cannon_offset_r * sin(_ctx.yaw_rad + PI / 2),
+            cfg_relative_pos::x + cfg_relative_pos::chassis_scale / 2 +
+                (cfg_relative_pos::cannon_offset_r +
+                 cfg_relative_pos::cannon_length - 5) *
+                    cos(_ctx.yaw_rad + PI / 2),
+            cfg_relative_pos::y + cfg_relative_pos::chassis_scale / 2 * sqrt_2 +
+                (cfg_relative_pos::cannon_offset_r +
+                 cfg_relative_pos::cannon_length - 5) *
+                    sin(_ctx.yaw_rad + PI / 2));
+
+    // 7. 绘制前哨站瞄准线
+    _drv->draw_line("OP1", ui_operate::ADD, cfg_outpost::layer, ui_color::GREEN,
+                    cfg_outpost::width, cfg_outpost::start_x,
+                    cfg_outpost::start_y, cfg_outpost::end_x,
+                    cfg_outpost::end_y)
+        .draw_float("OF1", ui_operate::ADD, cfg_outpost::layer, ui_color::GREEN,
+                    20, cfg_outpost::width, cfg_outpost::start_x + 150,
+                    cfg_outpost::start_y, 6.5f);
+
+    // 8. 绘制基地瞄准线
+    _drv->draw_line("BA1", ui_operate::ADD, cfg_base1::layer, ui_color::GREEN,
+                    cfg_base1::width, cfg_base1::start_x,
+                    cfg_base1::start_y, cfg_base1::end_x,
+                    cfg_base1::end_y)
+        .draw_float("BF1", ui_operate::ADD, cfg_base1::layer, ui_color::GREEN,
+                    20, cfg_base1::width, cfg_base1::start_x + 150,
+                    cfg_base1::start_y, .5f);
     _drv->flush();
 }
 
@@ -234,16 +325,61 @@ void ui_com::draw_dynamic()
     if (!_drv)
         return;
 
-    draw_yaw();
-    draw_pitch();
-    draw_spd();
-    draw_pos();
+    const bool force_update = _force_refresh_flag;
+    const bool yaw_changed =
+        force_update ||
+        value_changed(_ctx.yaw_rad, sent_ui_ctx.yaw_rad, rad_update_threshold);
+    const bool pitch_changed =
+        force_update || value_changed(_ctx.pitch_rad, sent_ui_ctx.pitch_rad,
+                                      rad_update_threshold);
+    const bool spd_changed =
+        force_update ||
+        value_changed(_ctx.target_shoot_spd, sent_ui_ctx.target_shoot_spd,
+                      speed_update_threshold);
+    const bool pos_changed =
+        force_update ||
+        value_changed(_ctx.position_x, sent_ui_ctx.position_x,
+                      position_update_threshold) ||
+        value_changed(_ctx.position_y, sent_ui_ctx.position_y,
+                      position_update_threshold);
+    const bool fric_changed =
+        force_update || _ctx.fric_en_flag != sent_ui_ctx.fric_en_flag ||
+        _ctx.fric_error_flag != sent_ui_ctx.fric_error_flag;
+    const bool lob_changed =
+        force_update || _ctx.sling_flag != sent_ui_ctx.sling_flag;
+    const bool cap_changed =
+        force_update ||
+        value_changed(_ctx.super_cap_voltage, sent_ui_ctx.super_cap_voltage,
+                      cap_voltage_update_threshold);
+    const bool trail_changed =
+        force_update || _ctx.track_en_flag != sent_ui_ctx.track_en_flag;
+    const bool relative_changed =
+        force_update ||
+        value_changed(_ctx.yaw_rad, sent_relative_yaw_rad,
+                      rad_update_threshold) ||
+        mecanum_online_changed(_ctx.mecanum_online,
+                               sent_relative_mecanum_online);
+
+    if (yaw_changed)
+        draw_yaw();
+    if (pitch_changed)
+        draw_pitch();
+    if (spd_changed)
+        draw_spd();
+    if (pos_changed)
+        draw_pos();
     _drv->flush();
-    draw_fric_state();
-    draw_lob_state();
-    draw_super_cap();
-    draw_trail_state();
-    draw_relative_pos();
+    if (fric_changed)
+        draw_fric_state();
+    if (lob_changed)
+        draw_lob_state();
+    if (cap_changed)
+        draw_super_cap();
+    if (trail_changed)
+        draw_trail_state();
+    _drv->flush();
+    if (relative_changed)
+        draw_relative_pos();
     _drv->flush();
     _force_refresh_flag = false;
 }
@@ -263,6 +399,7 @@ void ui_com::draw_yaw()
     _drv->draw_float("YDG", ui_operate::MODIFY, cfg_text::val_layer,
                      ui_color::GREEN, 20, 2, cfg_text::yaw_x, cfg_text::yaw_y,
                      _ctx.yaw_rad);
+    sent_ui_ctx.yaw_rad = _ctx.yaw_rad;
 }
 
 void ui_com::draw_pitch()
@@ -270,6 +407,7 @@ void ui_com::draw_pitch()
     _drv->draw_float("PDG", ui_operate::MODIFY, cfg_text::val_layer,
                      ui_color::GREEN, 20, 2, cfg_text::pitch_x,
                      cfg_text::pitch_y, _ctx.pitch_rad);
+    sent_ui_ctx.pitch_rad = _ctx.pitch_rad;
 }
 
 void ui_com::draw_spd()
@@ -277,35 +415,40 @@ void ui_com::draw_spd()
     _drv->draw_float("SPD", ui_operate::MODIFY, cfg_text::val_layer,
                      ui_color::GREEN, 20, 2, cfg_text::spd_x, cfg_text::spd_y,
                      _ctx.target_shoot_spd);
+    sent_ui_ctx.target_shoot_spd = _ctx.target_shoot_spd;
 }
 
 void ui_com::draw_pos()
 {
     _drv->draw_float("PSX", ui_operate::MODIFY, cfg_text::val_layer,
-                    ui_color::GREEN,20,2,cfg_text::pos_x+30,cfg_text::pos_y,
-                    _ctx.position_x)
+                     ui_color::GREEN, 20, 2, cfg_text::pos_x + 30,
+                     cfg_text::pos_y, _ctx.position_x)
         .draw_float("PSY", ui_operate::MODIFY, cfg_text::val_layer,
-                    ui_color::GREEN,20,2,cfg_text::pos_x+130,cfg_text::pos_y,
-                    _ctx.position_y);
+                    ui_color::GREEN, 20, 2, cfg_text::pos_x + 130,
+                    cfg_text::pos_y, _ctx.position_y);
+    sent_ui_ctx.position_x = _ctx.position_x;
+    sent_ui_ctx.position_y = _ctx.position_y;
 }
 void ui_com::draw_fric_state()
 {
-    bool curr_ready = _ctx.fric_en_flag;
-    bool last_ready = _last_ctx.fric_en_flag;
+    bool curr_ready           = _ctx.fric_en_flag;
+    bool last_ready           = sent_ui_ctx.fric_en_flag;
     float cross_line_reduce_k = sqrt__2;
-    bool cross_line = false;
-    ui_color circle_color = ui_color::PINK;
+    bool cross_line           = false;
+    ui_color circle_color     = ui_color::PINK;
     ui_color cross_line_color = ui_color::MAGENTA;
-    if (curr_ready!=last_ready || _force_refresh_flag)
+    if (curr_ready != last_ready ||
+        _ctx.fric_error_flag != sent_ui_ctx.fric_error_flag ||
+        _force_refresh_flag)
     {
         if (curr_ready)
         {
             circle_color = ui_color::GREEN;
             if (_ctx.fric_error_flag)
             {
-                cross_line_color = ui_color::ORANGE;
+                cross_line_color    = ui_color::ORANGE;
                 cross_line_reduce_k = 1;
-                cross_line = true;
+                cross_line          = true;
             }
         }
         else
@@ -313,50 +456,57 @@ void ui_com::draw_fric_state()
             cross_line = true;
         }
         _drv->draw_circle("FRC", ui_operate::MODIFY, cfg_fric::layer,
-                        circle_color, 3, cfg_fric::x, cfg_fric::y,
-                        cfg_fric::r)
-            .draw_line("FL1", ui_operate::MODIFY, cfg_fric::cross_layer,
-                        cross_line_color, 3,
-                        (cfg_fric::x - cfg_fric::r*cross_line_reduce_k)*cross_line+!cross_line,
-                        (cfg_fric::y + cfg_fric::r*cross_line_reduce_k)*cross_line+!cross_line,
-                        (cfg_fric::x + cfg_fric::r*cross_line_reduce_k)*cross_line+!cross_line,
-                        (cfg_fric::y - cfg_fric::r*cross_line_reduce_k)*cross_line+!cross_line)
-            .draw_line("FL2", ui_operate::MODIFY, cfg_fric::cross_layer,
-                        cross_line_color, 3,
-                        (cfg_fric::x - cfg_fric::r*cross_line_reduce_k)*cross_line+!cross_line,
-                        (cfg_fric::y - cfg_fric::r*cross_line_reduce_k)*cross_line+!cross_line,
-                        (cfg_fric::x + cfg_fric::r*cross_line_reduce_k)*cross_line+!cross_line,
-                        (cfg_fric::y + cfg_fric::r*cross_line_reduce_k)*cross_line+!cross_line);
+                          circle_color, 3, cfg_fric::x, cfg_fric::y,
+                          cfg_fric::r)
+            .draw_line(
+                "FL1", ui_operate::MODIFY, cfg_fric::cross_layer,
+                cross_line_color, 3,
+                (cfg_fric::x - cfg_fric::r * cross_line_reduce_k) * cross_line +
+                    !cross_line,
+                (cfg_fric::y + cfg_fric::r * cross_line_reduce_k) * cross_line +
+                    !cross_line,
+                (cfg_fric::x + cfg_fric::r * cross_line_reduce_k) * cross_line +
+                    !cross_line,
+                (cfg_fric::y - cfg_fric::r * cross_line_reduce_k) * cross_line +
+                    !cross_line)
+            .draw_line(
+                "FL2", ui_operate::MODIFY, cfg_fric::cross_layer,
+                cross_line_color, 3,
+                (cfg_fric::x - cfg_fric::r * cross_line_reduce_k) * cross_line +
+                    !cross_line,
+                (cfg_fric::y - cfg_fric::r * cross_line_reduce_k) * cross_line +
+                    !cross_line,
+                (cfg_fric::x + cfg_fric::r * cross_line_reduce_k) * cross_line +
+                    !cross_line,
+                (cfg_fric::y + cfg_fric::r * cross_line_reduce_k) * cross_line +
+                    !cross_line);
+        sent_ui_ctx.fric_en_flag    = _ctx.fric_en_flag;
+        sent_ui_ctx.fric_error_flag = _ctx.fric_error_flag;
     }
-
 }
 
 void ui_com::draw_lob_state()
 {
-    if (_ctx.sling_flag != _last_ctx.sling_flag || _force_refresh_flag)
+    if (_ctx.sling_flag != sent_ui_ctx.sling_flag || _force_refresh_flag)
     {
         ui_color circle_color = ui_color::WHITE;
-        bool cross_line = _ctx.sling_flag;
+        bool cross_line       = _ctx.sling_flag;
         if (_ctx.sling_flag)
         {
 
             circle_color = ui_color::YELLOW;
         }
         _drv->draw_circle("LOB", ui_operate::MODIFY, cfg_lob::layer,
-                              circle_color, 3, cfg_lob::x, cfg_lob::y,
-                              cfg_lob::r)
+                          circle_color, 3, cfg_lob::x, cfg_lob::y, cfg_lob::r)
             .draw_line("LL1", ui_operate::MODIFY, cfg_lob::cross_layer,
-                           ui_color::ORANGE, 3,
-                           cfg_lob::x,
-                           (cfg_lob::y + cfg_lob::r + 25)*cross_line,
-                           cfg_lob::x,
-                           (cfg_lob::y - cfg_lob::r - 25)*cross_line)
+                       ui_color::ORANGE, 3, cfg_lob::x,
+                       (cfg_lob::y + cfg_lob::r + 25) * cross_line, cfg_lob::x,
+                       (cfg_lob::y - cfg_lob::r - 25) * cross_line)
             .draw_line("LL2", ui_operate::MODIFY, cfg_lob::cross_layer,
-                           ui_color::ORANGE, 3,
-                           (cfg_lob::x - cfg_lob::r - 25)*cross_line,
-                           cfg_lob::y,
-                           (cfg_lob::x + cfg_lob::r + 25)*cross_line,
-                           cfg_lob::y);
+                       ui_color::ORANGE, 3,
+                       (cfg_lob::x - cfg_lob::r - 25) * cross_line, cfg_lob::y,
+                       (cfg_lob::x + cfg_lob::r + 25) * cross_line, cfg_lob::y);
+        sent_ui_ctx.sling_flag = _ctx.sling_flag;
     }
 }
 
@@ -374,6 +524,7 @@ void ui_com::draw_super_cap()
 
     _drv->draw_line("PBR", ui_operate::MODIFY, cfg_cap::layer + 1, cap_color,
                     50, start_x, cfg_cap::cy, end_x, cfg_cap::cy);
+    sent_ui_ctx.super_cap_voltage = _ctx.super_cap_voltage;
 }
 
 void ui_com::draw_trail_state()
@@ -381,26 +532,35 @@ void ui_com::draw_trail_state()
 
 
 
-    if (_ctx.track_en_flag!= _last_ctx.track_en_flag || _force_refresh_flag)
+    if (_ctx.track_en_flag != sent_ui_ctx.track_en_flag || _force_refresh_flag)
     {
-        _drv->draw_line("TT1",ui_operate::MODIFY, cfg_trail::additional_layer,ui_color::GREEN,4,
-            cfg_trail::x,cfg_trail::y-(cfg_trail::r+10)*_ctx.track_en_flag,
-            cfg_trail::x,cfg_trail::y+(cfg_trail::r+10)*_ctx.track_en_flag)
-            .draw_line("TT2",ui_operate::MODIFY,cfg_trail::additional_layer,ui_color::GREEN,4,
-            cfg_trail::x,cfg_trail::y+cfg_trail::r+10*_ctx.track_en_flag,
-            cfg_trail::x-15*_ctx.track_en_flag,cfg_trail::y+cfg_trail::r-10*_ctx.track_en_flag)
-            .draw_line("TT3",ui_operate::MODIFY,cfg_trail::additional_layer,ui_color::GREEN,4,
-            cfg_trail::x,cfg_trail::y+cfg_trail::r+10*_ctx.track_en_flag,
-            cfg_trail::x+15*_ctx.track_en_flag,cfg_trail::y+cfg_trail::r-10*_ctx.track_en_flag)
-            .draw_circle("TF1",ui_operate::MODIFY, cfg_trail::additional_layer,
-        ui_color::MAGENTA,4,cfg_trail::x,cfg_trail::y,cfg_trail::r*!_ctx.track_en_flag)
-            .draw_line("TF2",ui_operate::MODIFY, cfg_trail::additional_layer,ui_color::MAGENTA,4,
-            cfg_trail::x-cfg_trail::r*sqrt__2*!_ctx.track_en_flag,
-            cfg_trail::y-cfg_trail::r*sqrt__2*!_ctx.track_en_flag,
-            cfg_trail::x+cfg_trail::r*sqrt__2*!_ctx.track_en_flag,
-            cfg_trail::y+cfg_trail::r*sqrt__2*!_ctx.track_en_flag);
+        _drv->draw_line("TT1", ui_operate::MODIFY, cfg_trail::additional_layer,
+                        ui_color::GREEN, 4, cfg_trail::x,
+                        cfg_trail::y - (cfg_trail::r + 10) * _ctx.track_en_flag,
+                        cfg_trail::x,
+                        cfg_trail::y + (cfg_trail::r + 10) * _ctx.track_en_flag)
+            .draw_line("TT2", ui_operate::MODIFY, cfg_trail::additional_layer,
+                       ui_color::GREEN, 4, cfg_trail::x,
+                       cfg_trail::y + cfg_trail::r + 10 * _ctx.track_en_flag,
+                       cfg_trail::x - 15 * _ctx.track_en_flag,
+                       cfg_trail::y + cfg_trail::r - 10 * _ctx.track_en_flag)
+            .draw_line("TT3", ui_operate::MODIFY, cfg_trail::additional_layer,
+                       ui_color::GREEN, 4, cfg_trail::x,
+                       cfg_trail::y + cfg_trail::r + 10 * _ctx.track_en_flag,
+                       cfg_trail::x + 15 * _ctx.track_en_flag,
+                       cfg_trail::y + cfg_trail::r - 10 * _ctx.track_en_flag)
+            .draw_circle("TF1", ui_operate::MODIFY, cfg_trail::additional_layer,
+                         ui_color::MAGENTA, 4, cfg_trail::x, cfg_trail::y,
+                         cfg_trail::r * !_ctx.track_en_flag)
+            .draw_line(
+                "TF2", ui_operate::MODIFY, cfg_trail::additional_layer,
+                ui_color::MAGENTA, 4,
+                cfg_trail::x - cfg_trail::r * sqrt__2 * !_ctx.track_en_flag,
+                cfg_trail::y - cfg_trail::r * sqrt__2 * !_ctx.track_en_flag,
+                cfg_trail::x + cfg_trail::r * sqrt__2 * !_ctx.track_en_flag,
+                cfg_trail::y + cfg_trail::r * sqrt__2 * !_ctx.track_en_flag);
+        sent_ui_ctx.track_en_flag = _ctx.track_en_flag;
     }
-
 }
 
 void ui_com::draw_relative_pos()
@@ -414,24 +574,48 @@ void ui_com::draw_relative_pos()
             break;
         }
     }
-    _drv->draw_line("GL1",ui_operate::MODIFY, cfg_relative_pos::chassis_layer,ui_color::WHITE,cfg_relative_pos::cannon_width,
-            cfg_relative_pos::x+cfg_relative_pos::chassis_scale/2+cfg_relative_pos::cannon_offset_r*cos(_ctx.yaw_rad+PI/2),
-            cfg_relative_pos::y+cfg_relative_pos::chassis_scale/2*sqrt_2+cfg_relative_pos::cannon_offset_r*sin(_ctx.yaw_rad+PI/2),
-            cfg_relative_pos::x+cfg_relative_pos::chassis_scale/2+(cfg_relative_pos::cannon_offset_r+cfg_relative_pos::cannon_length)*cos(_ctx.yaw_rad+PI/2),
-            cfg_relative_pos::y+cfg_relative_pos::chassis_scale/2*sqrt_2+(cfg_relative_pos::cannon_offset_r+cfg_relative_pos::cannon_length)*sin(_ctx.yaw_rad+PI/2))
-        .draw_line("GL2",ui_operate::MODIFY, cfg_relative_pos::gimbal_layer,ui_color::ALLY,cfg_relative_pos::cannon_width-5,
-            cfg_relative_pos::x+cfg_relative_pos::chassis_scale/2+cfg_relative_pos::cannon_offset_r*cos(_ctx.yaw_rad+PI/2),
-            cfg_relative_pos::y+cfg_relative_pos::chassis_scale/2*sqrt_2+cfg_relative_pos::cannon_offset_r*sin(_ctx.yaw_rad+PI/2),
-            cfg_relative_pos::x+cfg_relative_pos::chassis_scale/2+(cfg_relative_pos::cannon_offset_r+cfg_relative_pos::cannon_length-5)*cos(_ctx.yaw_rad+PI/2),
-            cfg_relative_pos::y+cfg_relative_pos::chassis_scale/2*sqrt_2+(cfg_relative_pos::cannon_offset_r+cfg_relative_pos::cannon_length-5)*sin(_ctx.yaw_rad+PI/2))
-        .draw_rect("CS1",ui_operate::MODIFY, cfg_relative_pos::chassis_layer,rect_color,5,
-            cfg_relative_pos::x,cfg_relative_pos::y,
-            cfg_relative_pos::x+cfg_relative_pos::chassis_scale,
-            cfg_relative_pos::y+cfg_relative_pos::chassis_scale*sqrt_2);
+    _drv->draw_line(
+            "GL1", ui_operate::MODIFY, cfg_relative_pos::chassis_layer,
+            ui_color::WHITE, cfg_relative_pos::cannon_width,
+            cfg_relative_pos::x + cfg_relative_pos::chassis_scale / 2 +
+                cfg_relative_pos::cannon_offset_r * cos(_ctx.yaw_rad + PI / 2),
+            cfg_relative_pos::y + cfg_relative_pos::chassis_scale / 2 * sqrt_2 +
+                cfg_relative_pos::cannon_offset_r * sin(_ctx.yaw_rad + PI / 2),
+            cfg_relative_pos::x + cfg_relative_pos::chassis_scale / 2 +
+                (cfg_relative_pos::cannon_offset_r +
+                 cfg_relative_pos::cannon_length) *
+                    cos(_ctx.yaw_rad + PI / 2),
+            cfg_relative_pos::y + cfg_relative_pos::chassis_scale / 2 * sqrt_2 +
+                (cfg_relative_pos::cannon_offset_r +
+                 cfg_relative_pos::cannon_length) *
+                    sin(_ctx.yaw_rad + PI / 2))
+        .draw_line(
+            "GL2", ui_operate::MODIFY, cfg_relative_pos::gimbal_layer,
+            ui_color::ALLY, cfg_relative_pos::cannon_width - 5,
+            cfg_relative_pos::x + cfg_relative_pos::chassis_scale / 2 +
+                cfg_relative_pos::cannon_offset_r * cos(_ctx.yaw_rad + PI / 2),
+            cfg_relative_pos::y + cfg_relative_pos::chassis_scale / 2 * sqrt_2 +
+                cfg_relative_pos::cannon_offset_r * sin(_ctx.yaw_rad + PI / 2),
+            cfg_relative_pos::x + cfg_relative_pos::chassis_scale / 2 +
+                (cfg_relative_pos::cannon_offset_r +
+                 cfg_relative_pos::cannon_length - 5) *
+                    cos(_ctx.yaw_rad + PI / 2),
+            cfg_relative_pos::y + cfg_relative_pos::chassis_scale / 2 * sqrt_2 +
+                (cfg_relative_pos::cannon_offset_r +
+                 cfg_relative_pos::cannon_length - 5) *
+                    sin(_ctx.yaw_rad + PI / 2))
+        .draw_rect("CS1", ui_operate::MODIFY, cfg_relative_pos::chassis_layer,
+                   rect_color, 5, cfg_relative_pos::x, cfg_relative_pos::y,
+                   cfg_relative_pos::x + cfg_relative_pos::chassis_scale,
+                   cfg_relative_pos::y +
+                       cfg_relative_pos::chassis_scale * sqrt_2);
+    sent_relative_yaw_rad = _ctx.yaw_rad;
+    memcpy(sent_relative_mecanum_online, _ctx.mecanum_online,
+           sizeof(sent_relative_mecanum_online));
 }
 bool ui_com::refresh_check()
 {
-    return _last_ctx.refresh_flag!=_ctx.refresh_flag;
+    return _last_ctx.refresh_flag != _ctx.refresh_flag;
 }
 // ==========================================
 // 线程与初始化 (外部 C 接口保持不变)

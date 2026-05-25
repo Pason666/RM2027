@@ -250,10 +250,10 @@ void deps_init()
     //     new pid_t(22.0f, 0.102f, 0.014f, 1.0f, 20.0f, 20, 10,
     //               4); // 输出限制匹配电机 Nm 级
     screw_gimbal_deps->pid_deps.pitch_pos =
-        new pid_t(11.5f, 0.108f, 0.01f, 0.5f, 10.0f, 40, 1, 10, 1,
+        new pid_t(11.5f, 0.108f, 0.2f, 0.5f, 10.0f, 40, 1, 10, 1,
                   4); // 位置环输出为 rad/s，限制在电机可接受范围内
     screw_gimbal_deps->pid_deps.pitch_spd =
-        new pid_t(11000.0f, 51.0f, 7.0f, 500.0f, 10000.0f, 20, 1, 10, 1,
+        new pid_t(11000.0f, 15.0f, 7.0f, 500.0f, 10000.0f, 20, 1, 10, 1,
                   4); // 输出限制匹配电机 Nm 级
 
     screw_gimbal_deps->pid_deps.pitch_auto_pos =

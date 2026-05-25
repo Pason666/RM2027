@@ -214,7 +214,7 @@ void quad_booster_t::_speed_control()
     [[maybe_unused]] float speed_increment =
         _ctx.pid.ball_speed_pid->calculate(0.0f, signed_weighted_mse);
 
-    // shoot_data.fric1_mps += speed_increment;
+    shoot_data.fric1_mps += speed_increment;
 
     // 共用限幅 9-17
     shoot_data.fric1_mps = std::clamp(shoot_data.fric1_mps, 9.0f, 17.0f);

@@ -368,7 +368,6 @@ void ui_com::draw_dynamic()
         draw_spd();
     if (pos_changed)
         draw_pos();
-    _drv->flush();
     if (fric_changed)
         draw_fric_state();
     if (lob_changed)
@@ -377,7 +376,6 @@ void ui_com::draw_dynamic()
         draw_super_cap();
     if (trail_changed)
         draw_trail_state();
-    _drv->flush();
     if (relative_changed)
         draw_relative_pos();
     _drv->flush();

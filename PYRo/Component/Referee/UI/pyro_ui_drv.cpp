@@ -14,7 +14,7 @@ namespace pyro
 
 ui_drv_t::ui_drv_t(referee_drv_t *referee) : _referee(referee)
 {
-    _buffer.reserve(20); // 预分配一点空间
+    _buffer.reserve(20); // 预分配空间
 }
 
 bool ui_drv_t::clear_layer(const uint8_t layer) const
@@ -29,7 +29,6 @@ bool ui_drv_t::clear_all() const
     constexpr uint8_t data[2] = {2, 0}; // 2: 删除所有
     return _referee->send_ui_interaction(
         static_cast<uint16_t>(interaction_sub_cmd::UI_CMD_DELETE), data);
-
 }
 
 ui_figure_data_t ui_drv_t::create_base_figure(const char name[3], ui_operate op,
@@ -50,6 +49,18 @@ ui_figure_data_t ui_drv_t::create_base_figure(const char name[3], ui_operate op,
     return fig;
 }
 
+void ui_drv_t::check_and_try_send()
+{
+    // 如果缓存满了 7 个，则直接打包发送这 7 个图形并从队列中移除
+    if (_buffer.size() >= 7)
+    {
+        _referee->send_ui_interaction(
+            static_cast<uint16_t>(interaction_sub_cmd::UI_CMD_DRAW_7),
+            &_buffer[0]);
+        _buffer.erase(_buffer.begin(), _buffer.begin() + 7);
+    }
+}
+
 ui_drv_t &ui_drv_t::draw_line(const char name[3], ui_operate op, uint8_t layer,
                               ui_color color, uint16_t width, uint16_t start_x,
                               uint16_t start_y, uint16_t end_x, uint16_t end_y)
@@ -59,6 +70,7 @@ ui_drv_t &ui_drv_t::draw_line(const char name[3], ui_operate op, uint8_t layer,
     fig.details_d = end_x;
     fig.details_e = end_y;
     _buffer.push_back(fig);
+    check_and_try_send();
     return *this;
 }
 
@@ -71,6 +83,7 @@ ui_drv_t &ui_drv_t::draw_rect(const char name[3], ui_operate op, uint8_t layer,
     fig.details_d = end_x;
     fig.details_e = end_y;
     _buffer.push_back(fig);
+    check_and_try_send();
     return *this;
 }
 
@@ -83,6 +96,7 @@ ui_drv_t &ui_drv_t::draw_circle(const char name[3], ui_operate op,
                                   width, center_x, center_y);
     fig.details_c = radius;
     _buffer.push_back(fig);
+    check_and_try_send();
     return *this;
 }
 
@@ -96,6 +110,7 @@ ui_drv_t &ui_drv_t::draw_ellipse(const char name[3], ui_operate op,
     fig.details_c = rx;
     fig.details_d = ry;
     _buffer.push_back(fig);
+    check_and_try_send();
     return *this;
 }
 
@@ -111,6 +126,7 @@ ui_drv_t &ui_drv_t::draw_arc(const char name[3], ui_operate op, uint8_t layer,
     fig.details_c = rx;
     fig.details_d = ry;
     _buffer.push_back(fig);
+    check_and_try_send();
     return *this;
 }
 
@@ -123,18 +139,15 @@ ui_drv_t &ui_drv_t::draw_float(const char name[3], ui_operate op, uint8_t layer,
                                        width, start_x, start_y);
     fig.details_a = font_size;
 
-    // 1. 将浮点数 * 1000 并四舍五入转为 32 位有符号整型
     int32_t i_val = static_cast<int32_t>(std::round(value * 1000.0f));
-
-    // 2. 将内存强制转为无符号整型，安全处理负数的补码形式
     auto u_val    = *reinterpret_cast<uint32_t *>(&i_val);
 
-    // 3. 拆分至 details_c(10 bit), details_d(11 bit), details_e(11 bit)
     fig.details_c = (u_val & 0x3FF);
     fig.details_d = ((u_val >> 10) & 0x7FF);
     fig.details_e = ((u_val >> 21) & 0x7FF);
 
     _buffer.push_back(fig);
+    check_and_try_send();
     return *this;
 }
 
@@ -152,6 +165,7 @@ ui_drv_t &ui_drv_t::draw_int(const char name[3], ui_operate op, uint8_t layer,
     fig.details_e = ((u_val >> 21) & 0x7FF);
 
     _buffer.push_back(fig);
+    check_and_try_send();
     return *this;
 }
 
@@ -165,7 +179,7 @@ bool ui_drv_t::draw_string(const char name[3], ui_operate op, uint8_t layer,
                                         color, width, start_x, start_y);
     str_pkt.figure.details_a = font_size;
 
-    size_t len               = text.length();
+    size_t len = text.length();
     if (len > 30)
         len = 30;
     str_pkt.figure.details_b = len;
@@ -185,11 +199,12 @@ bool ui_drv_t::flush()
     bool success = true;
     size_t i     = 0;
 
+    // 清理最后的残余图形包 (数量必定小于 7)
     while (i < _buffer.size())
     {
         size_t remain = _buffer.size() - i;
 
-        if (remain >= 7)
+        if (remain >= 7) // 正常情况下由于 check_and_try_send，此处不会触发 7 包
         {
             success &= _referee->send_ui_interaction(
                 static_cast<uint16_t>(interaction_sub_cmd::UI_CMD_DRAW_7),

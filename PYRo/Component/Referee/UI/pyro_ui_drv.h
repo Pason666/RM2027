@@ -16,7 +16,6 @@
 namespace pyro
 {
 
-// 强类型枚举，增加 ui_ 前缀避免在 pyro 命名空间中产生冲突
 enum class ui_operate : uint32_t
 {
     NULL_OP = 0,
@@ -49,7 +48,6 @@ enum class ui_color : uint32_t
 };
 
 #pragma pack(push, 1)
-// UI 图形基础结构体，严格匹配 15 字节
 struct ui_figure_data_t
 {
     uint8_t figure_name[3];
@@ -67,7 +65,6 @@ struct ui_figure_data_t
     uint32_t details_e    : 11;
 };
 
-// UI 字符串专用结构体，严格匹配 45 字节
 struct ui_string_data_t
 {
     ui_figure_data_t figure;
@@ -75,65 +72,48 @@ struct ui_string_data_t
 };
 #pragma pack(pop)
 
-/**
- * @brief 自动打包与发送的 UI 驱动器
- */
 class ui_drv_t
 {
   public:
     explicit ui_drv_t(referee_drv_t *referee);
 
-    // ================== 清理操作 ==================
     bool clear_layer(uint8_t layer) const;
     bool clear_all() const;
 
-    // ================== 图形绘制接口 ==================
-    // 直线
     ui_drv_t &draw_line(const char name[3], ui_operate op, uint8_t layer,
                         ui_color color, uint16_t width, uint16_t start_x,
                         uint16_t start_y, uint16_t end_x, uint16_t end_y);
 
-    // 矩形
     ui_drv_t &draw_rect(const char name[3], ui_operate op, uint8_t layer,
                         ui_color color, uint16_t width, uint16_t start_x,
                         uint16_t start_y, uint16_t end_x, uint16_t end_y);
 
-    // 正圆
     ui_drv_t &draw_circle(const char name[3], ui_operate op, uint8_t layer,
                           ui_color color, uint16_t width, uint16_t center_x,
                           uint16_t center_y, uint16_t radius);
 
-    // 椭圆
     ui_drv_t &draw_ellipse(const char name[3], ui_operate op, uint8_t layer,
                            ui_color color, uint16_t width, uint16_t center_x,
                            uint16_t center_y, uint16_t rx, uint16_t ry);
 
-    // 圆弧
     ui_drv_t &draw_arc(const char name[3], ui_operate op, uint8_t layer,
                        ui_color color, uint16_t width, uint16_t center_x,
                        uint16_t center_y, uint16_t start_angle,
                        uint16_t end_angle, uint16_t rx, uint16_t ry);
 
-    // 浮点数 (内部自动 x1000)
     ui_drv_t &draw_float(const char name[3], ui_operate op, uint8_t layer,
                          ui_color color, uint16_t font_size, uint16_t width,
                          uint16_t start_x, uint16_t start_y, float value);
 
-    // 整型数
     ui_drv_t &draw_int(const char name[3], ui_operate op, uint8_t layer,
                        ui_color color, uint16_t font_size, uint16_t width,
                        uint16_t start_x, uint16_t start_y, int32_t value);
 
-    // 字符串 (因为协议特殊，调用此函数将立即发送，不进入缓存池)
     bool draw_string(const char name[3], ui_operate op, uint8_t layer,
                      ui_color color, uint16_t font_size, uint16_t width,
                      uint16_t start_x, uint16_t start_y,
                      const std::string &text) const;
 
-    // ================== 核心操作 ==================
-    /**
-     * @brief 刷新缓存区，自动将缓存中的图形组合成 7, 5, 2, 1 个打包发送
-     */
     bool flush();
 
   private:
@@ -142,6 +122,7 @@ class ui_drv_t
                                                uint8_t layer, ui_color color,
                                                uint16_t width, uint16_t start_x,
                                                uint16_t start_y);
+    void check_and_try_send();
 
     referee_drv_t *_referee;
     std::vector<ui_figure_data_t> _buffer;
@@ -150,5 +131,4 @@ class ui_drv_t
 } // namespace pyro
 
 #endif
-
 #endif // PYRO_UI_H

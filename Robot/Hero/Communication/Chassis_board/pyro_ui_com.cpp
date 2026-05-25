@@ -306,22 +306,22 @@ void ui_com::draw_static()
             ui_color::ALLY, cfg_relative_pos::cannon_width - 5,
             cfg_relative_pos::x + cfg_relative_pos::chassis_scale / 2 +
                 static_cast<uint16_t>(cfg_relative_pos::cannon_offset_r *
-                                      arm_cos_f32(_ctx.yaw_rad + M_PI_2)),
+                                      arm_cos_f32(_ctx.yaw_rad + PI/2)),
             cfg_relative_pos::y +
                 static_cast<uint16_t>(cfg_relative_pos::chassis_scale / 2 *
                                       sqrt_2) +
                 static_cast<uint16_t>(cfg_relative_pos::cannon_offset_r *
-                                      sin(_ctx.yaw_rad + M_PI_2)),
+                                      sin(_ctx.yaw_rad + PI/2)),
             cfg_relative_pos::x + cfg_relative_pos::chassis_scale / 2 +
                 static_cast<uint16_t>((cfg_relative_pos::cannon_offset_r +
                                        cfg_relative_pos::cannon_length - 5) *
-                                      cos(_ctx.yaw_rad + M_PI_2)),
+                                      cos(_ctx.yaw_rad + PI/2)),
             cfg_relative_pos::y +
                 static_cast<uint16_t>(cfg_relative_pos::chassis_scale / 2 *
                                       sqrt_2) +
                 static_cast<uint16_t>((cfg_relative_pos::cannon_offset_r +
                                        cfg_relative_pos::cannon_length - 5) *
-                                      sin(_ctx.yaw_rad + M_PI_2)));
+                                      sin(_ctx.yaw_rad + PI/2)));
 
     // 9. 绘制前哨站/基地瞄准参考线
     _drv->draw_line("OP1", ui_operate::ADD, cfg_outpost::layer, ui_color::GREEN,
@@ -571,7 +571,7 @@ void ui_com::draw_relative_pos()
         }
     }
 
-    float angle = _ctx.yaw_rad + M_PI_2;
+    float angle = _ctx.yaw_rad + PI/2;
     uint16_t center_x =
         cfg_relative_pos::x + cfg_relative_pos::chassis_scale / 2;
     uint16_t center_y =

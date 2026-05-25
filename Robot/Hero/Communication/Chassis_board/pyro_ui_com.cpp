@@ -94,15 +94,15 @@ struct cfg_cap
 struct cfg_outpost
 {
     static constexpr uint16_t start_x = 900, end_x = 1020;
-    static constexpr uint16_t start_y = 800, end_y = 800;
+    static constexpr uint16_t start_y = 580, end_y = 580;
     static constexpr uint8_t width = 3;
     static constexpr uint8_t layer = 2;
 };
 
-struct cfg_base1
+struct cfg_base
 {
     static constexpr uint16_t start_x = 900, end_x = 1020;
-    static constexpr uint16_t start_y = 600, end_y = 600;
+    static constexpr uint16_t start_y = 668, end_y = 668;
     static constexpr uint8_t width = 3;
     static constexpr uint8_t layer = 2;
 };
@@ -331,12 +331,12 @@ void ui_com::draw_static()
         .draw_float("OF1", ui_operate::ADD, cfg_outpost::layer, ui_color::GREEN,
                     20, cfg_outpost::width, cfg_outpost::start_x + 150,
                     cfg_outpost::start_y, 6.5f)
-        .draw_line("BA1", ui_operate::ADD, cfg_base1::layer, ui_color::GREEN,
-                   cfg_base1::width, cfg_base1::start_x, cfg_base1::start_y,
-                   cfg_base1::end_x, cfg_base1::end_y)
-        .draw_float("BF1", ui_operate::ADD, cfg_base1::layer, ui_color::GREEN,
-                    20, cfg_base1::width, cfg_base1::start_x + 150,
-                    cfg_base1::start_y, 0.5f);
+        .draw_line("BA1", ui_operate::ADD, cfg_base::layer, ui_color::GREEN,
+                   cfg_base::width, cfg_base::start_x, cfg_base::start_y,
+                   cfg_base::end_x, cfg_base::end_y)
+        .draw_float("BF1", ui_operate::ADD, cfg_base::layer, ui_color::GREEN,
+                    20, cfg_base::width, cfg_base::start_x + 150,
+                    cfg_base::start_y, 9.2f);
 
     _drv->flush();
 }

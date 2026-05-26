@@ -1,0 +1,6 @@
+E:/Develop/a_PYRo/PYRo-Hero/PYRo/Component/CRC/PYRo_crc.cpp:45:17:uint16_t get_crc16_check_sum(const uint8_t*, uint16_t, uint16_t)	24	static
+E:/Develop/a_PYRo/PYRo-Hero/PYRo/Component/CRC/PYRo_crc.cpp:67:9:uint8_t verify_crc16_check_sum(const uint8_t*, uint16_t)	24	static
+E:/Develop/a_PYRo/PYRo-Hero/PYRo/Component/CRC/PYRo_crc.cpp:84:6:void append_crc16_check_sum(uint8_t*, uint16_t)	24	static
+E:/Develop/a_PYRo/PYRo-Hero/PYRo/Component/CRC/PYRo_crc.cpp:132:16:uint8_t get_crc8_check_sum(const uint8_t*, uint16_t, uint8_t)	24	static
+E:/Develop/a_PYRo/PYRo-Hero/PYRo/Component/CRC/PYRo_crc.cpp:149:9:uint8_t verify_crc8_check_sum(const uint8_t*, uint16_t)	24	static
+E:/Develop/a_PYRo/PYRo-Hero/PYRo/Component/CRC/PYRo_crc.cpp:165:6:void append_crc8_check_sum(uint8_t*, uint16_t)	24	static

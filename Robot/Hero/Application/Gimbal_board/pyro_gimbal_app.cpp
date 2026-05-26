@@ -13,6 +13,7 @@ using namespace pyro;
 
 // 定义任务通知的位掩码 (Event Bits)
 
+constexpr uint32_t EVENT_BIT_TRACK_TOGGLE             = (1 << 0);
 constexpr uint32_t EVENT_BIT_LEG_TOGGLE               = (1 << 1);
 constexpr uint32_t EVENT_BIT_SLING_TOGGLE             = (1 << 2);
 constexpr uint32_t EVENT_BIT_SLING_PITCH_PREAIM       = (1 << 3);
@@ -25,6 +26,7 @@ static pyro::board_drv_t *board_drv_ptr               = nullptr;
 
 // 追踪当前是否处于吊射模式
 static bool is_sling_mode                             = false;
+static bool is_track_mode                             = false;
 
 static void gimbal_dr162cmd();
 static void gimbal_vt032cmd();
@@ -46,16 +48,25 @@ extern "C"
             {
                 is_sling_mode = !is_sling_mode;
             }
+            if (notify_val & EVENT_BIT_TRACK_TOGGLE)
+            {
+                is_track_mode = !is_track_mode;
+            }
             if ((notify_val & EVENT_BIT_SLING_PITCH_PREAIM) && is_sling_mode)
             {
                 screw_gimbal_cmd_ptr->sling_pitch_flag =
                     !screw_gimbal_cmd_ptr->sling_pitch_flag;
+            }
+            if (is_sling_mode)
+            {
+                is_track_mode = false;
             }
             // is_sling_mode = true;
 
 
             // 同步给底层 HFSM 状态机
             screw_gimbal_cmd_ptr->sling_mode = is_sling_mode;
+            screw_gimbal_cmd_ptr->track_en   = is_track_mode;
 
             bool current_gimbal_output = false;
             if (board_drv_ptr->check_online())
@@ -131,6 +142,12 @@ extern "C"
         pyro::btn_broker::subscribe(&vrc.keys.x, pyro::btn_event_t::PRESS_DOWN,
                                     gimbal_task_handle,
                                     EVENT_BIT_SLING_PITCH_PREAIM);
+        pyro::btn_broker::subscribe(&vrc.keys.g, pyro::btn_event_t::PRESS_DOWN,
+                                    gimbal_task_handle,
+                                    EVENT_BIT_TRACK_TOGGLE);
+        pyro::btn_broker::subscribe(
+            &vrc.buttons.pause, pyro::btn_event_t::PRESS_DOWN,
+            gimbal_task_handle, EVENT_BIT_TRACK_TOGGLE);
 
         vTaskDelete(nullptr);
     }
@@ -140,6 +157,9 @@ void gimbal_dr162cmd()
 {
     pyro::read_scope_lock lock(pyro::rc_drv_t::get_lock());
     auto &vrc = pyro::rc_drv_t::read();
+
+    is_track_mode                       = false;
+    screw_gimbal_cmd_ptr->track_en      = false;
 
     if (pyro::sw_pos_t::MID != vrc.switches.right.current_pos)
     {
@@ -161,10 +181,12 @@ void gimbal_vt032cmd()
 
     if (pyro::sw_pos_t::UP == vrc.switches.gear.current_pos)
     {
+        is_track_mode = false;
         screw_gimbal_cmd_ptr->mode = pyro::cmd_base_t::mode_t::PASSIVE;
         screw_gimbal_cmd_ptr->pitch_delta_angle = 0;
         screw_gimbal_cmd_ptr->yaw_delta_angle   = 0;
         screw_gimbal_cmd_ptr->autoaim_mode      = false;
+        screw_gimbal_cmd_ptr->track_en          = false;
         return;
     }
 
@@ -250,7 +272,7 @@ void deps_init()
     //     new pid_t(22.0f, 0.102f, 0.014f, 1.0f, 20.0f, 20, 10,
     //               4); // 输出限制匹配电机 Nm 级
     screw_gimbal_deps->pid_deps.pitch_pos =
-        new pid_t(11.5f, 0.108f, 0.2f, 0.5f, 10.0f, 40, 1, 10, 1,
+        new pid_t(11.5f, 0.108f, 0.2f, 0.5f, 6.0f, 40, 1, 10, 1,
                   4); // 位置环输出为 rad/s，限制在电机可接受范围内
     screw_gimbal_deps->pid_deps.pitch_spd =
         new pid_t(11000.0f, 15.0f, 7.0f, 500.0f, 10000.0f, 20, 1, 10, 1,

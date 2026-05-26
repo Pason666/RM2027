@@ -12,6 +12,17 @@
 namespace pyro
 {
 
+namespace
+{
+constexpr uint16_t CAP_EXTRA_POWER_ENABLE_CV = 1900;
+constexpr uint16_t CAP_EXTRA_POWER_DISABLE_CV = 1750;
+constexpr float CAP_EXTRA_POWER_W = 100.0f;
+
+constexpr uint32_t SUPERCAP_ENABLE_DELAY_TICKS = 1000;
+constexpr uint32_t SUPERCAP_REFRESH_TICKS = 10;
+constexpr uint32_t SUPERCAP_DISABLE_DEBOUNCE_TICKS = 30;
+} // namespace
+
 // =========================================================
 // 构造与初始化
 // =========================================================
@@ -266,7 +277,6 @@ void hybrid_chassis_t::_update_feedback()
     _ctx.supercap_cmd.power_buffer_limit_referee = 60.0f;
     _ctx.supercap_cmd.power_buffer_referee =
         referee_drv_t::get_instance()->get_data().power_heat.buffer_energy;
-    _ctx.supercap_cmd.use_cap           = 1;
     _ctx.supercap_cmd.kill_chassis_user = 0;
     _ctx.supercap_cmd.speed_up_user_now = 0;
 
@@ -416,9 +426,10 @@ void hybrid_chassis_t::_kinematics_solve()
 void hybrid_chassis_t::_supercap_control()
 {
     // NOLINTBEGIN
-    static bool _last_status = false;
-    static uint32_t _timer   = 0;
-    static bool _delay_done  = false;
+    static bool cap_enabled = false;
+    static uint32_t enable_timer = 0;
+    static uint32_t refresh_timer = 0;
+    static uint32_t disable_timer = 0;
 
     bool current_status      = referee_drv_t::get_instance()
                               ->get_data()
@@ -426,58 +437,50 @@ void hybrid_chassis_t::_supercap_control()
 
     if (current_status)
     {
-        // --- 情况 A：Chassis 有输出 ---
-        if (!_last_status)
-        {
-            // 刚切到有输出状态：重置计时器和延迟标志
-            _timer      = 0;
-            _delay_done = false;
-        }
+        disable_timer = 0;
 
-        if (!_delay_done)
+        if (!cap_enabled)
         {
-            // 1. 处理 1000 tick 的初始延迟
-            if (++_timer >= 1000)
+            refresh_timer = 0;
+            if (++enable_timer >= SUPERCAP_ENABLE_DELAY_TICKS)
             {
-                _delay_done               = true;
-                _timer                    = 0; // 重置用于后续的 10 tick 周期
-                // 达到 1000 tick 时立即发送第一次开启指令
+                enable_timer             = 0;
+                cap_enabled              = true;
                 _ctx.supercap_cmd.use_cap = 1;
                 supercap_drv_t::get_instance()->send_cmd(_ctx.supercap_cmd);
             }
         }
-        else
+        else if (++refresh_timer >= SUPERCAP_REFRESH_TICKS)
         {
-            // 2. 延迟结束后，以 10 tick 为周期发送
-            if (++_timer >= 10)
-            {
-                _timer                    = 0;
-                _ctx.supercap_cmd.use_cap = 1;
-                _ctx.supercap_cmd.power_buffer_referee =
+            refresh_timer           = 0;
+            _ctx.supercap_cmd.use_cap = 1;
+            _ctx.supercap_cmd.power_buffer_referee =
                 referee_drv_t::get_instance()
                     ->get_data()
                     .power_heat.buffer_energy;
-                supercap_drv_t::get_instance()->send_cmd(
-                    _ctx.supercap_cmd); // NOLINT
-            }
+            supercap_drv_t::get_instance()->send_cmd(
+                _ctx.supercap_cmd); // NOLINT
         }
     }
     else
     {
-        // --- 情况 B：Chassis 无输出 ---
-        if (_last_status)
+        enable_timer  = 0;
+        refresh_timer = 0;
+
+        if (cap_enabled &&
+            ++disable_timer >= SUPERCAP_DISABLE_DEBOUNCE_TICKS)
         {
-            // 刚切换到无输出状态：发送一次 use_cap = 0
+            disable_timer            = 0;
+            cap_enabled              = false;
             _ctx.supercap_cmd.use_cap = 0;
             supercap_drv_t::get_instance()->send_cmd(
                 _ctx.supercap_cmd); // NOLINT
-            // 重置状态位，防止重复发送
-            _delay_done = false;
-            _timer      = 0;
+        }
+        else if (!cap_enabled)
+        {
+            disable_timer = 0;
         }
     }
-    // 更新旧状态
-    _last_status = current_status;
     // NOLINTEND
 }
 
@@ -511,24 +514,25 @@ void hybrid_chassis_t::_power_control()
 
     // 2. 调用核心求解器进行动态功率限制
 
-    if (_ctx.cap_feedback.vot_cap >= 1800)
+    static bool cap_extra_power_enabled = false;
+    if (_ctx.cap_feedback.vot_cap >= CAP_EXTRA_POWER_ENABLE_CV)
     {
-        power_controller_t::get_instance().solve(
-            referee_drv_t::get_instance()
-                ->get_data()
-                .robot_status.chassis_power_limit,
-            referee_drv_t::get_instance()->get_data().power_heat.buffer_energy,
-            80);
+        cap_extra_power_enabled = true;
     }
-    else
+    else if (_ctx.cap_feedback.vot_cap <= CAP_EXTRA_POWER_DISABLE_CV)
     {
-        power_controller_t::get_instance().solve(
-            referee_drv_t::get_instance()
-                ->get_data()
-                .robot_status.chassis_power_limit,
-            referee_drv_t::get_instance()->get_data().power_heat.buffer_energy,
-            0);
+        cap_extra_power_enabled = false;
     }
+
+    const float cap_extra_power =
+        cap_extra_power_enabled ? CAP_EXTRA_POWER_W : 0.0f;
+
+    power_controller_t::get_instance().solve(
+        referee_drv_t::get_instance()
+            ->get_data()
+            .robot_status.chassis_power_limit,
+        referee_drv_t::get_instance()->get_data().power_heat.buffer_energy,
+        cap_extra_power);
 
     // 3. 将解算后的安全指令写回到底盘数据上下文中，等待发送
     for (int i = 0; i < 4; i++)

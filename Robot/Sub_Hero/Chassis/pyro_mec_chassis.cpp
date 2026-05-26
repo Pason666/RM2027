@@ -11,6 +11,17 @@
 namespace pyro
 {
 
+namespace
+{
+constexpr uint16_t CAP_EXTRA_POWER_ENABLE_CV = 1900;
+constexpr uint16_t CAP_EXTRA_POWER_DISABLE_CV = 1750;
+constexpr float CAP_EXTRA_POWER_W = 80.0f;
+
+constexpr uint32_t SUPERCAP_ENABLE_DELAY_TICKS = 1000;
+constexpr uint32_t SUPERCAP_REFRESH_TICKS = 10;
+constexpr uint32_t SUPERCAP_DISABLE_DEBOUNCE_TICKS = 30;
+} // namespace
+
 mec_chassis_t::mec_chassis_t() : module_base_t("mec_chassis")
 {
     _ctx = {};
@@ -106,7 +117,6 @@ void mec_chassis_t::_update_feedback()
     _ctx.supercap_cmd.power_buffer_limit_referee = 60.0f;
     _ctx.supercap_cmd.power_buffer_referee =
         ref_data.power_heat.buffer_energy;
-    _ctx.supercap_cmd.use_cap           = 1;
     _ctx.supercap_cmd.kill_chassis_user = 0;
     _ctx.supercap_cmd.speed_up_user_now = 0;
 
@@ -208,8 +218,18 @@ void mec_chassis_t::_power_control()
 
     auto *referee = referee_drv_t::get_instance();
     const auto &ref_data = referee->get_data();
+    static bool cap_extra_power_enabled = false;
+    if (_ctx.cap_feedback.vot_cap >= CAP_EXTRA_POWER_ENABLE_CV)
+    {
+        cap_extra_power_enabled = true;
+    }
+    else if (_ctx.cap_feedback.vot_cap <= CAP_EXTRA_POWER_DISABLE_CV)
+    {
+        cap_extra_power_enabled = false;
+    }
+
     const float cap_extra_power =
-        (_ctx.cap_feedback.vot_cap >= 1800) ? 80.0f : 0.0f;
+        cap_extra_power_enabled ? CAP_EXTRA_POWER_W : 0.0f;
 
     power_controller_t::get_instance().solve(
         ref_data.robot_status.chassis_power_limit,
@@ -227,9 +247,10 @@ void mec_chassis_t::_power_control()
 
 void mec_chassis_t::_supercap_control()
 {
-    static bool last_status = false;
-    static uint32_t timer   = 0;
-    static bool delay_done  = false;
+    static bool cap_enabled = false;
+    static uint32_t enable_timer = 0;
+    static uint32_t refresh_timer = 0;
+    static uint32_t disable_timer = 0;
 
     const bool current_status =
         referee_drv_t::get_instance()
@@ -238,38 +259,44 @@ void mec_chassis_t::_supercap_control()
 
     if (current_status)
     {
-        if (!last_status)
-        {
-            timer      = 0;
-            delay_done = false;
-        }
+        disable_timer = 0;
 
-        if (!delay_done)
+        if (!cap_enabled)
         {
-            if (++timer >= 1000)
+            refresh_timer = 0;
+            if (++enable_timer >= SUPERCAP_ENABLE_DELAY_TICKS)
             {
-                delay_done            = true;
-                timer                 = 0;
+                enable_timer             = 0;
+                cap_enabled              = true;
                 _ctx.supercap_cmd.use_cap = 1;
                 supercap_drv_t::get_instance()->send_cmd(_ctx.supercap_cmd);
             }
         }
-        else if (++timer >= 10)
+        else if (++refresh_timer >= SUPERCAP_REFRESH_TICKS)
         {
-            timer                 = 0;
+            refresh_timer           = 0;
             _ctx.supercap_cmd.use_cap = 1;
             supercap_drv_t::get_instance()->send_cmd(_ctx.supercap_cmd);
         }
     }
-    else if (last_status)
+    else
     {
-        _ctx.supercap_cmd.use_cap = 0;
-        supercap_drv_t::get_instance()->send_cmd(_ctx.supercap_cmd);
-        delay_done = false;
-        timer      = 0;
-    }
+        enable_timer  = 0;
+        refresh_timer = 0;
 
-    last_status = current_status;
+        if (cap_enabled &&
+            ++disable_timer >= SUPERCAP_DISABLE_DEBOUNCE_TICKS)
+        {
+            disable_timer            = 0;
+            cap_enabled              = false;
+            _ctx.supercap_cmd.use_cap = 0;
+            supercap_drv_t::get_instance()->send_cmd(_ctx.supercap_cmd);
+        }
+        else if (!cap_enabled)
+        {
+            disable_timer = 0;
+        }
+    }
 }
 
 void mec_chassis_t::_send_motor_command() const

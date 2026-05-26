@@ -25,7 +25,14 @@ void screw_gimbal_t::fsm_active_t::normal_state_t::enter(owner *owner)
 
 void screw_gimbal_t::fsm_active_t::normal_state_t::execute(owner *owner)
 {
-    owner->_ctx.data.target_pitch_rad += owner->_ctx.cmd->pitch_delta_angle;
+    if (owner->_ctx.cmd->track_en)
+    {
+        owner->_ctx.data.target_pitch_rad = GIMBAL_CROSSING_PITCH_RAD;
+    }
+    else
+    {
+        owner->_ctx.data.target_pitch_rad += owner->_ctx.cmd->pitch_delta_angle;
+    }
     owner->_ctx.data.target_yaw_rad += owner->_ctx.cmd->yaw_delta_angle;
 
     // ==========================================

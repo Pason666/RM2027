@@ -23,13 +23,14 @@ struct screw_gimbal_cmd_t final : public cmd_base_t
     bool sling_mode;
     bool sling_pitch_flag;
     bool autoaim_mode;
+    bool track_en;
     float target_pitch;
     float target_yaw;
 
     screw_gimbal_cmd_t()
         : pitch_delta_angle(0.0f), yaw_delta_angle(0.0f),
           trigger_calibration(false), sling_mode(false),
-          sling_pitch_flag(false), autoaim_mode(false),
+          sling_pitch_flag(false), autoaim_mode(false), track_en(false),
           target_pitch(0.0f), target_yaw(0.0f)
     {
     }

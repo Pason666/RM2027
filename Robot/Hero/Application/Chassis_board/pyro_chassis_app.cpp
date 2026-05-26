@@ -81,8 +81,8 @@ void chassis_rxcmd()
     }
 
     const auto &rx_data  = board_drv_ptr->get_g2c_rx_data();
-    hybrid_cmd_ptr->vx   = 2.0f * static_cast<float>(rx_data.vx) / 127.0f;
-    hybrid_cmd_ptr->vy   = 1.0f * static_cast<float>(rx_data.vy) / 127.0f;
+    hybrid_cmd_ptr->vx   = 4.0f * static_cast<float>(rx_data.vx) / 127.0f;
+    hybrid_cmd_ptr->vy   = 2.0f * static_cast<float>(rx_data.vy) / 127.0f;
     hybrid_cmd_ptr->wz   = 2.0f * static_cast<float>(rx_data.wz) / 127.0f;
     hybrid_cmd_ptr->mode = rx_data.active ? pyro::cmd_base_t::mode_t::ACTIVE
                                           : pyro::cmd_base_t::mode_t::PASSIVE;

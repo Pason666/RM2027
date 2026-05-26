@@ -1,0 +1,12 @@
+{
+	"InstallScripts" : 
+	[
+		"E:/Develop/a_PYRo/PYRo-Hero/cmake-build-debug-subhero/cmake_install.cmake",
+		"E:/Develop/a_PYRo/PYRo-Hero/cmake-build-debug-subhero/build_cmsis_dsp/cmake_install.cmake",
+		"E:/Develop/a_PYRo/PYRo-Hero/cmake-build-debug-subhero/build_cmsis_dsp/Source/cmake_install.cmake",
+		"E:/Develop/a_PYRo/PYRo-Hero/cmake-build-debug-subhero/CubeMX/cmake/stm32cubemx/cmake_install.cmake",
+		"E:/Develop/a_PYRo/PYRo-Hero/cmake-build-debug-subhero/PYRo/cmake_install.cmake",
+		"E:/Develop/a_PYRo/PYRo-Hero/cmake-build-debug-subhero/robot/sub_hero/cmake_install.cmake"
+	],
+	"Parallel" : false
+}

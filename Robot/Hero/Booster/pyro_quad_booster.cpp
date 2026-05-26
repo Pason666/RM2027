@@ -190,6 +190,19 @@ void quad_booster_t::_speed_control()
     last_launching_num = shoot_event.launching_num;
 
 
+    for (int i = 7; i > 0; --i)
+    {
+        shoot_data.real_ball_speed[i] = shoot_data.real_ball_speed[i - 1];
+    }
+    shoot_data.real_ball_speed[0] = shoot_event.shoot_speed;
+
+    constexpr float real_speed_weight = 1.0f / 8.0f;
+    shoot_data.avg_real_ball_speed = 0.0f;
+    for (float speed : shoot_data.real_ball_speed)
+    {
+        shoot_data.avg_real_ball_speed += real_speed_weight * speed;
+    }
+
     shoot_data.ball_speed[2] = shoot_data.ball_speed[1];
     shoot_data.ball_speed[1] = shoot_data.ball_speed[0];
     shoot_data.ball_speed[0] = shoot_event.shoot_speed;
@@ -203,7 +216,26 @@ void quad_booster_t::_speed_control()
     for (float &i : shoot_data.ball_speed)
     {
         if (i == 0.0f)
-            i = shoot_data.ball_speed[2];
+            i = shoot_data.ball_speed[0];
+    }
+
+    for (float &i : shoot_data.real_ball_speed)
+    {
+        if (i == 0.0f)
+            i = shoot_data.real_ball_speed[0];
+    }
+
+    constexpr float outlier_threshold = 0.1f;
+    const bool real_speed_stable =
+        std::abs(shoot_data.avg_real_ball_speed - shoot_data.target_speed) <
+        outlier_threshold;
+
+    if (real_speed_stable &&
+        std::abs(shoot_data.ball_speed[0] - shoot_data.target_speed) >
+            outlier_threshold)
+    {
+        shoot_data.ball_speed[0] =
+            0.7f * shoot_data.ball_speed[1] + 0.3f * shoot_data.ball_speed[2];
     }
 
     constexpr float w0 = 0.72f;
@@ -264,6 +296,13 @@ bool quad_booster_t::_use_deploy_data() const
 {
     return _ctx.data.deploy_mode ||
            (_ctx.cmd != nullptr && _ctx.cmd->force_deploy);
+}
+
+void quad_booster_t::_reset_active_shoot_data()
+{
+    auto &shoot_data =
+        _use_deploy_data() ? _ctx.shoot_deploy_data : _ctx.shoot_normal_data;
+    shoot_data.reset();
 }
 
 void quad_booster_t::_fric_control()

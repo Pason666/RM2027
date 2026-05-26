@@ -26,6 +26,7 @@ constexpr uint32_t EVENT_BIT_FORCE_DEPLOY_TOGGLE = (1 << 2);
 constexpr uint32_t EVENT_BIT_FRIC_ON             = (1 << 3);
 constexpr uint32_t EVENT_BIT_FRIC_OFF            = (1 << 4);
 constexpr uint32_t EVENT_BIT_TRIGGER_RESET       = (1 << 5);
+constexpr uint32_t EVENT_BIT_SHOOT_DATA_RESET    = (1 << 6);
 
 static TaskHandle_t booster_task_handle   = nullptr;
 static pyro::quad_booster_t *quad_booster_ptr         = nullptr;
@@ -107,6 +108,10 @@ extern "C"
         if (notify_val & EVENT_BIT_TRIGGER_RESET)
         {
             quad_booster_cmd_ptr->reset_count++;
+        }
+        if (notify_val & EVENT_BIT_SHOOT_DATA_RESET)
+        {
+            quad_booster_cmd_ptr->shoot_data_reset_count++;
         }
 
         if (pyro::sw_pos_t::DOWN == vrc.switches.gear.current_pos)
@@ -224,6 +229,10 @@ extern "C"
         pyro::btn_broker::subscribe(&vrc.keys.f, pyro::btn_event_t::PRESS_DOWN,
                                     booster_task_handle,
                                     EVENT_BIT_FORCE_DEPLOY_TOGGLE);
+        pyro::btn_broker::subscribe(&vrc.keys.f,
+                                    pyro::btn_event_t::LONG_PRESS_START,
+                                    booster_task_handle,
+                                    EVENT_BIT_SHOOT_DATA_RESET);
         pyro::btn_broker::subscribe(&vrc.keys.b, pyro::btn_event_t::PRESS_DOWN,
                                     booster_task_handle,
                                     EVENT_BIT_TRIGGER_RESET);

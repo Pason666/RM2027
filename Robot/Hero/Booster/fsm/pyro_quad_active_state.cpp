@@ -15,6 +15,8 @@ void quad_booster_t::fsm_active_t::on_enter(owner *owner)
     owner->_ctx.motor.fric_wheels[2]->enable();
     owner->_ctx.motor.fric_wheels[3]->enable();
     owner->_ctx.data.internal_reset_count = owner->_ctx.cmd->reset_count;
+    owner->_ctx.data.internal_shoot_data_reset_count =
+        owner->_ctx.cmd->shoot_data_reset_count;
 
     change_state(&_homing_state);
 }
@@ -26,6 +28,14 @@ void quad_booster_t::fsm_active_t::on_execute(owner *owner)
         owner->_ctx.data.internal_reset_count = owner->_ctx.cmd->reset_count;
         change_state(&_homing_state);
         return;
+    }
+
+    if (owner->_ctx.cmd->shoot_data_reset_count !=
+        owner->_ctx.data.internal_shoot_data_reset_count)
+    {
+        owner->_ctx.data.internal_shoot_data_reset_count =
+            owner->_ctx.cmd->shoot_data_reset_count;
+        owner->_reset_active_shoot_data();
     }
 
     owner->_speed_control();

@@ -17,14 +17,15 @@ struct quad_booster_cmd_t final : public cmd_base_t
     bool fric_on; // 摩擦轮开启
     bool force_deploy;
     uint8_t reset_count;
+    uint8_t shoot_data_reset_count;
 
     uint8_t fire_count; // 拨弹计数器，替代 fire_enable
 
     float trig_target_spd; // 新增：拨弹盘目标速度
 
     quad_booster_cmd_t()
-        : fric_on(false), force_deploy(false), reset_count(0), fire_count(0),
-          trig_target_spd(0.0f)
+        : fric_on(false), force_deploy(false), reset_count(0),
+          shoot_data_reset_count(0), fire_count(0), trig_target_spd(0.0f)
     {
     }
 };
@@ -85,6 +86,7 @@ class quad_booster_t final
     void _send_fric_command() const;
     void _send_trigger_command() const;
     void _launch_delay_calculate();
+    void _reset_active_shoot_data();
     [[nodiscard]] bool _use_deploy_data() const;
 
     // 角度归一化辅助函数
@@ -114,6 +116,7 @@ class quad_booster_t final
 
         bool fric_err{};
         uint8_t internal_reset_count{0};
+        uint8_t internal_shoot_data_reset_count{0};
 
         float launch_delay_timer[3]{}; // 发射延时计时器
         float signal_timer{0};         // 信号持续时间计时器
@@ -146,8 +149,28 @@ class quad_booster_t final
         const float target_speed{};
         float fric1_mps{};
         float fric2_mps{};
+        const float initial_fric1_mps = fric1_mps;
+        const float initial_fric2_mps = fric2_mps;
         float ball_speed[3]{};
         float avg_ball_speed = target_speed;
+        float real_ball_speed[8]{};
+        float avg_real_ball_speed = target_speed;
+
+        void reset()
+        {
+            fric1_mps = initial_fric1_mps;
+            fric2_mps = initial_fric2_mps;
+            for (float &speed : ball_speed)
+            {
+                speed = 0.0f;
+            }
+            for (float &speed : real_ball_speed)
+            {
+                speed = 0.0f;
+            }
+            avg_ball_speed      = target_speed;
+            avg_real_ball_speed = target_speed;
+        }
     };
 
     struct booster_ctx_t
@@ -155,7 +178,7 @@ class quad_booster_t final
         quad_deps_t::motor_deps_t motor;
         quad_deps_t::pid_deps_t pid;
         data_ctx_t data;
-        shoot_data_t shoot_normal_data{11.8f, 11.7f, 7.7f};
+        shoot_data_t shoot_normal_data{11.8f, 10.8f, 7.9f};
         shoot_data_t shoot_deploy_data{16.3f, 15.0f, 7.9f};
         quad_booster_cmd_t *cmd{};
     };

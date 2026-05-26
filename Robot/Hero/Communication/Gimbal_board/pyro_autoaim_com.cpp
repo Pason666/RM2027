@@ -10,6 +10,9 @@
 #include "pyro_module_base.h"
 #include "pyro_screw_gimbal.h"
 #include "pyro_quad_booster.h"
+#include "pyro_rc_base_drv.h"
+#include "pyro_vt03_rc_drv.h"
+
 
 using namespace pyro;
 
@@ -100,6 +103,9 @@ static void update_and_send_feedback()
     // 1. 获取待发送数据的引用
     auto &tx_data = autoaim_drv_ptr->get_tx_data();
 
+    pyro::read_scope_lock lock(pyro::rc_drv_t::get_lock());
+    auto &vrc              = pyro::rc_drv_t::read();
+
     // 2. 获取当前的运行上下文
     auto gimbal_ctx = pyro::screw_gimbal_t::instance()->get_ctx();
     auto booster_ctx = pyro::quad_booster_t::instance()->get_ctx();
@@ -114,7 +120,21 @@ static void update_and_send_feedback()
     tx_data.fire_count = booster_ctx.data.fire_count;
 
     // 5. 填充标志位
-    tx_data.state       = 0; // 需接入裁判系统
+    if (vt03_drv_t::instance().check_online())
+    {
+        if (vrc.keys.v.state)
+        {
+            tx_data.state = 127;
+        }
+        else
+        {
+            tx_data.state       = 0; // 需接入裁判系统
+        }
+    }
+    else
+    {
+        tx_data.state       = 0; // 需接入裁判系统
+    }
     tx_data.enemy_color = 0; // 需接入裁判系统
     tx_data.autoaim = (gimbal_ctx.cmd && gimbal_ctx.cmd->autoaim_mode) ? 1 : 0;
 

@@ -79,7 +79,7 @@ struct cfg_text
     static constexpr uint16_t yaw_x = 1770, yaw_y = 440;
     static constexpr uint16_t pitch_x = 1770, pitch_y = 380;
     static constexpr uint16_t spd_x = 885, spd_y = 220;
-    static constexpr uint16_t pos_x = 200, pos_y = 800;
+    static constexpr uint16_t pos_x = 100, pos_y = 800;
     static constexpr uint16_t label_offset = 100;
     static constexpr uint8_t layer = 3, val_layer = 4;
 };

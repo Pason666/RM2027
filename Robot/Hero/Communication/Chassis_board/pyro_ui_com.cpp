@@ -234,17 +234,12 @@ static void info_update_test()
     ui_ctx.target_shoot_spd =
         static_cast<float>(board.get_g2c_rx_data().target_shoot_spd) / 10.0f;
     ui_ctx.super_cap_voltage =
-        static_cast<float>(chassis->get_ctx().cap_feedback.vot_cap);
+        static_cast<float>(chassis->get_ctx().cap_feedback.vot_cap) / 100.0f;
     ui_ctx.refresh_flag    = board.get_g2c_rx_data().ui_refresh;
     ui_ctx.track_en_flag   = board.get_g2c_rx_data().track_en;
     ui_ctx.trigger_located = board.get_g2c_rx_data().trigger_located;
     ui_ctx.position_x      = referee_ptr->get_data().robot_pos.x;
     ui_ctx.position_y      = referee_ptr->get_data().robot_pos.y;
-    static float x         = 0.0f;
-    x += 0.1f;
-
-    ui_ctx.position_x   = x;
-    ui_ctx.position_y   = sin(x);
     ui_ctx.distance     = sqrt(ui_ctx.position_x * ui_ctx.position_x +
                                ui_ctx.position_y * ui_ctx.position_y);
     ui_ctx.left_leg_rad = chassis->get_ctx().data.current_leg_rad[0] / 2 + 0.4f;

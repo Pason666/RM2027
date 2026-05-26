@@ -212,7 +212,7 @@ void gimbal_vt032cmd()
 
             // 步进系数设为 0.0025f，以保证手感相对平滑
             screw_gimbal_cmd_ptr->pitch_delta_angle = -wasd_pitch * 0.00002f;
-            screw_gimbal_cmd_ptr->yaw_delta_angle   = wasd_yaw * 0.00003835f;
+            screw_gimbal_cmd_ptr->yaw_delta_angle   = wasd_yaw * 0.000015f;
         }
         else
         {

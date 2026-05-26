@@ -34,7 +34,7 @@ void screw_gimbal_t::fsm_active_t::sling_state_t::execute(owner *owner)
         // 如果 Pitch 也需要被 WASD 控制，则在这里直接累加
         constexpr float target_z = 1.080f;
         constexpr float delta_z = target_z - 0.75f;
-        if (auto pitch = solveIdealPitch(20.7f, 0, delta_z, 16.2f))
+        if (auto pitch = solveIdealPitch(21.3f, 0, delta_z, 16.2f))
         {
             float imu_target_pitch = -*pitch;
             float err = owner->_ctx.data.current_pitch_motor_rad -

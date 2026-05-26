@@ -35,12 +35,13 @@ class board_drv_t
         int8_t vy;
         int8_t wz;
 
-        bool active       : 1;
-        bool ui_refresh   : 1;
-        bool fric_en      : 1;
-        bool fric_err     : 1;
-        bool sling_mode   : 1;
-        bool reserved_bit : 3;
+        bool active          : 1;
+        bool ui_refresh      : 1;
+        bool fric_en         : 1;
+        bool fric_err        : 1;
+        bool sling_mode      : 1;
+        bool trigger_located : 1;
+        bool reserved_bit    : 2;
 
         int16_t pitch_rad;
         uint8_t target_shoot_spd;

@@ -19,7 +19,7 @@ void quad_booster_t::fsm_active_t::state_homing_t::execute(owner *owner)
         request_switch(&owner->_state_active._interim_state);
         return;
     }
-    owner->_ctx.data.target_trig_radps = -TRIGGER_FEED_DIR * 6.0f;
+    owner->_ctx.data.target_trig_radps = -TRIGGER_FEED_DIR * 5.0f;
     owner->_trigger_speed_control();
     owner->_send_trigger_command();
 }

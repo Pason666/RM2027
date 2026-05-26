@@ -170,6 +170,10 @@ void quad_booster_t::_speed_control()
         board_drv_t::get_instance(board_drv_t::role_t::GIMBAL, can_hub_t::can1);
     board_drv_t::event_shoot_t shoot_event{};
 
+    auto &shoot_data = _use_deploy_data() ? _ctx.shoot_deploy_data
+                                          : _ctx.shoot_normal_data;
+    _ctx.data.target_shoot_speed = shoot_data.target_speed;
+
     if (!board_drv.read_event(board_drv_t::EVENT_C2G_SHOOT, shoot_event))
     {
         return;
@@ -180,11 +184,6 @@ void quad_booster_t::_speed_control()
         return;
     }
     last_launching_num = shoot_event.launching_num;
-
-    auto &shoot_data = _use_deploy_data() ? _ctx.shoot_deploy_data
-                                          : _ctx.shoot_normal_data;
-
-    _ctx.data.target_shoot_speed = shoot_data.target_speed;
 
     shoot_data.ball_speed[2] = shoot_data.ball_speed[1];
     shoot_data.ball_speed[1] = shoot_data.ball_speed[0];

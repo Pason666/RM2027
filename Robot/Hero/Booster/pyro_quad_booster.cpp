@@ -203,7 +203,7 @@ void quad_booster_t::_speed_control()
     for (float &i : shoot_data.ball_speed)
     {
         if (i == 0.0f)
-            i = shoot_data.target_speed;
+            i = shoot_data.ball_speed[2];
     }
 
     constexpr float w0 = 0.72f;

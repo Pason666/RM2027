@@ -18,7 +18,7 @@ status_t quad_booster_t::_init()
 {
     _ctx.motor = _module_deps.motor_deps;
     _ctx.pid   = _module_deps.pid_deps;
-    _ctx.pid.ball_speed_pid = new pid_t(0.32f, 0.0f, 0.005f, 0.0f, 2.0f);
+    _ctx.pid.ball_speed_pid = new pid_t(0.62f, 0.0f, 0.005f, 0.0f, 2.0f);
 
     return PYRO_OK;
 }
@@ -198,7 +198,7 @@ void quad_booster_t::_speed_control()
     for (float &i : shoot_data.ball_speed)
     {
         if (i == 0.0f)
-            i = shoot_data.target_speed;
+            i = shoot_data.ball_speed[2];
     }
 
     constexpr float w0 = 0.72f;
@@ -220,7 +220,7 @@ void quad_booster_t::_speed_control()
     [[maybe_unused]] float speed_increment =
         _ctx.pid.ball_speed_pid->calculate(0.0f, signed_weighted_mse);
 
-    // shoot_data.fric1_mps += speed_increment;
+    shoot_data.fric1_mps += speed_increment;
 
     // 共用限幅 9-17
     shoot_data.fric1_mps = std::clamp(shoot_data.fric1_mps, 9.0f, 17.0f);

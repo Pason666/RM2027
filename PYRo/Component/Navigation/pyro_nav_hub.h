@@ -34,7 +34,7 @@ struct nav_point_t
     {
     }
 
-    nav_point_t(float x_, float y_, float z_ = 0.0f) : x(x_), y(y_), z(z_)
+    nav_point_t(const float x_, const float y_, const float z_ = 0.0f) : x(x_), y(y_), z(z_)
     {
     }
 };
@@ -53,7 +53,7 @@ struct nav_attitude_t
     {
     }
 
-    nav_attitude_t(float yaw_, float roll_, float pitch_)
+    nav_attitude_t(const float yaw_, const float roll_, const float pitch_)
         : yaw(yaw_), roll(roll_), pitch(pitch_)
     {
     }

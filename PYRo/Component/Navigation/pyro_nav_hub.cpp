@@ -33,9 +33,7 @@ float clamp_dt(float dt, float min_dt, float max_dt)
 nav_hub_t::nav_hub_t(const nav_point_t &initial_map_pos,
                      const nav_hub_deps_t &deps,
                      const nav_hub_config_t &config)
-    : _deps(deps), _config(config), _current_pos(initial_map_pos), _target(),
-      _attitude(), _last_output(), _target_valid(false),
-      _feedback_initialized(false), _dwt_cnt(0)
+    : _deps(deps), _config(config), _current_pos(initial_map_pos)
 {
     _clear_pid();
 }

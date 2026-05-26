@@ -60,6 +60,7 @@ target_sources(PYRo PRIVATE
         Component/Referee/pyro_referee.cpp
         Component/Image/pyro_image_drv.cpp
         Component/INS/pyro_ins.cpp
+        Component/Navigation/pyro_nav_hub.cpp
         Component/Supercap/pyro_supercap_drv.cpp
         Component/SR/pyro_sonic_base_drv.cpp
         Component/SR/pyro_sr04_drv.cpp
@@ -122,6 +123,7 @@ target_include_directories(PYRo PUBLIC
         Component/IMU
         Component/INS
         Component/Motor
+        Component/Navigation
         Component/Powercontrol
         Component/Powermeter
         Component/RC

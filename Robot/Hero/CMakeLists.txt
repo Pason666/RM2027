@@ -88,9 +88,6 @@ elseif (BOARD STREQUAL "CHASSIS_BOARD")
             Chassis/fsm/pyro_hybrid_passive_state.cpp
             Chassis/fsm/pyro_hybrid_track_climbing_state.cpp
 
-            # === Navigation ===
-            Navigation/pyro_nav_hub.cpp
-
             # === Communication ===
             Communication/Chassis_board/pyro_board_com.cpp
             Communication/General/pyro_board_drv.cpp
@@ -106,7 +103,6 @@ elseif (BOARD STREQUAL "CHASSIS_BOARD")
     target_include_directories(Hero
             PUBLIC
             ${CMAKE_CURRENT_SOURCE_DIR}/Chassis
-            ${CMAKE_CURRENT_SOURCE_DIR}/Navigation
             ${CMAKE_CURRENT_SOURCE_DIR}/Communication/Chassis_board
             ${CMAKE_CURRENT_SOURCE_DIR}/Communication/General
             ${CMAKE_CURRENT_SOURCE_DIR}
@@ -126,7 +122,6 @@ target_include_directories(Hero
         ${CMAKE_CURRENT_SOURCE_DIR}/Booster
         ${CMAKE_CURRENT_SOURCE_DIR}/Chassis
         ${CMAKE_CURRENT_SOURCE_DIR}/Gimbal
-        ${CMAKE_CURRENT_SOURCE_DIR}/Navigation
         ${CMAKE_CURRENT_SOURCE_DIR}
 )
 

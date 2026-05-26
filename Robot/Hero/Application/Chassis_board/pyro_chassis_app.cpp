@@ -86,6 +86,7 @@ void chassis_rxcmd()
     hybrid_cmd_ptr->wz   = 2.0f * static_cast<float>(rx_data.wz) / 127.0f;
     hybrid_cmd_ptr->mode = rx_data.active ? pyro::cmd_base_t::mode_t::ACTIVE
                                           : pyro::cmd_base_t::mode_t::PASSIVE;
+    hybrid_cmd_ptr->pseudo_gyro_en = rx_data.wz > 0;
     hybrid_cmd_ptr->crossing_en = rx_data.track_en;
     hybrid_cmd_ptr->leg_retract = rx_data.leg_retract;
     hybrid_cmd_ptr->leg_calibration = rx_data.leg_calibration;

@@ -297,20 +297,57 @@ void hybrid_chassis_t::_kinematics_solve()
     // -------------------------------------------------------------
     // Calculate(measurement, target) 或 (error, 0)
     // 假设 pid_t::calculate(target, current)，我们将 error 作为 P项输入
-    float yaw_err = _ctx.data.target_yaw_rad - _ctx.data.current_yaw_rad;
-    if (yaw_err < -PI)
-    {
-        _ctx.data.target_yaw_rad += 2 * PI;
-    }
-    else if (yaw_err > PI)
-    {
-        _ctx.data.target_yaw_rad -= 2 * PI;
-    }
-    // const float follow_wz = _ctx.pid.follow_yaw_pid->calculate(
-    //     _ctx.data.target_yaw_rad, _ctx.data.current_yaw_rad);
+    float target_relative_yaw_rad = 0.0f;
+    const auto now_tick = static_cast<uint32_t>(xTaskGetTickCount());
 
+    if (_ctx.cmd->pseudo_gyro_en)
+    {
+        if (!_ctx.data.pseudo_gyro_active)
+        {
+            _ctx.data.pseudo_gyro_active    = true;
+            _ctx.data.pseudo_gyro_phase_rad = 0.0f;
+            _ctx.data.pseudo_gyro_last_tick = now_tick;
+            if (_ctx.pid.follow_yaw_pid != nullptr)
+            {
+                _ctx.pid.follow_yaw_pid->clear();
+            }
+        }
+        else
+        {
+            const uint32_t elapsed_tick =
+                now_tick - _ctx.data.pseudo_gyro_last_tick;
+            const float elapsed_s =
+                static_cast<float>(elapsed_tick * portTICK_PERIOD_MS) *
+                0.001f;
+
+            _ctx.data.pseudo_gyro_phase_rad =
+                loop_fp32_constrain(_ctx.data.pseudo_gyro_phase_rad +
+                                        PSEUDO_GYRO_PHASE_RADPS * elapsed_s,
+                                    -PI, PI);
+            _ctx.data.pseudo_gyro_last_tick = now_tick;
+        }
+
+        target_relative_yaw_rad =
+            PSEUDO_GYRO_YAW_AMPLITUDE_RAD *
+            arm_sin_f32(_ctx.data.pseudo_gyro_phase_rad);
+    }
+    else
+    {
+        if (_ctx.data.pseudo_gyro_active && _ctx.pid.follow_yaw_pid != nullptr)
+        {
+            _ctx.pid.follow_yaw_pid->clear();
+        }
+        _ctx.data.pseudo_gyro_active         = false;
+        _ctx.data.pseudo_gyro_phase_rad      = 0.0f;
+        _ctx.data.pseudo_gyro_target_yaw_rad = 0.0f;
+        _ctx.data.pseudo_gyro_last_tick      = now_tick;
+    }
+
+    _ctx.data.pseudo_gyro_target_yaw_rad = target_relative_yaw_rad;
+    const float yaw_pid_measure =
+        _ctx.data.current_yaw_error + target_relative_yaw_rad;
     const float follow_wz =
-        _ctx.pid.follow_yaw_pid->calculate(0.0f, _ctx.data.current_yaw_error);
+        _ctx.pid.follow_yaw_pid->calculate(0.0f, yaw_pid_measure);
 
     // 最终角速度 = 跟随产生的角速度 + 选手手动输入的角速度(小陀螺/微调)
     float final_wz      = follow_wz;

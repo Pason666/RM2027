@@ -25,12 +25,14 @@ struct hybrid_cmd_t : cmd_base_t
     float delta_pitch; // 腿部目标位置相对于当前的增量 rad
     float delta_yaw;
     bool leg_calibration;
+    bool pseudo_gyro_en;
     bool crossing_en; // 是否启用履带 (true: 履带 + 麦轮混合驱动, false: 仅麦轮)
     bool leg_retract; // 是否进入腿部收回状态 (仅在 crossing_en=true 时有效)
 
     hybrid_cmd_t()
         : vx(0), vy(0), wz(0), delta_pitch(0), delta_yaw(0),
-          leg_calibration(false), crossing_en(false), leg_retract(false)
+          leg_calibration(false), pseudo_gyro_en(false), crossing_en(false),
+          leg_retract(false)
     {
     }
 };
@@ -140,6 +142,10 @@ class hybrid_chassis_t final
 
         // YAW 电机差值反馈（用于底盘跟随云台）
         float current_yaw_error{0};
+        float pseudo_gyro_phase_rad{0};
+        float pseudo_gyro_target_yaw_rad{0};
+        uint32_t pseudo_gyro_last_tick{0};
+        bool pseudo_gyro_active{false};
         float target_wheel_rpm[4]{};
         float target_track_rpm[2]{};
         float target_leg_rad[2]{};

@@ -301,19 +301,6 @@ screw_gimbal_t::gimbal_context_t& screw_gimbal_t::get_ctx()
     return _ctx;
 }
 
-
-void screw_gimbal_t::_apply_yaw_relative_limit()
-{
-    float target_relative_yaw = pyro::loop_fp32_constrain(
-        _ctx.data.target_yaw_rad - _ctx.data.chassis_yaw_imu, -PI, PI);
-    target_relative_yaw = std::clamp(
-        target_relative_yaw, YAW_MIN_RELATIVE_RAD, YAW_MAX_RELATIVE_RAD);
-
-    _ctx.data.target_relative_yaw_rad = target_relative_yaw;
-    _ctx.data.target_yaw_rad = pyro::loop_fp32_constrain(
-        _ctx.data.chassis_yaw_imu + target_relative_yaw, -PI, PI);
-}
-
 void screw_gimbal_t::_send_motor_command(gimbal_context_t *ctx)
 {
     ctx->motor.pitch->send_torque(ctx->data.out_pitch_torque);

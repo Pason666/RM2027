@@ -53,7 +53,6 @@ void screw_gimbal_t::fsm_active_t::autoaim_state_t::execute(owner *owner)
     // ==========================================
     owner->_ctx.data.target_yaw_rad =
         pyro::loop_fp32_constrain(owner->_ctx.data.target_yaw_rad, -PI, PI);
-    // owner->_apply_yaw_relative_limit();
 
     // ==========================================
     // 3. 执行自瞄专用的绝对角度闭环控制并发送指令

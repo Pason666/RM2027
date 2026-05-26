@@ -44,7 +44,6 @@ void screw_gimbal_t::fsm_active_t::normal_state_t::execute(owner *owner)
 
     owner->_ctx.data.target_yaw_rad =
         pyro::loop_fp32_constrain(owner->_ctx.data.target_yaw_rad, -PI, PI);
-    // owner->_apply_yaw_relative_limit();
 
     // ==========================================
     // 3. 执行底层控制与发送指令

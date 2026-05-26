@@ -89,6 +89,7 @@ class quad_booster_t final
 
     // 角度归一化辅助函数
     static float _normalize_angle(float angle);
+    static bool _is_trigger_located(float trigger_rad);
 
     // --- 成员变量 ---
     struct motor_ctx_t
@@ -109,6 +110,7 @@ class quad_booster_t final
     {
         uint8_t internal_fire_count{0}; // 内部拨弹计数器追踪
         bool deploy_mode{false};
+        bool trigger_located{false};
 
         bool fric_err{};
         uint8_t internal_reset_count{0};

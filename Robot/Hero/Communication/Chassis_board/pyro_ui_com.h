@@ -14,18 +14,22 @@ namespace pyro
 // ==========================================
 struct ui_ctx_t
 {
-    bool sling_flag                 = false; // 吊射模式标志位
-    bool fric_en_flag               = false; // 摩擦轮使能标志位
-    bool fric_error_flag            = false; // 摩擦轮错误标志位
-    bool track_en_flag              = false; // 自动追踪/自瞄使能标志位
-    float yaw_rad                   = 0.0f;  // 云台 Yaw 相对底盘角度 (rad)
-    float pitch_rad                 = 0.0f;  // 云台 Pitch 绝对角度 (rad)
-    float target_shoot_spd          = 0.0f;  // 目标射速 (m/s)
-    float super_cap_voltage         = 0.0f;  // 超级电容电压 (V)
-    float position_x                = 0.0f;  // 机器人全场坐标 X
-    float position_y                = 0.0f;  // 机器人全场坐标 Y
-    bool mecanum_online[4]          = {false}; // 四轮电机在线状态
-    bool refresh_flag               = false; // 刷新触发标志位（沿触发）
+    bool sling_flag         = false; // 吊射模式标志位
+    bool fric_en_flag       = false; // 摩擦轮使能标志位
+    bool fric_error_flag    = false; // 摩擦轮错误标志位
+    bool track_en_flag      = false; // 自动追踪/自瞄使能标志位
+    bool trigger_located    = false;
+    float yaw_rad           = 0.0f; // 云台 Yaw 相对底盘角度 (rad)
+    float pitch_rad         = 0.0f; // 云台 Pitch 绝对角度 (rad)
+    float target_shoot_spd  = 0.0f; // 目标射速 (m/s)
+    float super_cap_voltage = 0.0f; // 超级电容电压 (V)
+    float position_x        = 0.0f; // 机器人全场坐标 X
+    float position_y        = 0.0f; // 机器人全场坐标 Y
+    float distance          = 0.0f;
+    float left_leg_rad      = 0.0f;
+    float right_leg_rad     = 0.0f;
+    bool mecanum_online[4]  = {false}; // 四轮电机在线状态
+    bool refresh_flag       = false;   // 刷新触发标志位（沿触发）
 
     static constexpr float super_cap_voltage_max = 26.0f;
 };
@@ -35,7 +39,7 @@ struct ui_ctx_t
 // ==========================================
 class ui_com
 {
-public:
+  public:
     ui_com() = default;
 
     // 绑定底层驱动
@@ -56,12 +60,12 @@ public:
     // 检查刷新沿
     bool refresh_check() const;
 
-private:
+  private:
     ui_drv_t *_drv = nullptr;
 
-    ui_ctx_t _ctx;                   // 当前最新状态
-    ui_ctx_t _last_ctx;              // 上一次传入的状态 (用于检测外部 refresh_flag 翻转)
-    ui_ctx_t _sent_ctx;              // 真正成功发送上屏的状态 (用于各模块的增量脏检查)
+    ui_ctx_t _ctx;      // 当前最新状态
+    ui_ctx_t _last_ctx; // 上一次传入的状态 (用于检测外部 refresh_flag 翻转)
+    ui_ctx_t _sent_ctx; // 真正成功发送上屏的状态 (用于各模块的增量脏检查)
 
     bool _force_refresh_flag = true; // 强制重绘图层标志位
 
@@ -72,10 +76,12 @@ private:
     void draw_pitch();
     void draw_spd();
     void draw_super_cap();
-    void draw_track_state();         // 原 draw_trail_state 改名，更符合 track_en_flag 语义
+    void draw_trigger_located_state();
+    void draw_track_state();
     void draw_pos();
     void draw_relative_pos();
+    void draw_leg();
 };
-}
+} // namespace pyro
 
 #endif // PYRO_UI_COM_H

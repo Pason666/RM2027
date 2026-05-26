@@ -127,6 +127,7 @@ static void process_gimbal_logic(uint32_t notify_val)
     tx_data.fric_en    = quad_booster_t::instance()->get_ctx().cmd->fric_on;
     tx_data.fric_err   = quad_booster_t::instance()->get_ctx().data.fric_err;
     tx_data.sling_mode = sling_mode;
+    tx_data.trigger_located = quad_booster_t::instance()->get_ctx().data.trigger_located;
 
     if (board_drv_ptr->check_online())
     {

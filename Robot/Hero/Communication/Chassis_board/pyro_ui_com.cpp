@@ -11,7 +11,6 @@
 #include "pyro_com_canrx.h"
 #include "pyro_hybrid_chassis.h"
 #include "pyro_supercap_drv.h"
-#include "dsp/fast_math_functions.h"
 
 #include <cmath>
 #include <cstring>
@@ -24,8 +23,6 @@ using namespace pyro;
 namespace
 {
 // 数学常量
-static constexpr float cos_pi                       = -1.0f; // cos(PI)
-static constexpr float sin_pi                       = 0.0f;  // sin(PI)
 static constexpr float sqrt_2                       = 1.4142135f;
 static constexpr float sqrt_2_2                     = 0.7071068f;
 
@@ -46,6 +43,15 @@ inline bool mecanum_online_changed(const bool current[4], const bool sent[4])
            (current[2] != sent[2]) || (current[3] != sent[3]);
 }
 
+inline uint16_t ui_coord(float value)
+{
+    if (value < 0.0f)
+        return 0;
+    if (value > 2047.0f)
+        return 2047;
+    return static_cast<uint16_t>(value);
+}
+
 // UI 元素坐标布局布局配置 (保持原坐标、图层、大小绝对不变)
 struct cfg_relative_pos
 {
@@ -54,6 +60,16 @@ struct cfg_relative_pos
     static constexpr uint8_t gimbal_r = 20, cannon_length = 50,
                              cannon_width    = 15;
     static constexpr uint8_t cannon_offset_r = 18;
+};
+
+struct cfg_leg
+{
+    static constexpr uint16_t left_hip_x = 255, right_hip_x = 335;
+    static constexpr uint16_t hip_y    = 685;
+    static constexpr uint16_t link_len = 55;
+    static constexpr uint16_t foot_r   = 12;
+    static constexpr uint8_t layer = 3, foot_layer = 4;
+    static constexpr uint8_t line_width = 4, foot_width = 3;
 };
 
 struct cfg_track // 原 cfg_trail 更名
@@ -68,6 +84,15 @@ struct cfg_fric
     static constexpr uint8_t layer = 2, cross_layer = 5;
 };
 
+struct cfg_trigger_located
+{
+    static constexpr uint16_t x         = cfg_fric::x;
+    static constexpr uint16_t y         = cfg_fric::y - cfg_fric::r - 45;
+    static constexpr uint16_t half_size = 28;
+    static constexpr uint8_t layer      = 7;
+    static constexpr uint8_t width      = 5;
+};
+
 struct cfg_lob
 {
     static constexpr uint16_t x = 1770, y = 530, r = 50;
@@ -78,7 +103,7 @@ struct cfg_text
 {
     static constexpr uint16_t yaw_x = 1770, yaw_y = 440;
     static constexpr uint16_t pitch_x = 1770, pitch_y = 380;
-    static constexpr uint16_t spd_x = 1760, spd_y = 650;
+    static constexpr uint16_t spd_x = 885, spd_y = 220;
     static constexpr uint16_t pos_x = 200, pos_y = 800;
     static constexpr uint16_t label_offset = 100;
     static constexpr uint8_t layer = 3, val_layer = 4;
@@ -94,7 +119,7 @@ struct cfg_cap
 struct cfg_outpost
 {
     static constexpr uint16_t start_x = 900, end_x = 1020;
-    static constexpr uint16_t start_y = 580, end_y = 580;
+    static constexpr uint16_t start_y = 500, end_y = 500;
     static constexpr uint8_t width = 3;
     static constexpr uint8_t layer = 2;
 };
@@ -102,10 +127,88 @@ struct cfg_outpost
 struct cfg_base
 {
     static constexpr uint16_t start_x = 900, end_x = 1020;
-    static constexpr uint16_t start_y = 668, end_y = 668;
+    static constexpr uint16_t start_y = 412, end_y = 412;
     static constexpr uint8_t width = 3;
     static constexpr uint8_t layer = 2;
 };
+
+struct leg_points_t
+{
+    uint16_t hip_x;
+    uint16_t hip_y;
+    uint16_t knee_x;
+    uint16_t knee_y;
+    uint16_t foot_x;
+    uint16_t foot_y;
+};
+
+struct ui_point_t
+{
+    uint16_t x;
+    uint16_t y;
+};
+
+inline ui_point_t point_on_angle(float center_x, float center_y, float radius,
+                                 float angle_rad)
+{
+    return {ui_coord(center_x + radius * std::cos(angle_rad)),
+            ui_coord(center_y + radius * std::sin(angle_rad))};
+}
+
+inline ui_point_t relative_pos_center()
+{
+    return {
+        ui_coord(cfg_relative_pos::x + cfg_relative_pos::chassis_scale / 2.0f),
+        ui_coord(cfg_relative_pos::y +
+                 cfg_relative_pos::chassis_scale * sqrt_2 / 2.0f)};
+}
+
+void draw_cannon_line(ui_drv_t *drv, const char name[3], ui_operate op,
+                      uint8_t layer, ui_color color, uint16_t width,
+                      float angle_rad, float length_offset = 0.0f)
+{
+    const auto center = relative_pos_center();
+    const auto start  = point_on_angle(
+        center.x, center.y, cfg_relative_pos::cannon_offset_r, angle_rad);
+    const auto end =
+        point_on_angle(center.x, center.y,
+                       cfg_relative_pos::cannon_offset_r +
+                           cfg_relative_pos::cannon_length + length_offset,
+                       angle_rad);
+
+    drv->draw_line(name, op, layer, color, width, start.x, start.y, end.x,
+                   end.y);
+}
+
+inline leg_points_t make_leg_points(uint16_t hip_x, uint16_t hip_y,
+                                    float upper_link_rad, int8_t knee_dir)
+{
+    const float dx = cfg_leg::link_len * std::fabs(std::cos(upper_link_rad));
+    const float dy = cfg_leg::link_len * std::fabs(std::sin(upper_link_rad));
+
+    return {hip_x,
+            hip_y,
+            ui_coord(static_cast<float>(hip_x) + knee_dir * dx),
+            ui_coord(static_cast<float>(hip_y) - dy),
+            hip_x,
+            ui_coord(static_cast<float>(hip_y) - dy * 2.0f)};
+}
+
+void draw_leg_shape(ui_drv_t *drv, const char upper_name[3],
+                    const char lower_name[3], const char foot_name[3],
+                    ui_operate op, ui_color color, uint16_t hip_x,
+                    uint16_t hip_y, float upper_link_rad, int8_t knee_dir)
+{
+    const auto leg = make_leg_points(hip_x, hip_y, upper_link_rad, knee_dir);
+
+    drv->draw_line(upper_name, op, cfg_leg::layer, color, cfg_leg::line_width,
+                   leg.hip_x, leg.hip_y, leg.knee_x, leg.knee_y)
+        .draw_line(lower_name, op, cfg_leg::layer, color, cfg_leg::line_width,
+                   leg.knee_x, leg.knee_y, leg.foot_x, leg.foot_y)
+        .draw_circle(foot_name, op, cfg_leg::foot_layer, color,
+                     cfg_leg::foot_width, leg.foot_x, leg.foot_y,
+                     cfg_leg::foot_r);
+}
 
 } // namespace
 
@@ -132,10 +235,21 @@ static void info_update_test()
         static_cast<float>(board.get_g2c_rx_data().target_shoot_spd) / 10.0f;
     ui_ctx.super_cap_voltage =
         static_cast<float>(chassis->get_ctx().cap_feedback.vot_cap);
-    ui_ctx.refresh_flag  = board.get_g2c_rx_data().ui_refresh;
-    ui_ctx.track_en_flag = board.get_g2c_rx_data().track_en;
-    ui_ctx.position_x    = referee_ptr->get_data().robot_pos.x;
-    ui_ctx.position_y    = referee_ptr->get_data().robot_pos.y;
+    ui_ctx.refresh_flag    = board.get_g2c_rx_data().ui_refresh;
+    ui_ctx.track_en_flag   = board.get_g2c_rx_data().track_en;
+    ui_ctx.trigger_located = board.get_g2c_rx_data().trigger_located;
+    ui_ctx.position_x      = referee_ptr->get_data().robot_pos.x;
+    ui_ctx.position_y      = referee_ptr->get_data().robot_pos.y;
+    static float x         = 0.0f;
+    x += 0.1f;
+
+    ui_ctx.position_x   = x;
+    ui_ctx.position_y   = sin(x);
+    ui_ctx.distance     = sqrt(ui_ctx.position_x * ui_ctx.position_x +
+                               ui_ctx.position_y * ui_ctx.position_y);
+    ui_ctx.left_leg_rad = chassis->get_ctx().data.current_leg_rad[0] / 2 + 0.4f;
+    ui_ctx.right_leg_rad =
+        chassis->get_ctx().data.current_leg_rad[1] / 2 + 0.4f;
 
     std::memcpy(ui_ctx.mecanum_online, chassis->get_ctx().data.wheel_online, 4);
 }
@@ -202,7 +316,9 @@ void ui_com::draw_static()
     _drv->draw_string("POX", ui_operate::ADD, cfg_text::layer, ui_color::GREEN,
                       20, 2, cfg_text::pos_x, cfg_text::pos_y, "X:");
     _drv->draw_string("POY", ui_operate::ADD, cfg_text::layer, ui_color::GREEN,
-                      20, 2, cfg_text::pos_x + 100, cfg_text::pos_y, "Y:");
+                      20, 2, cfg_text::pos_x + 140, cfg_text::pos_y, "Y:");
+    _drv->draw_string("POD", ui_operate::ADD, cfg_text::layer, ui_color::GREEN,
+                      20, 2, cfg_text::pos_x, cfg_text::pos_y - 50, "DIS:");
 
     // 4. 浮点数值的 ADD 占位
     _drv->draw_float("YDG", ui_operate::ADD, cfg_text::val_layer,
@@ -219,7 +335,10 @@ void ui_com::draw_static()
                     cfg_text::pos_y, 0.0f)
         .draw_float("PSY", ui_operate::ADD, cfg_text::val_layer,
                     ui_color::GREEN, 20, 2, cfg_text::pos_x + 130,
-                    cfg_text::pos_y, 0.0f);
+                    cfg_text::pos_y, 0.0f)
+        .draw_float("PSD", ui_operate::ADD, cfg_text::val_layer,
+                    ui_color::ORANGE, 20, 2, cfg_text::pos_x + 70,
+                    cfg_text::pos_y - 50, 0.0f);
 
     // 5. 交叉线的 ADD 占位
     _drv->draw_line("FL1", ui_operate::ADD, cfg_fric::cross_layer,
@@ -229,7 +348,15 @@ void ui_com::draw_static()
         .draw_line("LL1", ui_operate::ADD, cfg_lob::cross_layer,
                    ui_color::ORANGE, 3, 1, 1, 1, 1)
         .draw_line("LL2", ui_operate::ADD, cfg_lob::cross_layer,
-                   ui_color::ORANGE, 3, 1, 1, 1, 1);
+                   ui_color::ORANGE, 3, 1, 1, 1, 1)
+        .draw_line("TC1", ui_operate::ADD, cfg_trigger_located::layer,
+                   ui_color::GREEN, cfg_trigger_located::width, 1, 1, 1, 1)
+        .draw_line("TC2", ui_operate::ADD, cfg_trigger_located::layer,
+                   ui_color::GREEN, cfg_trigger_located::width, 1, 1, 1, 1)
+        .draw_line("TX1", ui_operate::ADD, cfg_trigger_located::layer,
+                   ui_color::PINK, cfg_trigger_located::width, 1, 1, 1, 1)
+        .draw_line("TX2", ui_operate::ADD, cfg_trigger_located::layer,
+                   ui_color::PINK, cfg_trigger_located::width, 1, 1, 1, 1);
 
     // 6. 绘制越障模式台阶图案(静态)
     _drv->draw_line("TR1", ui_operate::ADD, cfg_track::layer, ui_color::WHITE,
@@ -265,6 +392,7 @@ void ui_com::draw_static()
                    cfg_track::y + cfg_track::r - 10);
 
     // 8. 绘制云台旋转状态静态图层 (底盘框、中心圆)
+    const auto relative_center = relative_pos_center();
     _drv->draw_rect(
             "CS1", ui_operate::ADD, cfg_relative_pos::chassis_layer,
             ui_color::WHITE, 5, cfg_relative_pos::x, cfg_relative_pos::y,
@@ -272,71 +400,35 @@ void ui_com::draw_static()
             cfg_relative_pos::y +
                 static_cast<uint16_t>(cfg_relative_pos::chassis_scale * sqrt_2))
         .draw_circle("GMA", ui_operate::ADD, cfg_relative_pos::gimbal_layer,
-                     ui_color::WHITE, 5,
-                     cfg_relative_pos::x + cfg_relative_pos::chassis_scale / 2,
-                     cfg_relative_pos::y +
-                         static_cast<uint16_t>(cfg_relative_pos::chassis_scale /
-                                               2 * sqrt_2),
-                     cfg_relative_pos::gimbal_r)
-        // 底盘正前方指示枪管 (GL1静态固定指向正前)
-        .draw_line(
-            "GL1", ui_operate::ADD, cfg_relative_pos::chassis_layer,
-            ui_color::WHITE, cfg_relative_pos::cannon_width,
-            cfg_relative_pos::x + cfg_relative_pos::chassis_scale / 2 +
-                static_cast<uint16_t>(cfg_relative_pos::cannon_offset_r *
-                                      cos_pi),
-            cfg_relative_pos::y +
-                static_cast<uint16_t>(cfg_relative_pos::chassis_scale / 2 *
-                                      sqrt_2) +
-                static_cast<uint16_t>(cfg_relative_pos::cannon_offset_r *
-                                      sin_pi),
-            cfg_relative_pos::x + cfg_relative_pos::chassis_scale / 2 +
-                static_cast<uint16_t>((cfg_relative_pos::cannon_offset_r +
-                                       cfg_relative_pos::cannon_length) *
-                                      cos_pi),
-            cfg_relative_pos::y +
-                static_cast<uint16_t>(cfg_relative_pos::chassis_scale / 2 *
-                                      sqrt_2) +
-                static_cast<uint16_t>((cfg_relative_pos::cannon_offset_r +
-                                       cfg_relative_pos::cannon_length) *
-                                      sin_pi))
-        // 云台实际指向枪管 (GL2动态占位)
-        .draw_line(
-            "GL2", ui_operate::ADD, cfg_relative_pos::gimbal_layer,
-            ui_color::ALLY, cfg_relative_pos::cannon_width - 5,
-            cfg_relative_pos::x + cfg_relative_pos::chassis_scale / 2 +
-                static_cast<uint16_t>(cfg_relative_pos::cannon_offset_r *
-                                      arm_cos_f32(_ctx.yaw_rad + PI/2)),
-            cfg_relative_pos::y +
-                static_cast<uint16_t>(cfg_relative_pos::chassis_scale / 2 *
-                                      sqrt_2) +
-                static_cast<uint16_t>(cfg_relative_pos::cannon_offset_r *
-                                      sin(_ctx.yaw_rad + PI/2)),
-            cfg_relative_pos::x + cfg_relative_pos::chassis_scale / 2 +
-                static_cast<uint16_t>((cfg_relative_pos::cannon_offset_r +
-                                       cfg_relative_pos::cannon_length - 5) *
-                                      cos(_ctx.yaw_rad + PI/2)),
-            cfg_relative_pos::y +
-                static_cast<uint16_t>(cfg_relative_pos::chassis_scale / 2 *
-                                      sqrt_2) +
-                static_cast<uint16_t>((cfg_relative_pos::cannon_offset_r +
-                                       cfg_relative_pos::cannon_length - 5) *
-                                      sin(_ctx.yaw_rad + PI/2)));
+                     ui_color::WHITE, 5, relative_center.x, relative_center.y,
+                     cfg_relative_pos::gimbal_r);
 
-    // 9. 绘制前哨站/基地瞄准参考线
+    // 云台实际指向枪管 (GL2动态占位)
+    draw_cannon_line(_drv, "GL2", ui_operate::ADD,
+                     cfg_relative_pos::gimbal_layer, ui_color::ALLY,
+                     cfg_relative_pos::cannon_width - 5, PI / 2 - _ctx.yaw_rad,
+                     -5.0f);
+
+    // 9. 绘制左右腿姿态占位，位于云台旋转状态右侧
+    draw_leg_shape(_drv, "LLA", "LLB", "LWF", ui_operate::ADD, ui_color::CYAN,
+                   cfg_leg::left_hip_x, cfg_leg::hip_y, _ctx.left_leg_rad, 1);
+    draw_leg_shape(_drv, "RLA", "RLB", "RWF", ui_operate::ADD, ui_color::YELLOW,
+                   cfg_leg::right_hip_x, cfg_leg::hip_y, _ctx.right_leg_rad, 1);
+
+    // 10. 绘制前哨站/基地瞄准参考线
     _drv->draw_line("OP1", ui_operate::ADD, cfg_outpost::layer, ui_color::GREEN,
                     cfg_outpost::width, cfg_outpost::start_x,
                     cfg_outpost::start_y, cfg_outpost::end_x,
                     cfg_outpost::end_y)
-        .draw_float("OF1", ui_operate::ADD, cfg_outpost::layer, ui_color::GREEN,
-                    20, cfg_outpost::width, cfg_outpost::start_x + 150,
+        .draw_float("OF1", ui_operate::ADD, cfg_outpost::layer, ui_color::PINK,
+                    15, cfg_outpost::width, cfg_outpost::start_x + 150,
                     cfg_outpost::start_y, 6.5f)
         .draw_line("BA1", ui_operate::ADD, cfg_base::layer, ui_color::GREEN,
                    cfg_base::width, cfg_base::start_x, cfg_base::start_y,
                    cfg_base::end_x, cfg_base::end_y)
-        .draw_float("BF1", ui_operate::ADD, cfg_base::layer, ui_color::GREEN,
-                    20, cfg_base::width, cfg_base::start_x + 150,
-                    cfg_base::start_y, 9.2f);
+        .draw_float("BF1", ui_operate::ADD, cfg_base::layer, ui_color::PINK, 15,
+                    cfg_base::width, cfg_base::start_x + 150, cfg_base::start_y,
+                    9.2f);
 
     _drv->flush();
 }
@@ -365,6 +457,8 @@ void ui_com::draw_dynamic()
     bool fric_changed = force ||
                         (_ctx.fric_en_flag != _sent_ctx.fric_en_flag) ||
                         (_ctx.fric_error_flag != _sent_ctx.fric_error_flag);
+    bool trigger_located_changed =
+        force || (_ctx.trigger_located != _sent_ctx.trigger_located);
     bool lob_changed = force || (_ctx.sling_flag != _sent_ctx.sling_flag);
     bool cap_changed = force || value_changed(_ctx.super_cap_voltage,
                                               _sent_ctx.super_cap_voltage,
@@ -374,6 +468,12 @@ void ui_com::draw_dynamic()
     bool relative_changed =
         force || yaw_changed ||
         mecanum_online_changed(_ctx.mecanum_online, _sent_ctx.mecanum_online);
+    bool leg_changed =
+        force ||
+        value_changed(_ctx.left_leg_rad, _sent_ctx.left_leg_rad,
+                      rad_update_threshold) ||
+        value_changed(_ctx.right_leg_rad, _sent_ctx.right_leg_rad,
+                      rad_update_threshold);
 
     if (yaw_changed)
         draw_yaw();
@@ -385,6 +485,8 @@ void ui_com::draw_dynamic()
         draw_pos();
     if (fric_changed)
         draw_fric_state();
+    if (trigger_located_changed)
+        draw_trigger_located_state();
     if (lob_changed)
         draw_lob_state();
     if (cap_changed)
@@ -393,6 +495,8 @@ void ui_com::draw_dynamic()
         draw_track_state();
     if (relative_changed)
         draw_relative_pos();
+    if (leg_changed)
+        draw_leg();
 
     _drv->flush();
     _force_refresh_flag = false;
@@ -417,7 +521,7 @@ void ui_com::draw_pitch()
 void ui_com::draw_spd()
 {
     _drv->draw_float("SPD", ui_operate::MODIFY, cfg_text::val_layer,
-                     ui_color::GREEN, 20, 2, cfg_text::spd_x, cfg_text::spd_y,
+                     ui_color::WHITE, 40, 5, cfg_text::spd_x, cfg_text::spd_y,
                      _ctx.target_shoot_spd);
     _sent_ctx.target_shoot_spd = _ctx.target_shoot_spd;
 }
@@ -428,8 +532,11 @@ void ui_com::draw_pos()
                      ui_color::GREEN, 20, 2, cfg_text::pos_x + 30,
                      cfg_text::pos_y, _ctx.position_x)
         .draw_float("PSY", ui_operate::MODIFY, cfg_text::val_layer,
-                    ui_color::GREEN, 20, 2, cfg_text::pos_x + 130,
-                    cfg_text::pos_y, _ctx.position_y);
+                    ui_color::GREEN, 20, 2, cfg_text::pos_x + 170,
+                    cfg_text::pos_y, _ctx.position_y)
+        .draw_float("PSD", ui_operate::MODIFY, cfg_text::val_layer,
+                    ui_color::ORANGE, 20, 2, cfg_text::pos_x + 70,
+                    cfg_text::pos_y - 50, _ctx.distance);
     _sent_ctx.position_x = _ctx.position_x;
     _sent_ctx.position_y = _ctx.position_y;
 }
@@ -473,6 +580,41 @@ void ui_com::draw_fric_state()
 
     _sent_ctx.fric_en_flag    = _ctx.fric_en_flag;
     _sent_ctx.fric_error_flag = _ctx.fric_error_flag;
+}
+
+void ui_com::draw_trigger_located_state()
+{
+    constexpr uint16_t hidden = 1;
+    const auto x              = cfg_trigger_located::x;
+    const auto y              = cfg_trigger_located::y;
+    const auto s              = cfg_trigger_located::half_size;
+
+    const uint16_t check_x1   = _ctx.trigger_located ? x - s : hidden;
+    const uint16_t check_y1   = _ctx.trigger_located ? y - s / 3 : hidden;
+    const uint16_t check_x2   = _ctx.trigger_located ? x - s / 4 : hidden;
+    const uint16_t check_y2   = _ctx.trigger_located ? y - s : hidden;
+    const uint16_t check_x3   = _ctx.trigger_located ? x + s : hidden;
+    const uint16_t check_y3   = _ctx.trigger_located ? y + s : hidden;
+
+    const uint16_t cross_x1   = _ctx.trigger_located ? hidden : x - s;
+    const uint16_t cross_y1   = _ctx.trigger_located ? hidden : y - s;
+    const uint16_t cross_x2   = _ctx.trigger_located ? hidden : x + s;
+    const uint16_t cross_y2   = _ctx.trigger_located ? hidden : y + s;
+
+    _drv->draw_line("TC1", ui_operate::MODIFY, cfg_trigger_located::layer,
+                    ui_color::GREEN, cfg_trigger_located::width, check_x1,
+                    check_y1, check_x2, check_y2)
+        .draw_line("TC2", ui_operate::MODIFY, cfg_trigger_located::layer,
+                   ui_color::GREEN, cfg_trigger_located::width, check_x2,
+                   check_y2, check_x3, check_y3)
+        .draw_line("TX1", ui_operate::MODIFY, cfg_trigger_located::layer,
+                   ui_color::PINK, cfg_trigger_located::width, cross_x1,
+                   cross_y1, cross_x2, cross_y2)
+        .draw_line("TX2", ui_operate::MODIFY, cfg_trigger_located::layer,
+                   ui_color::PINK, cfg_trigger_located::width, cross_x1,
+                   cross_y2, cross_x2, cross_y1);
+
+    _sent_ctx.trigger_located = _ctx.trigger_located;
 }
 
 void ui_com::draw_lob_state()
@@ -571,52 +713,33 @@ void ui_com::draw_relative_pos()
         }
     }
 
-    float angle = _ctx.yaw_rad + PI/2;
-    uint16_t center_x =
-        cfg_relative_pos::x + cfg_relative_pos::chassis_scale / 2;
-    uint16_t center_y =
-        cfg_relative_pos::y +
-        static_cast<uint16_t>(cfg_relative_pos::chassis_scale / 2 * sqrt_2);
+    const float gimbal_angle = PI / 2 - _ctx.yaw_rad;
+    draw_cannon_line(_drv, "GL2", ui_operate::MODIFY,
+                     cfg_relative_pos::gimbal_layer, ui_color::ALLY,
+                     cfg_relative_pos::cannon_width - 5, gimbal_angle, -5.0f);
 
-    _drv->draw_line(
-            "GL1", ui_operate::MODIFY, cfg_relative_pos::chassis_layer,
-            ui_color::WHITE, cfg_relative_pos::cannon_width,
-            center_x + static_cast<uint16_t>(cfg_relative_pos::cannon_offset_r *
-                                             cos(angle)),
-            center_y + static_cast<uint16_t>(cfg_relative_pos::cannon_offset_r *
-                                             sin(angle)),
-            center_x +
-                static_cast<uint16_t>((cfg_relative_pos::cannon_offset_r +
-                                       cfg_relative_pos::cannon_length) *
-                                      cos(angle)),
-            center_y +
-                static_cast<uint16_t>((cfg_relative_pos::cannon_offset_r +
-                                       cfg_relative_pos::cannon_length) *
-                                      sin(angle)))
-        .draw_line(
-            "GL2", ui_operate::MODIFY, cfg_relative_pos::gimbal_layer,
-            ui_color::ALLY, cfg_relative_pos::cannon_width - 5,
-            center_x + static_cast<uint16_t>(cfg_relative_pos::cannon_offset_r *
-                                             cos(angle)),
-            center_y + static_cast<uint16_t>(cfg_relative_pos::cannon_offset_r *
-                                             sin(angle)),
-            center_x +
-                static_cast<uint16_t>((cfg_relative_pos::cannon_offset_r +
-                                       cfg_relative_pos::cannon_length - 5) *
-                                      cos(angle)),
-            center_y +
-                static_cast<uint16_t>((cfg_relative_pos::cannon_offset_r +
-                                       cfg_relative_pos::cannon_length - 5) *
-                                      sin(angle)))
-        .draw_rect("CS1", ui_operate::MODIFY, cfg_relative_pos::chassis_layer,
-                   rect_color, 5, cfg_relative_pos::x, cfg_relative_pos::y,
-                   cfg_relative_pos::x + cfg_relative_pos::chassis_scale,
-                   cfg_relative_pos::y +
-                       static_cast<uint16_t>(cfg_relative_pos::chassis_scale *
-                                             sqrt_2));
+    _drv->draw_rect(
+        "CS1", ui_operate::MODIFY, cfg_relative_pos::chassis_layer, rect_color,
+        5, cfg_relative_pos::x, cfg_relative_pos::y,
+        cfg_relative_pos::x + cfg_relative_pos::chassis_scale,
+        cfg_relative_pos::y +
+            static_cast<uint16_t>(cfg_relative_pos::chassis_scale * sqrt_2));
 
     std::memcpy(_sent_ctx.mecanum_online, _ctx.mecanum_online,
                 sizeof(_ctx.mecanum_online));
+}
+
+void ui_com::draw_leg()
+{
+    draw_leg_shape(_drv, "LLA", "LLB", "LWF", ui_operate::MODIFY,
+                   ui_color::YELLOW, cfg_leg::left_hip_x, cfg_leg::hip_y,
+                   _ctx.left_leg_rad, 1);
+    draw_leg_shape(_drv, "RLA", "RLB", "RWF", ui_operate::MODIFY,
+                   ui_color::YELLOW, cfg_leg::right_hip_x, cfg_leg::hip_y,
+                   _ctx.right_leg_rad, 1);
+
+    _sent_ctx.left_leg_rad  = _ctx.left_leg_rad;
+    _sent_ctx.right_leg_rad = _ctx.right_leg_rad;
 }
 
 // ==========================================

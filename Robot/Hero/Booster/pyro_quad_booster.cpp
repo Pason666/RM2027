@@ -34,6 +34,15 @@ float quad_booster_t::_normalize_angle(float angle)
     return angle;
 }
 
+bool quad_booster_t::_is_trigger_located(float trigger_rad)
+{
+    constexpr float TRIGGER_SLOT_RAD = PI / 3.0f;
+    const float delta = _normalize_angle(trigger_rad - TRIGGER_OFFSET);
+    const float nearest_slot_delta =
+        delta - std::round(delta / TRIGGER_SLOT_RAD) * TRIGGER_SLOT_RAD;
+    return std::fabs(nearest_slot_delta) < TRIGGER_LOCATED_THRESHOLD_RAD;
+}
+
 void quad_booster_t::_update_feedback()
 {
     for (int i = 0; i < 4; i++)
@@ -60,6 +69,7 @@ void quad_booster_t::_update_feedback()
     _ctx.data.current_trig_radps = _ctx.motor.trigger_wheel->get_current_rotate();
     _ctx.data.current_trig_torque = _ctx.motor.trigger_wheel->get_current_torque();
     _ctx.data.current_trig_rad = _ctx.motor.trigger_wheel->get_current_position();
+    _ctx.data.trigger_located = _is_trigger_located(_ctx.data.current_trig_rad);
 
     auto &board_drv = board_drv_t::get_instance();
     if (board_drv.check_online())
@@ -163,6 +173,11 @@ void quad_booster_t::_speed_control()
         board_drv_t::get_instance(board_drv_t::role_t::GIMBAL, can_hub_t::can1);
     board_drv_t::event_shoot_t shoot_event{};
 
+
+    auto &shoot_data = _use_deploy_data() ? _ctx.shoot_deploy_data
+                                          : _ctx.shoot_normal_data;
+    _ctx.data.target_shoot_speed = shoot_data.target_speed;
+
     if (!board_drv.read_event(board_drv_t::EVENT_C2G_SHOOT, shoot_event))
     {
         return;
@@ -174,10 +189,6 @@ void quad_booster_t::_speed_control()
     }
     last_launching_num = shoot_event.launching_num;
 
-    auto &shoot_data = _use_deploy_data() ? _ctx.shoot_deploy_data
-                                          : _ctx.shoot_normal_data;
-
-    _ctx.data.target_shoot_speed = shoot_data.target_speed;
 
     shoot_data.ball_speed[2] = shoot_data.ball_speed[1];
     shoot_data.ball_speed[1] = shoot_data.ball_speed[0];

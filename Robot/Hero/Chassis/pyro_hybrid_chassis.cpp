@@ -341,7 +341,7 @@ void hybrid_chassis_t::_kinematics_solve()
 
     if (_ctx.cmd->crossing_en)
     {
-        vx_chassis = std::clamp(vx_chassis, -0.5f, 0.5f);
+        vx_chassis = std::clamp(vx_chassis, -0.7f, 0.7f);
     }
 
 

@@ -20,7 +20,7 @@ status_t quad_booster_t::_init()
 {
     _ctx.motor = _module_deps.motor_deps;
     _ctx.pid   = _module_deps.pid_deps;
-    _ctx.pid.ball_speed_pid = new pid_t(0.6f, 0.0f, 0.005f, 0.0f, 2.0f);
+    _ctx.pid.ball_speed_pid = new pid_t(0.6f, 0.002f, 0.005f, 0.01f, 2.0f);
 
     return PYRO_OK;
 }

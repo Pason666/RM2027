@@ -23,8 +23,8 @@ constexpr float LEG_D_WALL                = 20.0f; // 虚拟墙阻尼系数 (N*m
 constexpr float LEG_GRA_K_WALL            = 50.0f; // 自重补偿虚拟墙 (N*m/rad)
 constexpr float LEG_GRA_D_WALL            = 10.0f;
 constexpr float YAW_OFFSET_RAD            = -0.892776966f;
-constexpr float PSEUDO_GYRO_YAW_AMPLITUDE_RAD = 1.5f;
-constexpr float PSEUDO_GYRO_YAW_SPEED_RADPS   = 5.0f;
+constexpr float PSEUDO_GYRO_YAW_AMPLITUDE_RAD = 1.4f;
+constexpr float PSEUDO_GYRO_YAW_SPEED_RADPS   = 4.0f;
 constexpr float PSEUDO_GYRO_PHASE_RADPS =
     PSEUDO_GYRO_YAW_SPEED_RADPS / PSEUDO_GYRO_YAW_AMPLITUDE_RAD;
 // IMU 机械安装偏移补偿 (需将底盘置于绝对水平面上读取原始数据填入)

@@ -16,7 +16,8 @@ using namespace pyro;
 constexpr uint32_t EVENT_BIT_TRACK_TOGGLE             = (1 << 0);
 constexpr uint32_t EVENT_BIT_LEG_TOGGLE               = (1 << 1);
 constexpr uint32_t EVENT_BIT_SLING_TOGGLE             = (1 << 2);
-constexpr uint32_t EVENT_BIT_SLING_PITCH_PREAIM       = (1 << 3);
+constexpr uint32_t EVENT_BIT_SLING_FIXED_PREAIM       = (1 << 3);
+constexpr uint32_t EVENT_BIT_SLING_CHASSIS_PREAIM     = (1 << 4);
 
 static TaskHandle_t gimbal_task_handle                = nullptr;
 static pyro::screw_gimbal_t *screw_gimbal_ptr         = nullptr;
@@ -37,6 +38,8 @@ extern "C"
     void hero_gimbal_thread(void *argument)
     {
         static bool prev_gimbal_output = false;
+        using sling_preaim_source_t =
+            pyro::screw_gimbal_cmd_t::sling_preaim_source_t;
 
         while (true)
         {
@@ -52,10 +55,30 @@ extern "C"
             {
                 is_track_mode = !is_track_mode;
             }
-            if ((notify_val & EVENT_BIT_SLING_PITCH_PREAIM) && is_sling_mode)
+            if (is_sling_mode)
             {
-                screw_gimbal_cmd_ptr->sling_pitch_flag =
-                    !screw_gimbal_cmd_ptr->sling_pitch_flag;
+                pyro::read_scope_lock lock(pyro::rc_drv_t::get_lock());
+                auto &vrc = pyro::rc_drv_t::read();
+
+                if ((notify_val & EVENT_BIT_SLING_FIXED_PREAIM) &&
+                    vrc.keys.ctrl.current_level)
+                {
+                    screw_gimbal_cmd_ptr->sling_pitch_flag =
+                        !screw_gimbal_cmd_ptr->sling_pitch_flag;
+                    screw_gimbal_cmd_ptr->sling_preaim_source =
+                        sling_preaim_source_t::FIXED_DELTA;
+                    ++screw_gimbal_cmd_ptr->sling_preaim_seq;
+                }
+                if ((notify_val & EVENT_BIT_SLING_CHASSIS_PREAIM) &&
+                    !vrc.keys.ctrl.current_level)
+                {
+                    screw_gimbal_cmd_ptr->sling_pitch_flag =
+                        !screw_gimbal_cmd_ptr->sling_pitch_flag;
+                    screw_gimbal_cmd_ptr->sling_preaim_source =
+                        sling_preaim_source_t::CHASSIS_COORD;
+                    ++screw_gimbal_cmd_ptr->sling_preaim_seq;
+
+                }
             }
             if (is_sling_mode)
             {
@@ -141,7 +164,11 @@ extern "C"
                                     gimbal_task_handle, EVENT_BIT_SLING_TOGGLE);
         pyro::btn_broker::subscribe(&vrc.keys.x, pyro::btn_event_t::PRESS_DOWN,
                                     gimbal_task_handle,
-                                    EVENT_BIT_SLING_PITCH_PREAIM);
+                                    EVENT_BIT_SLING_FIXED_PREAIM);
+        pyro::btn_broker::subscribe(&vrc.keys.x,
+                                    pyro::btn_event_t::LONG_PRESS_START,
+                                    gimbal_task_handle,
+                                    EVENT_BIT_SLING_CHASSIS_PREAIM);
         pyro::btn_broker::subscribe(&vrc.keys.g, pyro::btn_event_t::PRESS_DOWN,
                                     gimbal_task_handle,
                                     EVENT_BIT_TRACK_TOGGLE);

@@ -4,6 +4,7 @@
 #include "pyro_board_drv.h"
 
 #include <algorithm>
+#include <cmath>
 
 namespace pyro
 {
@@ -30,24 +31,35 @@ void screw_gimbal_t::fsm_active_t::sling_state_t::execute(owner *owner)
     owner->_ctx.data.target_pitch_rad += owner->_ctx.cmd->pitch_delta_angle;
     owner->_ctx.data.target_yaw_rad += owner->_ctx.cmd->yaw_delta_angle;
 
-    static bool last_sling_pitch_flag = false;
-    if (owner->_ctx.cmd->sling_pitch_flag != last_sling_pitch_flag)
+    static uint32_t last_sling_preaim_seq = 0;
+    if (owner->_ctx.cmd->sling_preaim_seq != last_sling_preaim_seq)
     {
-        // 如果 Pitch 也需要被 WASD 控制，则在这里直接累加
         constexpr float target_z = 1.080f;
         constexpr float delta_z = target_z - (0.35f + 0.4f);
-        // if (auto pitch = solveIdealPitch(delta_x, delta_y, delta_z, 16.2f))
-        // {
-        //     owner->_ctx.data.target_pitch_rad = *pitch;
-        // }
-        // last_sling_pitch_flag = owner->_ctx.cmd->sling_pitch_flag;
-        if (auto pitch = solveIdealPitch(21.3f, 0, delta_z, 16.3f))
+        float delta_x = 21.3f;
+        float delta_y = 0.0f;
+
+        if (owner->_ctx.cmd->sling_preaim_source ==
+            screw_gimbal_cmd_t::sling_preaim_source_t::CHASSIS_COORD)
+        {
+            const auto &rx_data = board_drv_t::get_instance().get_c2g_rx_data();
+            const float robot_x =
+                static_cast<float>(rx_data.robot_x) / 65535.0f * 28.0f;
+            const float robot_y =
+                static_cast<float>(rx_data.robot_y) / 65535.0f * 15.0f;
+            const float target_x = rx_data.robot_color ? 25.593f : 2.407f;
+            constexpr float target_y = 7.5f;
+
+            delta_x = std::fabs(target_x - robot_x);
+            delta_y = std::fabs(target_y - robot_y);
+        }
+        if (auto pitch = solveIdealPitch(delta_x, delta_y, delta_z, 16.3f))
         {
             float imu_target_pitch = -*pitch;
             float err = owner->_ctx.data.current_pitch_motor_rad - owner->_ctx.data.pitch_imu_rad;
             owner->_ctx.data.target_pitch_rad = imu_target_pitch + err;
         }
-        last_sling_pitch_flag = owner->_ctx.cmd->sling_pitch_flag;
+        last_sling_preaim_seq = owner->_ctx.cmd->sling_preaim_seq;
     }
 
     owner->_ctx.data.target_yaw_rad =

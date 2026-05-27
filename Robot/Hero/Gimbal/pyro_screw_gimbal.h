@@ -16,12 +16,21 @@ namespace pyro
 // =========================================================
 struct screw_gimbal_cmd_t final : public cmd_base_t
 {
+    enum class sling_preaim_source_t : uint8_t
+    {
+        NONE = 0,
+        FIXED_DELTA,
+        CHASSIS_COORD
+    };
+
     float pitch_delta_angle;
     float yaw_delta_angle;
 
     bool trigger_calibration;
     bool sling_mode;
     bool sling_pitch_flag;
+    uint32_t sling_preaim_seq;
+    sling_preaim_source_t sling_preaim_source;
     bool autoaim_mode;
     bool track_en;
     float target_pitch;
@@ -30,8 +39,10 @@ struct screw_gimbal_cmd_t final : public cmd_base_t
     screw_gimbal_cmd_t()
         : pitch_delta_angle(0.0f), yaw_delta_angle(0.0f),
           trigger_calibration(false), sling_mode(false),
-          sling_pitch_flag(false), autoaim_mode(false), track_en(false),
-          target_pitch(0.0f), target_yaw(0.0f)
+          sling_pitch_flag(false), sling_preaim_seq(0),
+          sling_preaim_source(sling_preaim_source_t::NONE),
+          autoaim_mode(false), track_en(false), target_pitch(0.0f),
+          target_yaw(0.0f)
     {
     }
 };

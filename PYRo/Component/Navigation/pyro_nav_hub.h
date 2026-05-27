@@ -11,8 +11,8 @@
  * @date 2026-05-27
  */
 
-#ifndef __PYRO_NAV_HUB_H__
-#define __PYRO_NAV_HUB_H__
+#ifndef PYRO_NAV_HUB_H_
+#define PYRO_NAV_HUB_H_
 
 #include "pyro_algo_pid.h"
 #include <cstdint>
@@ -92,7 +92,7 @@ struct nav_hub_config_t
     float attitude_det_limit; ///< 姿态投影矩阵最小行列式
 
     nav_hub_config_t()
-        : arrive_radius(0.2f), max_ground_speed(2.0f), min_dt(0.0005f),
+        : arrive_radius(0.1f), max_ground_speed(2.0f), min_dt(0.0005f),
           max_dt(0.02f), attitude_det_limit(0.05f)
     {
     }
@@ -156,12 +156,14 @@ class nav_hub_t
                          float pitch);
 
     /**
-     * @brief Set a map-frame target.
+     * @brief Set a map-frame XY target.
      *
+     * @param target_x Target map-frame x, m.
+     * @param target_y Target map-frame y, m.
      * @return true when current XY distance to target is less than
      *         config.arrive_radius, otherwise false.
      */
-    bool set_target(const nav_point_t &target);
+    bool set_target(float target_x, float target_y);
 
     /**
      * @brief Calculate one control step and return chassis-frame vx/vy.
@@ -213,4 +215,4 @@ class nav_hub_t
 
 } // namespace pyro
 
-#endif // __PYRO_NAV_HUB_H__
+#endif // PYRO_NAV_HUB_H_

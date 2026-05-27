@@ -1,7 +1,6 @@
 #include "pyro_nav_hub.h"
 
 #include "pyro_dwt_drv.h"
-#include <algorithm>
 #include <cmath>
 
 namespace pyro
@@ -14,6 +13,11 @@ constexpr float NAV_EPS = 1.0e-6f;
 float square(float value)
 {
     return value * value;
+}
+
+bool nearly_equal(float lhs, float rhs)
+{
+    return std::fabs(lhs - rhs) < NAV_EPS;
 }
 
 float clamp_dt(float dt, float min_dt, float max_dt)
@@ -67,10 +71,19 @@ void nav_hub_t::update_feedback(float vx, float vy, float yaw, float roll,
     _current_pos.z += ground_vel.z * dt;
 }
 
-bool nav_hub_t::set_target(const nav_point_t &target)
+bool nav_hub_t::set_target(float target_x, float target_y)
 {
-    _target       = target;
+    const bool target_changed = !_target_valid ||
+                                !nearly_equal(_target.x, target_x) ||
+                                !nearly_equal(_target.y, target_y);
+
+    _target       = nav_point_t(target_x, target_y, _current_pos.z);
     _target_valid = true;
+
+    if (target_changed)
+    {
+        _clear_pid();
+    }
 
     const float dist = _distance_to_target_xy(_target);
     if (dist < _config.arrive_radius)
@@ -100,17 +113,25 @@ nav_output_t nav_hub_t::update()
     _last_output.target       = _target;
     _last_output.target_valid = _target_valid;
 
-    if (!_target_valid || _deps.x_pid == nullptr || _deps.y_pid == nullptr)
+    if (!_target_valid)
     {
         _last_output.vx          = 0.0f;
         _last_output.vy          = 0.0f;
-        _last_output.arrived     = !_target_valid;
+        _last_output.arrived     = true;
         _last_output.distance_xy = 0.0f;
         return _last_output;
     }
 
     const float dist = _distance_to_target_xy(_target);
     _last_output.distance_xy = dist;
+
+    if (_deps.x_pid == nullptr || _deps.y_pid == nullptr)
+    {
+        _last_output.vx      = 0.0f;
+        _last_output.vy      = 0.0f;
+        _last_output.arrived = false;
+        return _last_output;
+    }
 
     if (dist < _config.arrive_radius)
     {

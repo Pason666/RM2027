@@ -43,6 +43,26 @@ bool quad_booster_t::_is_trigger_located(float trigger_rad)
     return std::fabs(nearest_slot_delta) < TRIGGER_LOCATED_THRESHOLD_RAD;
 }
 
+float quad_booster_t::_get_next_trigger_preset(float trigger_rad)
+{
+    constexpr float TRIGGER_SLOT_RAD = PI / 3.0f;
+    const float delta = _normalize_angle(trigger_rad - TRIGGER_OFFSET);
+    const bool feed_positive = TRIGGER_FEED_DIR > 0.0f;
+    float preset_index = feed_positive
+                             ? std::ceil(delta / TRIGGER_SLOT_RAD)
+                             : std::floor(delta / TRIGGER_SLOT_RAD);
+    const float advance = feed_positive
+                              ? preset_index * TRIGGER_SLOT_RAD - delta
+                              : delta - preset_index * TRIGGER_SLOT_RAD;
+
+    if (advance < TRIGGER_PRESET_MIN_ADVANCE_RAD)
+    {
+        preset_index += feed_positive ? 1.0f : -1.0f;
+    }
+
+    return _normalize_angle(TRIGGER_OFFSET + preset_index * TRIGGER_SLOT_RAD);
+}
+
 void quad_booster_t::_update_feedback()
 {
     for (int i = 0; i < 4; i++)

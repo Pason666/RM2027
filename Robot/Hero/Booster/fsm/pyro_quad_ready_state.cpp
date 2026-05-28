@@ -55,7 +55,8 @@ void quad_booster_t::fsm_active_t::state_ready_t::execute(owner *owner)
         {
             owner->_ctx.data.target_trig_rad =
                 quad_booster_t::_get_next_trigger_preset(
-                    owner->_ctx.data.current_trig_rad);
+                    owner->_ctx.data.current_trig_rad,
+                    TRIGGER_PRESET_MIN_ADVANCE_RAD);
 
             request_switch(&owner->_state_active._busy_state);
         }

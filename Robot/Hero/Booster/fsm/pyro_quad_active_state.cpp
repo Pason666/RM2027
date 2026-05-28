@@ -72,7 +72,7 @@ void quad_booster_t::fsm_active_t::on_execute(owner *owner)
 
     owner->_launch_delay_calculate();
 
-    constexpr float STALL_TIME_THRESHOLD   = 1000.0f;
+    constexpr float STALL_TIME_THRESHOLD   = 600.0f;
     constexpr float STALL_TORQUE_THRESHOLD = 1.2f;
     constexpr float STALL_SPEED_THRESHOLD  = 0.1f;
 

@@ -15,7 +15,8 @@ void quad_booster_t::fsm_active_t::state_stall_t::enter(owner *owner)
         owner->_ctx.data.target_trig_radps = 0;
         owner->_ctx.data.target_trig_rad =
             quad_booster_t::_get_next_trigger_preset(
-                owner->_ctx.data.current_trig_rad);
+                owner->_ctx.data.current_trig_rad,
+                TRIGGER_PRESET_DEFORM_THRESHOLD_RAD);
 
     }
     else if (&owner->_state_active._stall_state ==

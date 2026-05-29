@@ -36,7 +36,7 @@ void screw_gimbal_t::fsm_active_t::sling_state_t::execute(owner *owner)
     {
         constexpr float target_z = 1.080f;
         constexpr float delta_z = target_z - (0.35f + 0.4f);
-        float delta_x = 21.3f;
+        float delta_x = 21.1f;
         float delta_y = 0.0f;
 
         if (owner->_ctx.cmd->sling_preaim_source ==

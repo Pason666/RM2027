@@ -210,6 +210,11 @@ void quad_booster_t::_speed_control()
     }
     last_launching_num = shoot_event.launching_num;
 
+    if (fabs(_ctx.data.target_shoot_speed - shoot_event.shoot_speed) > 2.0f)
+    {
+        return;
+    }
+
 
     for (int i = 7; i > 0; --i)
     {
@@ -246,7 +251,7 @@ void quad_booster_t::_speed_control()
             i = shoot_data.real_ball_speed[0];
     }
 
-    constexpr float outlier_threshold = 0.1f;
+    constexpr float outlier_threshold = 0.12f;
     const bool real_speed_stable =
         std::abs(shoot_data.avg_real_ball_speed - shoot_data.target_speed) <
         outlier_threshold;
@@ -335,6 +340,21 @@ void quad_booster_t::_fric_control()
     }
 }
 
+void quad_booster_t::_anti_jam_control()
+{
+    for (int i = 0; i < 4; i++)
+    {
+        _ctx.data.target_fric_mps[i] = 0.0f;
+        _ctx.data.out_fric_torque[i] = 0.0f;
+    }
+
+    _ctx.data.out_fric_torque[0] = -FRIC1_ANTI_JAM_REVERSE_TORQUE;
+    _ctx.data.out_fric_torque[2] = FRIC1_ANTI_JAM_REVERSE_TORQUE;
+    _ctx.data.target_trig_rad    = _ctx.data.current_trig_rad;
+    _ctx.data.target_trig_radps  = 0.0f;
+    _ctx.data.out_trig_torque    = 0.0f;
+}
+
 void quad_booster_t::_trigger_position_control()
 {
     float error = _ctx.data.target_trig_rad - _ctx.data.current_trig_rad;
@@ -387,6 +407,14 @@ void quad_booster_t::_send_fric_command() const
         _ctx.motor.fric_wheels[i]->send_torque(
             _ctx.data.out_fric_torque[i] +
             0.08f * _ctx.data.current_fric_torque[i]);
+    }
+}
+
+void quad_booster_t::_send_raw_fric_command() const
+{
+    for (int i = 0; i < 4; i++)
+    {
+        _ctx.motor.fric_wheels[i]->send_torque(_ctx.data.out_fric_torque[i]);
     }
 }
 

@@ -329,6 +329,21 @@ void quad_booster_t::_fric_control()
     }
 }
 
+void quad_booster_t::_anti_jam_control()
+{
+    for (int i = 0; i < 4; i++)
+    {
+        _ctx.data.target_fric_mps[i] = 0.0f;
+        _ctx.data.out_fric_torque[i] = 0.0f;
+    }
+
+    _ctx.data.out_fric_torque[1] = -FRIC1_ANTI_JAM_REVERSE_TORQUE;
+    _ctx.data.out_fric_torque[3] = FRIC1_ANTI_JAM_REVERSE_TORQUE;
+    _ctx.data.target_trig_rad    = _ctx.data.current_trig_rad;
+    _ctx.data.target_trig_radps  = 0.0f;
+    _ctx.data.out_trig_torque    = 0.0f;
+}
+
 void quad_booster_t::_trigger_position_control()
 {
     float error = _ctx.data.target_trig_rad - _ctx.data.current_trig_rad;
@@ -381,6 +396,14 @@ void quad_booster_t::_send_fric_command() const
         _ctx.motor.fric_wheels[i]->send_torque(
             _ctx.data.out_fric_torque[i] +
             0.08f * _ctx.data.current_fric_torque[i]);
+    }
+}
+
+void quad_booster_t::_send_raw_fric_command() const
+{
+    for (int i = 0; i < 4; i++)
+    {
+        _ctx.motor.fric_wheels[i]->send_torque(_ctx.data.out_fric_torque[i]);
     }
 }
 

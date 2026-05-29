@@ -3,7 +3,7 @@
 # =========================================================================
 #set(BOARD "GIMBAL_BOARD")
 set(BOARD "CHASSIS_BOARD")
-#
+#·
 # =========================================================================
 # 2. 声明Sub_Hero目标文件库（OBJECT库，仅编译目标文件不链接，保留原工程逻辑）
 # =========================================================================
@@ -37,6 +37,7 @@ if (BOARD STREQUAL "GIMBAL_BOARD")
             # === Booster 模块 ===
             Booster/pyro_quad_booster.cpp
             Booster/fsm/pyro_quad_active_state.cpp
+            Booster/fsm/pyro_quad_anti_jam_state.cpp
             Booster/fsm/pyro_quad_busy_state.cpp
             Booster/fsm/pyro_quad_homing_state.cpp
             Booster/fsm/pyro_quad_interim_state.cpp

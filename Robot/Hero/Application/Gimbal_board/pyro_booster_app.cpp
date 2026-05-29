@@ -27,6 +27,8 @@ constexpr uint32_t EVENT_BIT_FRIC_ON             = (1 << 3);
 constexpr uint32_t EVENT_BIT_FRIC_OFF            = (1 << 4);
 constexpr uint32_t EVENT_BIT_TRIGGER_RESET       = (1 << 5);
 constexpr uint32_t EVENT_BIT_SHOOT_DATA_RESET    = (1 << 6);
+constexpr uint32_t EVENT_BIT_ANTI_JAM_START      = (1 << 7);
+constexpr uint32_t EVENT_BIT_ANTI_JAM_STOP       = (1 << 8);
 
 static TaskHandle_t booster_task_handle   = nullptr;
 static pyro::quad_booster_t *quad_booster_ptr         = nullptr;
@@ -47,6 +49,7 @@ extern "C"
         {
             quad_booster_cmd_ptr->mode    = pyro::cmd_base_t::mode_t::PASSIVE;
             quad_booster_cmd_ptr->fric_on = false;
+            quad_booster_cmd_ptr->anti_jam = false;
             return;
         }
 
@@ -55,6 +58,7 @@ extern "C"
         if (notify_val & EVENT_BIT_FRIC_TOGGLE)
         {
             quad_booster_cmd_ptr->fric_on = !quad_booster_cmd_ptr->fric_on;
+            quad_booster_cmd_ptr->anti_jam = false;
         }
 
         if (pyro::sw_pos_t::MID == vrc.switches.right.current_pos)
@@ -78,6 +82,7 @@ extern "C"
         {
             quad_booster_cmd_ptr->mode    = pyro::cmd_base_t::mode_t::PASSIVE;
             quad_booster_cmd_ptr->fric_on = false;
+            quad_booster_cmd_ptr->anti_jam = false;
             last_pc_fire                  = 0;
             return;
         }
@@ -87,16 +92,28 @@ extern "C"
         if (notify_val & EVENT_BIT_FRIC_TOGGLE)
         {
             quad_booster_cmd_ptr->fric_on = !quad_booster_cmd_ptr->fric_on;
+            quad_booster_cmd_ptr->anti_jam = false;
         }
 
         // Q/E set fric state, Ctrl+F forces deploy shoot-data, B resets trigger wheel.
         if (notify_val & EVENT_BIT_FRIC_ON)
         {
             quad_booster_cmd_ptr->fric_on = true;
+            quad_booster_cmd_ptr->anti_jam = false;
         }
         if (notify_val & EVENT_BIT_FRIC_OFF)
         {
             quad_booster_cmd_ptr->fric_on = false;
+            quad_booster_cmd_ptr->anti_jam = false;
+        }
+        if (notify_val & EVENT_BIT_ANTI_JAM_START)
+        {
+            quad_booster_cmd_ptr->fric_on = false;
+            quad_booster_cmd_ptr->anti_jam = true;
+        }
+        if (notify_val & EVENT_BIT_ANTI_JAM_STOP)
+        {
+            quad_booster_cmd_ptr->anti_jam = false;
         }
 
         if ((notify_val & EVENT_BIT_FORCE_DEPLOY_TOGGLE) &&
@@ -183,17 +200,20 @@ extern "C"
                     {
                         quad_booster_cmd_ptr->mode =
                             pyro::cmd_base_t::mode_t::PASSIVE;
+                        quad_booster_cmd_ptr->anti_jam = false;
                     }
                 }
                 else
                 {
                     quad_booster_cmd_ptr->mode =
                         pyro::cmd_base_t::mode_t::PASSIVE;
+                    quad_booster_cmd_ptr->anti_jam = false;
                 }
             }
             else
             {
                 quad_booster_cmd_ptr->mode = pyro::cmd_base_t::mode_t::PASSIVE;
+                quad_booster_cmd_ptr->anti_jam = false;
             }
 
 
@@ -224,6 +244,13 @@ extern "C"
                                     booster_task_handle, EVENT_BIT_FRIC_ON);
         pyro::btn_broker::subscribe(&vrc.keys.e, pyro::btn_event_t::PRESS_DOWN,
                                     booster_task_handle, EVENT_BIT_FRIC_OFF);
+        pyro::btn_broker::subscribe(&vrc.keys.e,
+                                    pyro::btn_event_t::LONG_PRESS_START,
+                                    booster_task_handle,
+                                    EVENT_BIT_ANTI_JAM_START);
+        pyro::btn_broker::subscribe(&vrc.keys.e, pyro::btn_event_t::PRESS_UP,
+                                    booster_task_handle,
+                                    EVENT_BIT_ANTI_JAM_STOP);
 
         // Ctrl+F forces the booster deploy shoot-data set.
         pyro::btn_broker::subscribe(&vrc.keys.f, pyro::btn_event_t::PRESS_DOWN,

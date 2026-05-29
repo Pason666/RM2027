@@ -15,6 +15,7 @@ namespace pyro
 struct quad_booster_cmd_t final : public cmd_base_t
 {
     bool fric_on; // 摩擦轮开启
+    bool anti_jam; // 防卡弹：一级摩擦轮恒力矩反转，拨弹盘失能
     bool force_deploy;
     uint8_t reset_count;
     uint8_t shoot_data_reset_count;
@@ -24,7 +25,7 @@ struct quad_booster_cmd_t final : public cmd_base_t
     float trig_target_spd; // 新增：拨弹盘目标速度
 
     quad_booster_cmd_t()
-        : fric_on(false), force_deploy(false), reset_count(0),
+        : fric_on(false), anti_jam(false), force_deploy(false), reset_count(0),
           shoot_data_reset_count(0), fire_count(0), trig_target_spd(0.0f)
     {
     }
@@ -81,9 +82,11 @@ class quad_booster_t final
     // --- 内部辅助 ---
     void _speed_control();
     void _fric_control();
+    void _anti_jam_control();
     void _trigger_position_control();
     void _trigger_speed_control();
     void _send_fric_command() const;
+    void _send_raw_fric_command() const;
     void _send_trigger_command() const;
     void _launch_delay_calculate();
     void _reset_active_shoot_data();
@@ -115,6 +118,7 @@ class quad_booster_t final
         uint8_t internal_fire_count{0}; // 内部拨弹计数器追踪
         bool deploy_mode{false};
         bool trigger_located{false};
+        bool anti_jam_active{false};
 
         bool fric_err{};
         uint8_t internal_reset_count{0};
@@ -189,7 +193,13 @@ class quad_booster_t final
 
     // =====================================================
     // 状态机定义
-    // =====================================================
+    // ========================================
+    //
+    //
+    //
+    //
+    //
+    // =============
     using owner = quad_booster_t;
 
     struct state_passive_t final : public state_t<owner>
@@ -240,6 +250,12 @@ class quad_booster_t final
             void execute(owner *owner) override;
             void exit(owner *owner) override;
         };
+        struct state_anti_jam_t final : public state_t<owner>
+        {
+            void enter(owner *owner) override;
+            void execute(owner *owner) override;
+            void exit(owner *owner) override;
+        };
         void on_enter(owner *owner) override;
         void on_execute(owner *owner) override;
         void on_exit(owner *owner) override;
@@ -250,6 +266,7 @@ class quad_booster_t final
         state_ready_t _ready_state;
         state_busy_t _busy_state;
         state_stall_t _stall_state;
+        state_anti_jam_t _anti_jam_state;
     };
     struct state_temp_t final : public state_t<owner>
     {

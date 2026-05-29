@@ -59,9 +59,9 @@ constexpr float DIST_HIP      = 0.1805f; // 质心到髋关节的水平距离
 constexpr float H_COG         = 0.18f;   // 重心垂直高度
 constexpr float H_HIP_OFFSET  = 0.074f;  // 髋关节与前轮轴心的垂直落差
 inline float LEFT_LEG_OFFSET_RAD =
-    0.246926785f; // 左腿位置偏移 (rad)，正值表示向前偏移
-inline float RIGHT_LEG_OFFSET_RAD =-3.6
-    -1.05822325f; // 右腿位置偏移 (rad)，正值表示向前偏移 // 变了0.1
+    0.984015703f; // 左腿位置偏移 (rad)，正值表示向前偏移
+inline float RIGHT_LEG_OFFSET_RAD =
+    -1.1565913f; // 右腿位置偏移 (rad)，正值表示向前偏移 // 变了0.1
 
 // ================= 新增：自动越障收腿配置参数 =================
 constexpr float CLIMB_DIST_LPF_ALPHA =

@@ -23,6 +23,21 @@ void quad_booster_t::fsm_active_t::on_enter(owner *owner)
 
 void quad_booster_t::fsm_active_t::on_execute(owner *owner)
 {
+    if (owner->_ctx.cmd->anti_jam)
+    {
+        if (_active_state != &_anti_jam_state)
+        {
+            change_state(&_anti_jam_state);
+        }
+        return;
+    }
+
+    if (_active_state == &_anti_jam_state)
+    {
+        change_state(&_homing_state);
+        return;
+    }
+
     if (owner->_ctx.cmd->reset_count != owner->_ctx.data.internal_reset_count)
     {
         owner->_ctx.data.internal_reset_count = owner->_ctx.cmd->reset_count;

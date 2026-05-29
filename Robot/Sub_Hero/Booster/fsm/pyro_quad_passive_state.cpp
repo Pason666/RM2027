@@ -12,6 +12,7 @@ void quad_booster_t::state_passive_t::enter(owner *owner)
     owner->_ctx.motor.fric_wheels[1]->disable();
     owner->_ctx.motor.fric_wheels[2]->disable();
     owner->_ctx.motor.fric_wheels[3]->disable();
+    owner->_ctx.data.anti_jam_active = false;
     _trigger_stopped = false;
 }
 

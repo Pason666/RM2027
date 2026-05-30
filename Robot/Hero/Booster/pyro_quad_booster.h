@@ -184,8 +184,8 @@ class quad_booster_t final
         quad_deps_t::motor_deps_t motor;
         quad_deps_t::pid_deps_t pid;
         data_ctx_t data;
-        shoot_data_t shoot_normal_data{11.8f, 11.8f, 10.1f};
-        shoot_data_t shoot_deploy_data{16.3f, 15.8f, 7.6f};
+        shoot_data_t shoot_normal_data{11.7f, 11.8f, 10.4f};
+        shoot_data_t shoot_deploy_data{16.3f, 15.6f, 10.0f};
         quad_booster_cmd_t *cmd{};
     };
 
@@ -225,12 +225,16 @@ class quad_booster_t final
 
           private:
             float _ready_wait_start_time{0.0f};
+            float _fric_ready_start_time{0.0f};
         };
         struct state_ready_t final : public state_t<owner>
         {
             void enter(owner *owner) override;
             void execute(owner *owner) override;
             void exit(owner *owner) override;
+
+          private:
+            float _fric_unready_start_time{0.0f};
         };
         struct state_busy_t final : public state_t<owner>
         {

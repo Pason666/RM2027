@@ -210,6 +210,13 @@ void quad_booster_t::_speed_control()
     }
     last_launching_num = shoot_event.launching_num;
 
+    if (shoot_event.shoot_speed - _ctx.data.target_shoot_speed > 0.3f)
+    {
+        float err = shoot_event.shoot_speed - _ctx.data.target_shoot_speed;
+        shoot_data.fric1_mps -= err;
+        return;
+    }
+
     if (fabs(_ctx.data.target_shoot_speed - shoot_event.shoot_speed) > 2.0f)
     {
         return;
@@ -251,7 +258,7 @@ void quad_booster_t::_speed_control()
             i = shoot_data.real_ball_speed[0];
     }
 
-    constexpr float outlier_threshold = 0.12f;
+    constexpr float outlier_threshold = 0.2f;
     const bool real_speed_stable =
         std::abs(shoot_data.avg_real_ball_speed - shoot_data.target_speed) <
         outlier_threshold;

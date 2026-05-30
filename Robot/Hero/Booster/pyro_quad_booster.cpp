@@ -258,7 +258,7 @@ void quad_booster_t::_speed_control()
             i = shoot_data.real_ball_speed[0];
     }
 
-    constexpr float outlier_threshold = 0.2f;
+    constexpr float outlier_threshold = 0.1f;
     const bool real_speed_stable =
         std::abs(shoot_data.avg_real_ball_speed - shoot_data.target_speed) <
         outlier_threshold;
@@ -271,9 +271,9 @@ void quad_booster_t::_speed_control()
             0.7f * shoot_data.ball_speed[1] + 0.3f * shoot_data.ball_speed[2];
     }
 
-    constexpr float w0 = 0.72f;
-    constexpr float w1 = 0.21f;
-    constexpr float w2 = 0.07f;
+    constexpr float w0 = 0.65f;
+    constexpr float w1 = 0.25f;
+    constexpr float w2 = 0.10f;
 
     shoot_data.avg_ball_speed = w0 * shoot_data.ball_speed[0] +
                                 w1 * shoot_data.ball_speed[1] +
@@ -414,6 +414,7 @@ void quad_booster_t::_send_fric_command() const
         _ctx.motor.fric_wheels[i]->send_torque(
             _ctx.data.out_fric_torque[i] +
             0.08f * _ctx.data.current_fric_torque[i]);
+        // _ctx.motor.fric_wheels[i]->send_torque(_ctx.data.out_fric_torque[i]);
     }
 }
 

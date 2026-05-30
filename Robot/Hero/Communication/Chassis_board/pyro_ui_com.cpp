@@ -52,11 +52,26 @@ inline uint16_t ui_coord(float value)
     return static_cast<uint16_t>(value);
 }
 
-// UI 元素坐标布局布局配置 (保持原坐标、图层、大小绝对不变)
+struct cfg_layer
+{
+    static constexpr uint8_t field_ref       = 0;
+    static constexpr uint8_t cap_frame       = 1;
+    static constexpr uint8_t cap_bar         = 2;
+    static constexpr uint8_t text_label      = 3;
+    static constexpr uint8_t text_value      = 4;
+    static constexpr uint8_t motion_base     = 5;
+    static constexpr uint8_t motion_front    = 6;
+    static constexpr uint8_t launcher_base   = 7;
+    static constexpr uint8_t launcher_status = 8;
+    static constexpr uint8_t tracking        = 9;
+};
+
+// UI 元素坐标与功能图层配置
 struct cfg_relative_pos
 {
     static constexpr uint16_t x = 100, y = 600, chassis_scale = 70;
-    static constexpr uint8_t chassis_layer = 2, gimbal_layer = 3;
+    static constexpr uint8_t chassis_layer = cfg_layer::motion_base;
+    static constexpr uint8_t gimbal_layer  = cfg_layer::motion_front;
     static constexpr uint8_t gimbal_r = 20, cannon_length = 50,
                              cannon_width    = 15;
     static constexpr uint8_t cannon_offset_r = 18;
@@ -65,23 +80,26 @@ struct cfg_relative_pos
 struct cfg_leg
 {
     static constexpr uint16_t left_hip_x = 255, right_hip_x = 335;
-    static constexpr uint16_t hip_y    = 685;
-    static constexpr uint16_t link_len = 55;
-    static constexpr uint16_t foot_r   = 12;
-    static constexpr uint8_t layer = 3, foot_layer = 4;
+    static constexpr uint16_t hip_y     = 685;
+    static constexpr uint16_t link_len  = 55;
+    static constexpr uint16_t foot_r    = 12;
+    static constexpr uint8_t layer      = cfg_layer::motion_base;
+    static constexpr uint8_t foot_layer = cfg_layer::motion_front;
     static constexpr uint8_t line_width = 4, foot_width = 3;
 };
 
 struct cfg_track // 原 cfg_trail 更名
 {
     static constexpr uint16_t x = 120, y = 800, r = 40;
-    static constexpr uint8_t layer = 2, additional_layer = 7;
+    static constexpr uint8_t layer            = cfg_layer::tracking;
+    static constexpr uint8_t additional_layer = cfg_layer::tracking;
 };
 
 struct cfg_fric
 {
     static constexpr uint16_t x = 1770, y = 730, r = 50;
-    static constexpr uint8_t layer = 2, cross_layer = 5;
+    static constexpr uint8_t layer       = cfg_layer::launcher_base;
+    static constexpr uint8_t cross_layer = cfg_layer::launcher_base;
 };
 
 struct cfg_trigger_located
@@ -89,7 +107,7 @@ struct cfg_trigger_located
     static constexpr uint16_t x         = cfg_fric::x;
     static constexpr uint16_t y         = cfg_fric::y - cfg_fric::r - 45;
     static constexpr uint16_t half_size = 28;
-    static constexpr uint8_t layer      = 7;
+    static constexpr uint8_t layer      = cfg_layer::launcher_status;
     static constexpr uint8_t width      = 5;
 };
 
@@ -98,14 +116,15 @@ struct cfg_fire_ready
     static constexpr uint16_t x         = cfg_fric::x;
     static constexpr uint16_t y         = cfg_fric::y + cfg_fric::r + 45;
     static constexpr uint16_t half_size = 28;
-    static constexpr uint8_t layer      = 7;
+    static constexpr uint8_t layer      = cfg_layer::launcher_status;
     static constexpr uint8_t width      = 5;
 };
 
 struct cfg_lob
 {
     static constexpr uint16_t x = 1770, y = 530, r = 50;
-    static constexpr uint8_t layer = 2, cross_layer = 6;
+    static constexpr uint8_t layer       = cfg_layer::launcher_base;
+    static constexpr uint8_t cross_layer = cfg_layer::launcher_base;
 };
 
 struct cfg_text
@@ -115,14 +134,15 @@ struct cfg_text
     static constexpr uint16_t spd_x = 885, spd_y = 220;
     static constexpr uint16_t pos_x = 200, pos_y = 800;
     static constexpr uint16_t label_offset = 100;
-    static constexpr uint8_t layer = 3, val_layer = 4;
+    static constexpr uint8_t layer         = cfg_layer::text_label;
+    static constexpr uint8_t val_layer     = cfg_layer::text_value;
 };
 
 struct cfg_cap
 {
     static constexpr uint16_t cx = 960, cy = 110;
     static constexpr uint16_t hw = 350, hh = 30;
-    static constexpr uint8_t layer = 2;
+    static constexpr uint8_t layer = cfg_layer::cap_frame;
 };
 
 struct cfg_outpost
@@ -130,7 +150,7 @@ struct cfg_outpost
     static constexpr uint16_t start_x = 900, end_x = 1020;
     static constexpr uint16_t start_y = 500, end_y = 500;
     static constexpr uint8_t width = 3;
-    static constexpr uint8_t layer = 2;
+    static constexpr uint8_t layer = cfg_layer::field_ref;
 };
 
 struct cfg_base
@@ -138,7 +158,7 @@ struct cfg_base
     static constexpr uint16_t start_x = 900, end_x = 1020;
     static constexpr uint16_t start_y = 412, end_y = 412;
     static constexpr uint8_t width = 3;
-    static constexpr uint8_t layer = 2;
+    static constexpr uint8_t layer = cfg_layer::field_ref;
 };
 
 struct leg_points_t
@@ -307,7 +327,7 @@ void ui_com::draw_static()
     _drv->draw_rect("SCP", ui_operate::ADD, cfg_cap::layer, ui_color::ORANGE, 3,
                     cfg_cap::cx - cfg_cap::hw, cfg_cap::cy + cfg_cap::hh,
                     cfg_cap::cx + cfg_cap::hw, cfg_cap::cy - cfg_cap::hh)
-        .draw_line("PBR", ui_operate::ADD, cfg_cap::layer + 1, ui_color::ORANGE,
+        .draw_line("PBR", ui_operate::ADD, cfg_layer::cap_bar, ui_color::ORANGE,
                    50, cfg_cap::cx - cfg_cap::hw, cfg_cap::cy,
                    cfg_cap::cx - cfg_cap::hw, cfg_cap::cy);
 
@@ -711,7 +731,7 @@ void ui_com::draw_super_cap()
     uint16_t end_x   = start_x + static_cast<uint16_t>(2 * cfg_cap::hw * ratio);
     ui_color cap_color = (ratio >= 1.0f) ? ui_color::CYAN : ui_color::ORANGE;
 
-    _drv->draw_line("PBR", ui_operate::MODIFY, cfg_cap::layer + 1, cap_color,
+    _drv->draw_line("PBR", ui_operate::MODIFY, cfg_layer::cap_bar, cap_color,
                     50, start_x, cfg_cap::cy, end_x, cfg_cap::cy);
 
     _sent_ctx.super_cap_voltage = _ctx.super_cap_voltage;

@@ -20,13 +20,13 @@ void quad_booster_t::fsm_active_t::state_interim_t::execute(owner *owner)
     // 循环判断摩擦轮转速，符合要求则进入ready状态
     const bool fric_ready =
         abs(owner->_ctx.data.current_fric_mps[0] -
-            owner->_ctx.data.target_fric_mps[0]) < 0.5f &&
+            owner->_ctx.data.target_fric_mps[0]) < 1.0f &&
         abs(owner->_ctx.data.current_fric_mps[1] -
-            owner->_ctx.data.target_fric_mps[1]) < 0.5f &&
+            owner->_ctx.data.target_fric_mps[1]) < 1.0f &&
         abs(owner->_ctx.data.current_fric_mps[2] -
-            owner->_ctx.data.target_fric_mps[2]) < 0.5f &&
+            owner->_ctx.data.target_fric_mps[2]) < 1.0f &&
         abs(owner->_ctx.data.current_fric_mps[3] -
-            owner->_ctx.data.target_fric_mps[3]) < 0.5f &&
+            owner->_ctx.data.target_fric_mps[3]) < 1.0f &&
         owner->_ctx.cmd->fric_on;
 
     if (fric_ready)

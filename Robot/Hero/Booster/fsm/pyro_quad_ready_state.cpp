@@ -71,7 +71,7 @@ void quad_booster_t::fsm_active_t::state_ready_t::execute(owner *owner)
     bool fric_unready = false;
     for (int i = 0; i < 4; i++)
     {
-        if (abs(owner->_ctx.data.current_fric_mps[i] - owner->_ctx.data.target_fric_mps[i]) > 0.5f)
+        if (abs(owner->_ctx.data.current_fric_mps[i] - owner->_ctx.data.target_fric_mps[i]) > 1.0f)
         {
             fric_unready = true;
             break;

@@ -379,10 +379,10 @@ void hybrid_chassis_t::_kinematics_solve()
     float vy_chassis    = -_ctx.cmd->vx * s_theta + _ctx.cmd->vy * c_theta;
 
 
-    if (abs(final_wz) > 3.0f)
+    if (abs(final_wz) > 2.5f)
     {
-        vx_chassis *= 0.22f;
-        vy_chassis *= 0.22f;
+        vx_chassis *= 0.15f;
+        vy_chassis *= 0.15f;
     }
 
 

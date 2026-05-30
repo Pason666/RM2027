@@ -1,3 +1,0 @@
-E:/Develop/a_PYRo/PYRo-Hero/CubeMX/Core/Src/spi.c:32:6:MX_SPI2_Init	8	static
-E:/Develop/a_PYRo/PYRo-Hero/CubeMX/Core/Src/spi.c:74:6:HAL_SPI_MspInit	240	static
-E:/Develop/a_PYRo/PYRo-Hero/CubeMX/Core/Src/spi.c:164:6:HAL_SPI_MspDeInit	16	static

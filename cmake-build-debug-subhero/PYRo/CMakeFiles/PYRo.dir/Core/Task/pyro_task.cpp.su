@@ -1,8 +1,0 @@
-E:/Develop/a_PYRo/PYRo-Hero/PYRo/Core/Task/pyro_task.cpp:16:1:pyro::task_base_t::task_base_t(const char*, uint16_t, uint16_t, priority_t)	24	static
-E:/Develop/a_PYRo/PYRo-Hero/PYRo/Core/Task/pyro_task.cpp:27:1:pyro::task_base_t::~task_base_t()	16	static
-E:/Develop/a_PYRo/PYRo-Hero/PYRo/Core/Task/pyro_task.cpp:27:1:virtual pyro::task_base_t::~task_base_t()	16	static
-E:/Develop/a_PYRo/PYRo-Hero/PYRo/Core/Task/pyro_task.cpp:36:10:pyro::status_t pyro::task_base_t::start()	24	static
-E:/Develop/a_PYRo/PYRo-Hero/PYRo/Core/Task/pyro_task.cpp:52:6:void pyro::task_base_t::stop()	16	static
-E:/Develop/a_PYRo/PYRo-Hero/PYRo/Core/Task/pyro_task.cpp:65:10:static pyro::status_t pyro::task_base_t::init_entry_point(void*)	48	static
-E:/Develop/a_PYRo/PYRo-Hero/PYRo/Core/Task/pyro_task.cpp:96:6:static void pyro::task_base_t::loop_entry_point(void*)	24	static
-E:/Develop/a_PYRo/PYRo-Hero/PYRo/Core/Task/pyro_task.cpp:117:13:static UBaseType_t pyro::task_base_t::convert_priority(priority_t)	16	static

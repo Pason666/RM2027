@@ -119,6 +119,7 @@ class quad_booster_t final
         bool deploy_mode{false};
         bool trigger_located{false};
         bool anti_jam_active{false};
+        bool ready_state_flag{false};
 
         bool fric_err{};
         uint8_t internal_reset_count{0};
@@ -184,7 +185,7 @@ class quad_booster_t final
         quad_deps_t::motor_deps_t motor;
         quad_deps_t::pid_deps_t pid;
         data_ctx_t data;
-        shoot_data_t shoot_normal_data{11.7f, 11.8f, 10.4f};
+        shoot_data_t shoot_normal_data{11.7f, 11.7f, 10.4f};
         shoot_data_t shoot_deploy_data{16.3f, 15.6f, 10.0f};
         quad_booster_cmd_t *cmd{};
     };

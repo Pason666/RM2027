@@ -27,9 +27,9 @@ static constexpr float sqrt_2                       = 1.4142135f;
 static constexpr float sqrt_2_2                     = 0.7071068f;
 
 // 脏检查阈值
-static constexpr float rad_update_threshold         = 0.01f;
+static constexpr float rad_update_threshold         = 0.001f;
 static constexpr float speed_update_threshold       = 0.1f;
-static constexpr float position_update_threshold    = 0.01f;
+static constexpr float position_update_threshold    = 0.1f;
 static constexpr float cap_voltage_update_threshold = 0.3f;
 
 inline bool value_changed(float current, float sent, float threshold)
@@ -88,6 +88,15 @@ struct cfg_trigger_located
 {
     static constexpr uint16_t x         = cfg_fric::x;
     static constexpr uint16_t y         = cfg_fric::y - cfg_fric::r - 45;
+    static constexpr uint16_t half_size = 28;
+    static constexpr uint8_t layer      = 7;
+    static constexpr uint8_t width      = 5;
+};
+
+struct cfg_fire_ready
+{
+    static constexpr uint16_t x         = cfg_fric::x;
+    static constexpr uint16_t y         = cfg_fric::y + cfg_fric::r + 45;
     static constexpr uint16_t half_size = 28;
     static constexpr uint8_t layer      = 7;
     static constexpr uint8_t width      = 5;
@@ -228,6 +237,7 @@ static void info_update_test()
     ui_ctx.sling_flag      = board.get_g2c_rx_data().sling_mode;
     ui_ctx.fric_en_flag    = board.get_g2c_rx_data().fric_en;
     ui_ctx.fric_error_flag = board.get_g2c_rx_data().fric_err;
+    ui_ctx.fire_ready_flag = board.get_g2c_rx_data().fire_ready;
     ui_ctx.yaw_rad         = chassis->get_ctx().data.current_yaw_error;
     ui_ctx.pitch_rad =
         static_cast<float>(board.get_g2c_rx_data().pitch_rad) / 32768.0f;
@@ -240,8 +250,8 @@ static void info_update_test()
     ui_ctx.trigger_located = board.get_g2c_rx_data().trigger_located;
     ui_ctx.position_x      = referee_ptr->get_data().robot_pos.x;
     ui_ctx.position_y      = referee_ptr->get_data().robot_pos.y;
-    ui_ctx.distance     = sqrt(ui_ctx.position_x * ui_ctx.position_x +
-                               ui_ctx.position_y * ui_ctx.position_y);
+    ui_ctx.distance        = sqrt(ui_ctx.position_x * ui_ctx.position_x +
+                                  ui_ctx.position_y * ui_ctx.position_y);
     ui_ctx.left_leg_rad = chassis->get_ctx().data.current_leg_rad[0] / 2 + 0.4f;
     ui_ctx.right_leg_rad =
         chassis->get_ctx().data.current_leg_rad[1] / 2 + 0.4f;
@@ -351,7 +361,15 @@ void ui_com::draw_static()
         .draw_line("TX1", ui_operate::ADD, cfg_trigger_located::layer,
                    ui_color::PINK, cfg_trigger_located::width, 1, 1, 1, 1)
         .draw_line("TX2", ui_operate::ADD, cfg_trigger_located::layer,
-                   ui_color::PINK, cfg_trigger_located::width, 1, 1, 1, 1);
+                   ui_color::PINK, cfg_trigger_located::width, 1, 1, 1, 1)
+        .draw_line("FC1", ui_operate::ADD, cfg_fire_ready::layer,
+                   ui_color::GREEN, cfg_fire_ready::width, 1, 1, 1, 1)
+        .draw_line("FC2", ui_operate::ADD, cfg_fire_ready::layer,
+                   ui_color::GREEN, cfg_fire_ready::width, 1, 1, 1, 1)
+        .draw_line("FX1", ui_operate::ADD, cfg_fire_ready::layer,
+                   ui_color::PINK, cfg_fire_ready::width, 1, 1, 1, 1)
+        .draw_line("FX2", ui_operate::ADD, cfg_fire_ready::layer,
+                   ui_color::PINK, cfg_fire_ready::width, 1, 1, 1, 1);
 
     // 6. 绘制越障模式台阶图案(静态)
     _drv->draw_line("TR1", ui_operate::ADD, cfg_track::layer, ui_color::WHITE,
@@ -454,6 +472,8 @@ void ui_com::draw_dynamic()
                         (_ctx.fric_error_flag != _sent_ctx.fric_error_flag);
     bool trigger_located_changed =
         force || (_ctx.trigger_located != _sent_ctx.trigger_located);
+    bool fire_ready_changed =
+        force || (_ctx.fire_ready_flag != _sent_ctx.fire_ready_flag);
     bool lob_changed = force || (_ctx.sling_flag != _sent_ctx.sling_flag);
     bool cap_changed = force || value_changed(_ctx.super_cap_voltage,
                                               _sent_ctx.super_cap_voltage,
@@ -482,6 +502,8 @@ void ui_com::draw_dynamic()
         draw_fric_state();
     if (trigger_located_changed)
         draw_trigger_located_state();
+    if (fire_ready_changed)
+        draw_fire_ready_state();
     if (lob_changed)
         draw_lob_state();
     if (cap_changed)
@@ -610,6 +632,41 @@ void ui_com::draw_trigger_located_state()
                    cross_y2, cross_x2, cross_y1);
 
     _sent_ctx.trigger_located = _ctx.trigger_located;
+}
+
+void ui_com::draw_fire_ready_state()
+{
+    constexpr uint16_t hidden = 1;
+    const auto x              = cfg_fire_ready::x;
+    const auto y              = cfg_fire_ready::y;
+    const auto s              = cfg_fire_ready::half_size;
+
+    const uint16_t check_x1   = _ctx.fire_ready_flag ? x - s : hidden;
+    const uint16_t check_y1   = _ctx.fire_ready_flag ? y - s / 3 : hidden;
+    const uint16_t check_x2   = _ctx.fire_ready_flag ? x - s / 4 : hidden;
+    const uint16_t check_y2   = _ctx.fire_ready_flag ? y - s : hidden;
+    const uint16_t check_x3   = _ctx.fire_ready_flag ? x + s : hidden;
+    const uint16_t check_y3   = _ctx.fire_ready_flag ? y + s : hidden;
+
+    const uint16_t cross_x1   = _ctx.fire_ready_flag ? hidden : x - s;
+    const uint16_t cross_y1   = _ctx.fire_ready_flag ? hidden : y - s;
+    const uint16_t cross_x2   = _ctx.fire_ready_flag ? hidden : x + s;
+    const uint16_t cross_y2   = _ctx.fire_ready_flag ? hidden : y + s;
+
+    _drv->draw_line("FC1", ui_operate::MODIFY, cfg_fire_ready::layer,
+                    ui_color::GREEN, cfg_fire_ready::width, check_x1, check_y1,
+                    check_x2, check_y2)
+        .draw_line("FC2", ui_operate::MODIFY, cfg_fire_ready::layer,
+                   ui_color::GREEN, cfg_fire_ready::width, check_x2, check_y2,
+                   check_x3, check_y3)
+        .draw_line("FX1", ui_operate::MODIFY, cfg_fire_ready::layer,
+                   ui_color::PINK, cfg_fire_ready::width, cross_x1, cross_y1,
+                   cross_x2, cross_y2)
+        .draw_line("FX2", ui_operate::MODIFY, cfg_fire_ready::layer,
+                   ui_color::PINK, cfg_fire_ready::width, cross_x1, cross_y2,
+                   cross_x2, cross_y1);
+
+    _sent_ctx.fire_ready_flag = _ctx.fire_ready_flag;
 }
 
 void ui_com::draw_lob_state()

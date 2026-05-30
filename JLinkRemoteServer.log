@@ -1,0 +1,44 @@
+SEGGER J-Link Remote Server V8.60 LogFile
+Logging started @ 2026-05-30 04:48
+00000000 - SERVER  (0x0015 bytes): Remote Server started
+00000000 - SERVER  (0x0015 bytes): TLV Protocol: V1.0.0 
+00000067 - SERVER  (0x0025 bytes): Connected to J-Link with S/N 69402137
+00000069 - SERVER  (0x0022 bytes): Waiting for client connections... 
+00000926 - SERVER  (0x001C bytes): Conn. 804: Client connected.
+00000938 - SERVER  (0x001C bytes): Conn. 812: Client connected.
+00000939 - SERVER  (0x0010 bytes): Client connected
+00036286 - SERVER  (0x001C bytes): Conn. 792: Client connected.
+00036333 - SERVER  (0x001C bytes): Conn. 880: Client connected.
+00076706 - SERVER  (0x0025 bytes): Connected to J-Link with S/N 69402137
+00076708 - SERVER  (0x0022 bytes): Waiting for client connections... 
+00273044 - SERVER  (0x001C bytes): Conn. 860: Client connected.
+00273069 - SERVER  (0x0010 bytes): Client connected
+00273460 - SERVER  (0x001C bytes): Conn. 772: Client connected.
+00313818 - SERVER  (0x0025 bytes): Connected to J-Link with S/N 69402137
+00313819 - SERVER  (0x0022 bytes): Waiting for client connections... 
+00370340 - SERVER  (0x001C bytes): Conn. 772: Client connected.
+00370340 - SERVER  (0x0010 bytes): Client connected
+00370400 - SERVER  (0x001C bytes): Conn. 960: Client connected.
+00410748 - SERVER  (0x0025 bytes): Connected to J-Link with S/N 69402137
+00410751 - SERVER  (0x0022 bytes): Waiting for client connections... 
+00419183 - SERVER  (0x001C bytes): Conn. 816: Client connected.
+00419197 - SERVER  (0x001C bytes): Conn. 912: Client connected.
+00419209 - SERVER  (0x0010 bytes): Client connected
+00459646 - SERVER  (0x0025 bytes): Connected to J-Link with S/N 69402137
+00459650 - SERVER  (0x0022 bytes): Waiting for client connections... 
+02183136 - SERVER  (0x001C bytes): Conn. 852: Client connected.
+02183137 - SERVER  (0x0010 bytes): Client connected
+02188247 - SERVER  (0x0018 bytes): Cannot connect to J-Link
+02188247 - SERVER  (0x0018 bytes): Retrying in 5 seconds...
+02194933 - SERVER  (0x0018 bytes): Cannot connect to J-Link
+02194933 - SERVER  (0x0018 bytes): Retrying in 5 seconds...
+02201385 - SERVER  (0x0018 bytes): Cannot connect to J-Link
+02201385 - SERVER  (0x0018 bytes): Retrying in 5 seconds...
+02216534 - SERVER  (0x0018 bytes): Cannot connect to J-Link
+02216534 - SERVER  (0x0018 bytes): Retrying in 5 seconds...
+02223502 - SERVER  (0x0018 bytes): Cannot connect to J-Link
+02223502 - SERVER  (0x0018 bytes): Retrying in 5 seconds...
+02229998 - SERVER  (0x0018 bytes): Cannot connect to J-Link
+02229998 - SERVER  (0x0018 bytes): Retrying in 5 seconds...
+02236716 - SERVER  (0x0018 bytes): Cannot connect to J-Link
+02236716 - SERVER  (0x0018 bytes): Retrying in 5 seconds...

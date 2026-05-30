@@ -10,6 +10,7 @@ void quad_booster_t::fsm_active_t::state_ready_t::enter(owner *owner)
     // 进入 ready 状态时，强制同步内部计数器与外部命令，
     // 清除在非 ready 状态期间（如 interim, busy, stall）累积的所有误触发开火指令。
     owner->_ctx.data.internal_fire_count = owner->_ctx.cmd->fire_count;
+    owner->_ctx.data.ready_state_flag = true;
     _fric_unready_start_time = 0.0f;
 }
 
@@ -98,6 +99,6 @@ void quad_booster_t::fsm_active_t::state_ready_t::execute(owner *owner)
 
 void quad_booster_t::fsm_active_t::state_ready_t::exit(owner *owner)
 {
-
+    owner->_ctx.data.ready_state_flag = false;
 }
 } // namespace pyro

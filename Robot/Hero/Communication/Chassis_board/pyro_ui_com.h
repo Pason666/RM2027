@@ -19,6 +19,7 @@ struct ui_ctx_t
     bool fric_error_flag    = false; // 摩擦轮错误标志位
     bool track_en_flag      = false; // 自动追踪/自瞄使能标志位
     bool trigger_located    = false;
+    bool fire_ready_flag    = false;
     float yaw_rad           = 0.0f; // 云台 Yaw 相对底盘角度 (rad)
     float pitch_rad         = 0.0f; // 云台 Pitch 绝对角度 (rad)
     float target_shoot_spd  = 0.0f; // 目标射速 (m/s)
@@ -77,6 +78,7 @@ class ui_com
     void draw_spd();
     void draw_super_cap();
     void draw_trigger_located_state();
+    void draw_fire_ready_state();
     void draw_track_state();
     void draw_pos();
     void draw_relative_pos();

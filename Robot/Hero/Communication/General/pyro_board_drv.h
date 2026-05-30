@@ -45,7 +45,8 @@ class board_drv_t
         bool sling_mode      : 1;
 
         bool trigger_located : 1;
-        bool reserved_bit    : 7;
+        bool fire_ready :1;
+        bool reserved_bit    : 6;
 
         int16_t pitch_rad;
         uint8_t target_shoot_spd;

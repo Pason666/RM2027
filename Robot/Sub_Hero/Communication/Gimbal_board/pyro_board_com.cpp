@@ -16,8 +16,8 @@ using namespace pyro;
 constexpr uint32_t EVENT_BIT_SLING_TOGGLE = (1 << 0);
 constexpr uint32_t EVENT_BIT_C_PRESS      = (1 << 1);
 
-static TaskHandle_t board_com_task_handle   = nullptr;
-static board_drv_t *board_drv_ptr           = nullptr;
+static TaskHandle_t board_com_task_handle = nullptr;
+static board_drv_t *board_drv_ptr         = nullptr;
 
 static void process_gimbal_logic(uint32_t notify_val)
 {
@@ -37,19 +37,19 @@ static void process_gimbal_logic(uint32_t notify_val)
 
         if (sling_mode)
         {
-            tx_data.active      = false;
-            tx_data.vx          = 0;
-            tx_data.vy          = 0;
-            tx_data.wz          = 0;
+            tx_data.active = false;
+            tx_data.vx     = 0;
+            tx_data.vy     = 0;
+            tx_data.wz     = 0;
         }
         else
         {
             if (sw_pos_t::UP == vrc.switches.gear.current_pos)
             {
-                tx_data.active      = false;
-                tx_data.vx          = 0;
-                tx_data.vy          = 0;
-                tx_data.wz          = 0;
+                tx_data.active = false;
+                tx_data.vx     = 0;
+                tx_data.vy     = 0;
+                tx_data.wz     = 0;
             }
             else
             {
@@ -62,7 +62,8 @@ static void process_gimbal_logic(uint32_t notify_val)
                                                  : vrc.keys.d.current_level
                                                      ? -127
                                                      : -vrc.axes.lx * 127);
-                tx_data.wz = static_cast<int8_t>(vrc.keys.shift.current_level ? 127 : vrc.axes.wheel * 127);
+                tx_data.wz = static_cast<int8_t>(
+                    vrc.keys.shift.current_level ? 127 : vrc.axes.wheel * 127);
             }
         }
         if (notify_val & EVENT_BIT_C_PRESS)
@@ -74,25 +75,25 @@ static void process_gimbal_logic(uint32_t notify_val)
     {
         if (sw_pos_t::MID != vrc.switches.right.current_pos)
         {
-            tx_data.active      = false;
-            tx_data.vx          = 0;
-            tx_data.vy          = 0;
-            tx_data.wz          = 0;
+            tx_data.active = false;
+            tx_data.vx     = 0;
+            tx_data.vy     = 0;
+            tx_data.wz     = 0;
         }
         else
         {
             tx_data.active = true;
             tx_data.vx     = static_cast<int8_t>(vrc.axes.ly * 127);
-            tx_data.vy     = static_cast<int8_t>(- vrc.axes.lx * 127);
+            tx_data.vy     = static_cast<int8_t>(-vrc.axes.lx * 127);
             tx_data.wz     = 0;
         }
     }
     else
     {
-        tx_data.active      = false;
-        tx_data.vx          = 0;
-        tx_data.vy          = 0;
-        tx_data.wz          = 0;
+        tx_data.active = false;
+        tx_data.vx     = 0;
+        tx_data.vy     = 0;
+        tx_data.wz     = 0;
     }
     // tx_data.active      = false;
 
@@ -124,6 +125,8 @@ static void process_gimbal_logic(uint32_t notify_val)
     tx_data.sling_mode = sling_mode;
     tx_data.trigger_located =
         quad_booster_t::instance()->get_ctx().data.trigger_located;
+    tx_data.fire_ready =
+        quad_booster_t::instance()->get_ctx().data.ready_state_flag;
 
     if (board_drv_ptr->check_online())
     {

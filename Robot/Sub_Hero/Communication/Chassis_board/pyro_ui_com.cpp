@@ -68,6 +68,15 @@ struct cfg_trigger_located
     static constexpr uint8_t width      = 5;
 };
 
+struct cfg_fire_ready
+{
+    static constexpr uint16_t x         = cfg_fric::x;
+    static constexpr uint16_t y         = cfg_fric::y + cfg_fric::r + 45;
+    static constexpr uint16_t half_size = 28;
+    static constexpr uint8_t layer      = 7;
+    static constexpr uint8_t width      = 5;
+};
+
 struct cfg_lob
 {
     static constexpr uint16_t x = 1770, y = 530, r = 50;
@@ -159,21 +168,22 @@ static void info_update_test()
     const auto &chassis_ctx = chassis->get_ctx();
     const auto &ref_data    = referee_ptr->get_data();
 
-    ui_ctx.sling_flag         = rx_data.sling_mode;
-    ui_ctx.fric_en_flag       = rx_data.fric_en;
-    ui_ctx.fric_error_flag    = rx_data.fric_err;
-    ui_ctx.trigger_located    = rx_data.trigger_located;
-    ui_ctx.yaw_rad            = chassis_ctx.data.current_yaw_error;
-    ui_ctx.pitch_rad          = static_cast<float>(rx_data.pitch_rad) / 32768.0f;
-    ui_ctx.target_shoot_spd   =
+    ui_ctx.sling_flag       = rx_data.sling_mode;
+    ui_ctx.fric_en_flag     = rx_data.fric_en;
+    ui_ctx.fric_error_flag  = rx_data.fric_err;
+    ui_ctx.trigger_located  = rx_data.trigger_located;
+    ui_ctx.fire_ready_flag  = rx_data.fire_ready;
+    ui_ctx.yaw_rad          = chassis_ctx.data.current_yaw_error;
+    ui_ctx.pitch_rad        = static_cast<float>(rx_data.pitch_rad) / 32768.0f;
+    ui_ctx.target_shoot_spd =
         static_cast<float>(rx_data.target_shoot_spd) / 10.0f;
-    ui_ctx.super_cap_voltage  =
+    ui_ctx.super_cap_voltage =
         static_cast<float>(chassis_ctx.cap_feedback.vot_cap);
-    ui_ctx.position_x         = ref_data.robot_pos.x;
-    ui_ctx.position_y         = ref_data.robot_pos.y;
-    ui_ctx.distance           = std::sqrt(ui_ctx.position_x * ui_ctx.position_x +
-                                          ui_ctx.position_y * ui_ctx.position_y);
-    ui_ctx.refresh_flag       = rx_data.ui_refresh;
+    ui_ctx.position_x   = ref_data.robot_pos.x;
+    ui_ctx.position_y   = ref_data.robot_pos.y;
+    ui_ctx.distance     = std::sqrt(ui_ctx.position_x * ui_ctx.position_x +
+                                    ui_ctx.position_y * ui_ctx.position_y);
+    ui_ctx.refresh_flag = rx_data.ui_refresh;
 
     std::memcpy(ui_ctx.mecanum_online, chassis_ctx.data.wheel_online,
                 sizeof(ui_ctx.mecanum_online));
@@ -221,9 +231,9 @@ void ui_com::draw_static()
         .draw_rect("SCP", ui_operate::ADD, cfg_cap::layer, ui_color::ORANGE, 3,
                    cfg_cap::cx - cfg_cap::hw, cfg_cap::cy + cfg_cap::hh,
                    cfg_cap::cx + cfg_cap::hw, cfg_cap::cy - cfg_cap::hh)
-        .draw_line("PBR", ui_operate::ADD, cfg_cap::layer + 1,
-                   ui_color::ORANGE, 50, cfg_cap::cx - cfg_cap::hw,
-                   cfg_cap::cy, cfg_cap::cx - cfg_cap::hw, cfg_cap::cy);
+        .draw_line("PBR", ui_operate::ADD, cfg_cap::layer + 1, ui_color::ORANGE,
+                   50, cfg_cap::cx - cfg_cap::hw, cfg_cap::cy,
+                   cfg_cap::cx - cfg_cap::hw, cfg_cap::cy);
 
     _drv->draw_string("YAW", ui_operate::ADD, cfg_text::layer, ui_color::GREEN,
                       20, 2, cfg_text::yaw_x - cfg_text::label_offset,
@@ -271,7 +281,15 @@ void ui_com::draw_static()
         .draw_line("TX1", ui_operate::ADD, cfg_trigger_located::layer,
                    ui_color::PINK, cfg_trigger_located::width, 1, 1, 1, 1)
         .draw_line("TX2", ui_operate::ADD, cfg_trigger_located::layer,
-                   ui_color::PINK, cfg_trigger_located::width, 1, 1, 1, 1);
+                   ui_color::PINK, cfg_trigger_located::width, 1, 1, 1, 1)
+        .draw_line("FC1", ui_operate::ADD, cfg_fire_ready::layer,
+                   ui_color::GREEN, cfg_fire_ready::width, 1, 1, 1, 1)
+        .draw_line("FC2", ui_operate::ADD, cfg_fire_ready::layer,
+                   ui_color::GREEN, cfg_fire_ready::width, 1, 1, 1, 1)
+        .draw_line("FX1", ui_operate::ADD, cfg_fire_ready::layer,
+                   ui_color::PINK, cfg_fire_ready::width, 1, 1, 1, 1)
+        .draw_line("FX2", ui_operate::ADD, cfg_fire_ready::layer,
+                   ui_color::PINK, cfg_fire_ready::width, 1, 1, 1, 1);
 
     const auto relative_center = relative_pos_center();
     _drv->draw_rect(
@@ -289,8 +307,8 @@ void ui_com::draw_static()
                      cfg_relative_pos::cannon_width - 5, PI / 2 - _ctx.yaw_rad,
                      -5.0f);
 
-    _drv->draw_line("OP1", ui_operate::ADD, cfg_outpost::layer,
-                    ui_color::GREEN, cfg_outpost::width, cfg_outpost::start_x,
+    _drv->draw_line("OP1", ui_operate::ADD, cfg_outpost::layer, ui_color::GREEN,
+                    cfg_outpost::width, cfg_outpost::start_x,
                     cfg_outpost::start_y, cfg_outpost::end_x,
                     cfg_outpost::end_y)
         .draw_float("OF1", ui_operate::ADD, cfg_outpost::layer, ui_color::PINK,
@@ -314,15 +332,14 @@ void ui_com::draw_dynamic()
     const bool force = _force_refresh_flag;
 
     const bool yaw_changed =
-        force || value_changed(_ctx.yaw_rad, _sent_ctx.yaw_rad,
-                               rad_update_threshold);
+        force ||
+        value_changed(_ctx.yaw_rad, _sent_ctx.yaw_rad, rad_update_threshold);
     const bool pitch_changed =
         force || value_changed(_ctx.pitch_rad, _sent_ctx.pitch_rad,
                                rad_update_threshold);
-    const bool spd_changed =
-        force || value_changed(_ctx.target_shoot_spd,
-                               _sent_ctx.target_shoot_spd,
-                               speed_update_threshold);
+    const bool spd_changed = force || value_changed(_ctx.target_shoot_spd,
+                                                    _sent_ctx.target_shoot_spd,
+                                                    speed_update_threshold);
     const bool pos_changed =
         force ||
         value_changed(_ctx.position_x, _sent_ctx.position_x,
@@ -336,11 +353,13 @@ void ui_com::draw_dynamic()
         (_ctx.fric_error_flag != _sent_ctx.fric_error_flag);
     const bool trigger_located_changed =
         force || (_ctx.trigger_located != _sent_ctx.trigger_located);
+    const bool fire_ready_changed =
+        force || (_ctx.fire_ready_flag != _sent_ctx.fire_ready_flag);
     const bool lob_changed = force || (_ctx.sling_flag != _sent_ctx.sling_flag);
     const bool cap_changed =
-        force || value_changed(_ctx.super_cap_voltage,
-                               _sent_ctx.super_cap_voltage,
-                               cap_voltage_update_threshold);
+        force ||
+        value_changed(_ctx.super_cap_voltage, _sent_ctx.super_cap_voltage,
+                      cap_voltage_update_threshold);
     const bool relative_changed =
         force || yaw_changed ||
         mecanum_online_changed(_ctx.mecanum_online, _sent_ctx.mecanum_online);
@@ -357,6 +376,8 @@ void ui_com::draw_dynamic()
         draw_fric_state();
     if (trigger_located_changed)
         draw_trigger_located_state();
+    if (fire_ready_changed)
+        draw_fire_ready_state();
     if (lob_changed)
         draw_lob_state();
     if (cap_changed)
@@ -481,6 +502,41 @@ void ui_com::draw_trigger_located_state()
                    cross_y2, cross_x2, cross_y1);
 
     _sent_ctx.trigger_located = _ctx.trigger_located;
+}
+
+void ui_com::draw_fire_ready_state()
+{
+    constexpr uint16_t hidden = 1;
+    const auto x              = cfg_fire_ready::x;
+    const auto y              = cfg_fire_ready::y;
+    const auto s              = cfg_fire_ready::half_size;
+
+    const uint16_t check_x1   = _ctx.fire_ready_flag ? x - s : hidden;
+    const uint16_t check_y1   = _ctx.fire_ready_flag ? y - s / 3 : hidden;
+    const uint16_t check_x2   = _ctx.fire_ready_flag ? x - s / 4 : hidden;
+    const uint16_t check_y2   = _ctx.fire_ready_flag ? y - s : hidden;
+    const uint16_t check_x3   = _ctx.fire_ready_flag ? x + s : hidden;
+    const uint16_t check_y3   = _ctx.fire_ready_flag ? y + s : hidden;
+
+    const uint16_t cross_x1   = _ctx.fire_ready_flag ? hidden : x - s;
+    const uint16_t cross_y1   = _ctx.fire_ready_flag ? hidden : y - s;
+    const uint16_t cross_x2   = _ctx.fire_ready_flag ? hidden : x + s;
+    const uint16_t cross_y2   = _ctx.fire_ready_flag ? hidden : y + s;
+
+    _drv->draw_line("FC1", ui_operate::MODIFY, cfg_fire_ready::layer,
+                    ui_color::GREEN, cfg_fire_ready::width, check_x1, check_y1,
+                    check_x2, check_y2)
+        .draw_line("FC2", ui_operate::MODIFY, cfg_fire_ready::layer,
+                   ui_color::GREEN, cfg_fire_ready::width, check_x2, check_y2,
+                   check_x3, check_y3)
+        .draw_line("FX1", ui_operate::MODIFY, cfg_fire_ready::layer,
+                   ui_color::PINK, cfg_fire_ready::width, cross_x1, cross_y1,
+                   cross_x2, cross_y2)
+        .draw_line("FX2", ui_operate::MODIFY, cfg_fire_ready::layer,
+                   ui_color::PINK, cfg_fire_ready::width, cross_x1, cross_y2,
+                   cross_x2, cross_y1);
+
+    _sent_ctx.fire_ready_flag = _ctx.fire_ready_flag;
 }
 
 void ui_com::draw_lob_state()

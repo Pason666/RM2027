@@ -13,10 +13,7 @@ void quad_booster_t::fsm_active_t::state_stall_t::enter(owner *owner)
     {
         owner->_ctx.data.target_trig_rad   = owner->_ctx.data.current_trig_rad;
         owner->_ctx.data.target_trig_radps = 0;
-        owner->_ctx.data.target_trig_rad =
-            quad_booster_t::_get_next_trigger_preset(
-                owner->_ctx.data.current_trig_rad,
-                TRIGGER_PRESET_DEFORM_THRESHOLD_RAD);
+        owner->_ctx.data.target_trig_rad += TRIGGER_FEED_DIR * TRIGGER_PRESET_DEFORM_THRESHOLD_RAD;
     }
     else if (&owner->_state_active._stall_state ==
              owner->_state_active._last_state)
@@ -33,7 +30,8 @@ void quad_booster_t::fsm_active_t::state_stall_t::enter(owner *owner)
         }
         else
         {
-            owner->_ctx.data.target_trig_rad   = owner->_ctx.data.current_trig_rad;
+            owner->_ctx.data.target_trig_rad =
+                owner->_ctx.data.current_trig_rad;
             owner->_ctx.data.target_trig_radps = 0;
         }
     }
@@ -44,18 +42,20 @@ void quad_booster_t::fsm_active_t::state_stall_t::enter(owner *owner)
     }
 
     // 新增：保证目标值在 [-PI, PI] 合法范围内
-    owner->_ctx.data.target_trig_rad = quad_booster_t::_normalize_angle(owner->_ctx.data.target_trig_rad);
+    owner->_ctx.data.target_trig_rad =
+        quad_booster_t::_normalize_angle(owner->_ctx.data.target_trig_rad);
 }
 
 void quad_booster_t::fsm_active_t::state_stall_t::execute(owner *owner)
 {
 
     // 新增：计算最短路径的误差
-    float error = owner->_ctx.data.current_trig_rad - owner->_ctx.data.target_trig_rad;
+    float error =
+        owner->_ctx.data.current_trig_rad - owner->_ctx.data.target_trig_rad;
     error = quad_booster_t::_normalize_angle(error);
 
     // 回到合适角度后，切换回拨弹状态
-    if (fabs(error) < 0.12f)
+    if (fabs(error) < 0.3f)
     {
         request_switch(&owner->_state_active._interim_state);
     }

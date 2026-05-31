@@ -14,7 +14,7 @@ namespace pyro
 // =========================================================
 struct quad_booster_cmd_t final : public cmd_base_t
 {
-    bool fric_on; // 摩擦轮开启
+    bool fric_on;  // 摩擦轮开启
     bool anti_jam; // 防卡弹：一级摩擦轮恒力矩反转，拨弹盘失能
     bool force_deploy;
     uint8_t reset_count;
@@ -68,7 +68,7 @@ class quad_booster_t final
   public:
     quad_booster_t(const quad_booster_t &)            = delete;
     quad_booster_t &operator=(const quad_booster_t &) = delete;
-    [[nodiscard]] booster_ctx_t& get_ctx();
+    [[nodiscard]] booster_ctx_t &get_ctx();
 
   private:
     quad_booster_t();
@@ -119,6 +119,7 @@ class quad_booster_t final
         bool deploy_mode{false};
         bool trigger_located{false};
         bool anti_jam_active{false};
+        bool ready_state_flag{false};
 
         bool fric_err{};
         uint8_t internal_reset_count{0};
@@ -231,12 +232,16 @@ class quad_booster_t final
 
           private:
             float _ready_wait_start_time{0.0f};
+            float _fric_ready_start_time{0.0f};
         };
         struct state_ready_t final : public state_t<owner>
         {
             void enter(owner *owner) override;
             void execute(owner *owner) override;
             void exit(owner *owner) override;
+
+          private:
+            float _fric_unready_start_time{0.0f};
         };
         struct state_busy_t final : public state_t<owner>
         {
@@ -282,4 +287,3 @@ class quad_booster_t final
 
 } // namespace pyro
 #endif
-

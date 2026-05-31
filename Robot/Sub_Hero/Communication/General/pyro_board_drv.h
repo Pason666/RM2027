@@ -41,7 +41,8 @@ class board_drv_t
         bool fric_err        : 1;
         bool sling_mode      : 1;
         bool trigger_located : 1;
-        bool reserved_bit    : 2;
+        bool fire_ready      : 1;
+        bool reserved_bit    : 1;
 
         int16_t pitch_rad;
         uint8_t target_shoot_spd;
@@ -91,7 +92,7 @@ class board_drv_t
 
     // 独立事件基准 ID
     static constexpr uint32_t EVENT_C2G_SHOOT = 0x110;
-    static constexpr uint32_t EVENT_G2C_UI = 0x112;
+    static constexpr uint32_t EVENT_G2C_UI    = 0x112;
     // 注意避让上一事件可能占用的多个分包ID
 
     // 周期帧数计算

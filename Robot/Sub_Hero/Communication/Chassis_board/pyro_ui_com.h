@@ -8,19 +8,20 @@ namespace pyro
 
 struct ui_ctx_t
 {
-    bool sling_flag         = false;
-    bool fric_en_flag       = false;
-    bool fric_error_flag    = false;
-    bool trigger_located    = false;
-    float yaw_rad           = 0.0f;
-    float pitch_rad         = 0.0f;
-    float target_shoot_spd  = 0.0f;
-    float super_cap_voltage = 0.0f;
-    float position_x        = 0.0f;
-    float position_y        = 0.0f;
-    float distance          = 0.0f;
-    bool mecanum_online[4]  = {false};
-    bool refresh_flag       = false;
+    bool sling_flag                              = false;
+    bool fric_en_flag                            = false;
+    bool fric_error_flag                         = false;
+    bool trigger_located                         = false;
+    bool fire_ready_flag                         = false;
+    float yaw_rad                                = 0.0f;
+    float pitch_rad                              = 0.0f;
+    float target_shoot_spd                       = 0.0f;
+    float super_cap_voltage                      = 0.0f;
+    float position_x                             = 0.0f;
+    float position_y                             = 0.0f;
+    float distance                               = 0.0f;
+    bool mecanum_online[4]                       = {false};
+    bool refresh_flag                            = false;
 
     static constexpr float super_cap_voltage_max = 26.0f;
 };
@@ -52,6 +53,7 @@ class ui_com
     void draw_spd();
     void draw_super_cap();
     void draw_trigger_located_state();
+    void draw_fire_ready_state();
     void draw_pos();
     void draw_relative_pos();
 };

@@ -10,7 +10,7 @@ constexpr float TRIGGER_OFFSET = 0.1f;
 //越小越紧
 constexpr float TRIGGER_PRESET_MIN_ADVANCE_RAD = 0.15f;
 constexpr float TRIGGER_PRESET_DEFORM_THRESHOLD_RAD = 0.15f;
-constexpr float TRIGGER_LOCATED_THRESHOLD_RAD = 0.07f;
+constexpr float TRIGGER_LOCATED_THRESHOLD_RAD = 0.1f;
 constexpr float TRIGGER_FEED_DIR = -1.0f;
 
 #endif

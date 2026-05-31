@@ -16,8 +16,8 @@ quad_booster_t::quad_booster_t() : module_base_t("quad_booster")
 
 status_t quad_booster_t::_init()
 {
-    _ctx.motor = _module_deps.motor_deps;
-    _ctx.pid   = _module_deps.pid_deps;
+    _ctx.motor              = _module_deps.motor_deps;
+    _ctx.pid                = _module_deps.pid_deps;
     _ctx.pid.ball_speed_pid = new pid_t(0.62f, 0.0f, 0.005f, 0.0f, 2.0f);
 
     return PYRO_OK;
@@ -45,11 +45,10 @@ float quad_booster_t::_get_next_trigger_preset(float trigger_rad,
                                                float min_advance_rad)
 {
     constexpr float TRIGGER_SLOT_RAD = PI / 3.0f;
-    const float delta = _normalize_angle(trigger_rad - TRIGGER_OFFSET);
+    const float delta        = _normalize_angle(trigger_rad - TRIGGER_OFFSET);
     const bool feed_positive = TRIGGER_FEED_DIR > 0.0f;
-    float preset_index = feed_positive
-                             ? std::ceil(delta / TRIGGER_SLOT_RAD)
-                             : std::floor(delta / TRIGGER_SLOT_RAD);
+    float preset_index  = feed_positive ? std::ceil(delta / TRIGGER_SLOT_RAD)
+                                        : std::floor(delta / TRIGGER_SLOT_RAD);
     const float advance = feed_positive
                               ? preset_index * TRIGGER_SLOT_RAD - delta
                               : delta - preset_index * TRIGGER_SLOT_RAD;
@@ -85,12 +84,15 @@ void quad_booster_t::_update_feedback()
     }
 
     _ctx.motor.trigger_wheel->update_feedback();
-    _ctx.data.current_trig_radps = _ctx.motor.trigger_wheel->get_current_rotate();
-    _ctx.data.current_trig_torque = _ctx.motor.trigger_wheel->get_current_torque();
-    _ctx.data.current_trig_rad = _ctx.motor.trigger_wheel->get_current_position();
+    _ctx.data.current_trig_radps =
+        _ctx.motor.trigger_wheel->get_current_rotate();
+    _ctx.data.current_trig_torque =
+        _ctx.motor.trigger_wheel->get_current_torque();
+    _ctx.data.current_trig_rad =
+        _ctx.motor.trigger_wheel->get_current_position();
     _ctx.data.trigger_located = _is_trigger_located(_ctx.data.current_trig_rad);
 
-    auto &board_drv = board_drv_t::get_instance();
+    auto &board_drv           = board_drv_t::get_instance();
     if (board_drv.check_online())
     {
         auto board_com_data = board_drv.get_c2g_rx_data();
@@ -125,37 +127,42 @@ __attribute__((section(".dma_heap"))) char shoot_speed[10];
  * @param buffer 输出的字符数组
  * @param max_len 数组最大长度（防止越界）
  */
-void float_to_char_5_decimals(float value, char* buffer, int max_len)
+void float_to_char_5_decimals(float value, char *buffer, int max_len)
 {
     int idx = 0;
 
     // 1. 处理符号
-    if (value < 0) {
-        if (idx < max_len - 1) buffer[idx++] = '-';
+    if (value < 0)
+    {
+        if (idx < max_len - 1)
+            buffer[idx++] = '-';
         value = -value;
     }
 
     // 2. 分离整数和小数部分
-    int int_part = (int)value;
+    int int_part  = (int)value;
     // 加 0.5f 用于实现最后一位的四舍五入
     int frac_part = (int)((value - (float)int_part) * 100000.0f + 0.5f);
 
     // 处理四舍五入导致的进位
-    if (frac_part >= 100000) {
+    if (frac_part >= 100000)
+    {
         int_part++;
         frac_part -= 100000;
     }
 
     // 3. 计算整数部分的位数
-    int temp = int_part;
+    int temp       = int_part;
     int num_digits = 0;
-    do {
+    do
+    {
         num_digits++;
         temp /= 10;
     } while (temp > 0);
 
     // 4. 边界安全检查：符号位 + 整数位数 + 小数点(1) + 5位小数 + 结束符(1)
-    if (idx + num_digits + 1 + 5 + 1 > max_len) {
+    if (idx + num_digits + 1 + 5 + 1 > max_len)
+    {
         // 如果越界（例如弹速异常到了三位数），默认安全返回全0
         buffer[0] = '0';
         buffer[1] = '\0';
@@ -163,7 +170,8 @@ void float_to_char_5_decimals(float value, char* buffer, int max_len)
     }
 
     // 5. 提取整数部分（逆序写入）
-    for (int i = num_digits - 1; i >= 0; i--) {
+    for (int i = num_digits - 1; i >= 0; i--)
+    {
         buffer[idx + i] = '0' + (int_part % 10);
         int_part /= 10;
     }
@@ -173,14 +181,15 @@ void float_to_char_5_decimals(float value, char* buffer, int max_len)
     buffer[idx++] = '.';
 
     // 7. 提取小数部分（固定提取5位）
-    for (int i = 4; i >= 0; i--) {
+    for (int i = 4; i >= 0; i--)
+    {
         buffer[idx + i] = '0' + (frac_part % 10);
         frac_part /= 10;
     }
     idx += 5;
 
     // 8. 添加字符串结束符
-    buffer[idx] = '\n';
+    buffer[idx]     = '\n';
     buffer[idx + 1] = '\0';
 }
 
@@ -191,8 +200,8 @@ void quad_booster_t::_speed_control()
         board_drv_t::get_instance(board_drv_t::role_t::GIMBAL, can_hub_t::can1);
     board_drv_t::event_shoot_t shoot_event{};
 
-    auto &shoot_data = _use_deploy_data() ? _ctx.shoot_deploy_data
-                                          : _ctx.shoot_normal_data;
+    auto &shoot_data =
+        _use_deploy_data() ? _ctx.shoot_deploy_data : _ctx.shoot_normal_data;
     _ctx.data.target_shoot_speed = shoot_data.target_speed;
 
     if (!board_drv.read_event(board_drv_t::EVENT_C2G_SHOOT, shoot_event))
@@ -210,10 +219,10 @@ void quad_booster_t::_speed_control()
     {
         shoot_data.real_ball_speed[i] = shoot_data.real_ball_speed[i - 1];
     }
-    shoot_data.real_ball_speed[0] = shoot_event.shoot_speed;
+    shoot_data.real_ball_speed[0]     = shoot_event.shoot_speed;
 
     constexpr float real_speed_weight = 1.0f / 8.0f;
-    shoot_data.avg_real_ball_speed = 0.0f;
+    shoot_data.avg_real_ball_speed    = 0.0f;
     for (float speed : shoot_data.real_ball_speed)
     {
         shoot_data.avg_real_ball_speed += real_speed_weight * speed;
@@ -253,9 +262,9 @@ void quad_booster_t::_speed_control()
             0.7f * shoot_data.ball_speed[1] + 0.3f * shoot_data.ball_speed[2];
     }
 
-    constexpr float w0 = 0.72f;
-    constexpr float w1 = 0.21f;
-    constexpr float w2 = 0.07f;
+    constexpr float w0        = 0.65f;
+    constexpr float w1        = 0.25f;
+    constexpr float w2        = 0.10f;
 
     shoot_data.avg_ball_speed = w0 * shoot_data.ball_speed[0] +
                                 w1 * shoot_data.ball_speed[1] +
@@ -296,7 +305,8 @@ void quad_booster_t::_launch_delay_calculate()
         _ctx.data.launch_delay_timer[0] =
             (dwt_drv_t::get_timeline_ms() - _ctx.data.signal_timer > 200.0f)
                 ? _ctx.data.avg_launch_delay
-                : (dwt_drv_t::get_timeline_ms() - _ctx.data.signal_timer + 20.0f);
+                : (dwt_drv_t::get_timeline_ms() - _ctx.data.signal_timer +
+                   20.0f);
 
         _ctx.data.avg_launch_delay = 0.7f * _ctx.data.launch_delay_timer[0] +
                                      0.2f * _ctx.data.launch_delay_timer[1] +
@@ -304,7 +314,6 @@ void quad_booster_t::_launch_delay_calculate()
         _ctx.data.fresh_timer = 0;
         _ctx.data.fire_count++;
     }
-
 }
 
 bool quad_booster_t::_use_deploy_data() const
@@ -349,11 +358,12 @@ void quad_booster_t::_trigger_position_control()
     float error = _ctx.data.target_trig_rad - _ctx.data.current_trig_rad;
     error       = _normalize_angle(error);
 
-    _ctx.data.target_trig_radps = _ctx.pid.trigger_pos_pid->calculate(error, 0.0f);
+    _ctx.data.target_trig_radps =
+        _ctx.pid.trigger_pos_pid->calculate(error, 0.0f);
 
-    static float ff_torque = 0.0f;
+    static float ff_torque                 = 0.0f;
     constexpr float TRIG_FF_SPEED_DEADBAND = 1.0f;
-    constexpr float TRIG_FF_TORQUE = 0.505f;
+    constexpr float TRIG_FF_TORQUE         = 0.505f;
 
     const float feed_speed = _ctx.data.target_trig_radps * TRIGGER_FEED_DIR;
     if (feed_speed > TRIG_FF_SPEED_DEADBAND)
@@ -367,9 +377,11 @@ void quad_booster_t::_trigger_position_control()
 
     _ctx.data.out_trig_torque =
         _ctx.pid.trigger_spd_pid->calculate(_ctx.data.target_trig_radps,
-                                            _ctx.data.current_trig_radps) + ff_torque;
+                                            _ctx.data.current_trig_radps) +
+        ff_torque;
 
-    _ctx.data.out_trig_torque = std::clamp(_ctx.data.out_trig_torque, -7.0f, 7.0f);
+    _ctx.data.out_trig_torque =
+        std::clamp(_ctx.data.out_trig_torque, -7.0f, 7.0f);
 }
 
 void quad_booster_t::_trigger_speed_control()
@@ -378,15 +390,15 @@ void quad_booster_t::_trigger_speed_control()
     constexpr float TRIG_FF_SPEED_DEADBAND = 0.5f;
     constexpr float TRIG_FF_TORQUE         = 0.505f;
 
-    if (_ctx.data.target_trig_radps * TRIGGER_FEED_DIR >
-        TRIG_FF_SPEED_DEADBAND)
+    if (_ctx.data.target_trig_radps * TRIGGER_FEED_DIR > TRIG_FF_SPEED_DEADBAND)
     {
         ff_torque = TRIGGER_FEED_DIR * TRIG_FF_TORQUE;
     }
 
     _ctx.data.out_trig_torque =
         _ctx.pid.trigger_spd_pid->calculate(_ctx.data.target_trig_radps,
-                                            _ctx.data.current_trig_radps) + ff_torque;
+                                            _ctx.data.current_trig_radps) +
+        ff_torque;
 }
 
 void quad_booster_t::_send_fric_command() const
@@ -412,10 +424,9 @@ void quad_booster_t::_send_trigger_command() const
     _ctx.motor.trigger_wheel->send_torque(_ctx.data.out_trig_torque);
 }
 
-quad_booster_t::booster_ctx_t& quad_booster_t::get_ctx()
+quad_booster_t::booster_ctx_t &quad_booster_t::get_ctx()
 {
     return _ctx;
 }
 
 } // namespace pyro
-

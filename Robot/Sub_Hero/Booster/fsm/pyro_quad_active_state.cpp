@@ -88,8 +88,8 @@ void quad_booster_t::fsm_active_t::on_execute(owner *owner)
     owner->_launch_delay_calculate();
 
     // 3. 拨弹盘堵转判断
-    constexpr float STALL_TIME_THRESHOLD   = 800.0f;
-    constexpr float STALL_TORQUE_THRESHOLD = 1.6f;
+    constexpr float STALL_TIME_THRESHOLD   = 600.0f;
+    constexpr float STALL_TORQUE_THRESHOLD = 2.0f;
     constexpr float STALL_SPEED_THRESHOLD  = 0.1f;
 
     static float stall_start_time          = 0.0f;
@@ -97,6 +97,7 @@ void quad_booster_t::fsm_active_t::on_execute(owner *owner)
     if (abs(owner->_ctx.data.current_trig_radps) < STALL_SPEED_THRESHOLD &&
         abs(owner->_ctx.data.current_trig_torque) > STALL_TORQUE_THRESHOLD)
     {
+        clear_stall_counter = 0;
         if (stall_start_time == 0.0f)
         {
             stall_start_time = dwt_drv_t::get_timeline_ms();

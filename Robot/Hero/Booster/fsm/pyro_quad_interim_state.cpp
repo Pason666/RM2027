@@ -13,7 +13,7 @@ void quad_booster_t::fsm_active_t::state_interim_t::enter(owner *owner)
 
 void quad_booster_t::fsm_active_t::state_interim_t::execute(owner *owner)
 {
-    constexpr float FRIC_READY_TIMEOUT_MS = 3000.0f;
+    constexpr float FRIC_READY_TIMEOUT_MS = 1000.0f;
     constexpr float FRIC_SWITCH_BUFFER_MS = 50.0f;
     const float now_ms = dwt_drv_t::get_timeline_ms();
 

@@ -51,7 +51,7 @@ void quad_booster_t::fsm_active_t::state_stall_t::execute(owner *owner)
     error = quad_booster_t::_normalize_angle(error);
 
     // 回到合适角度后，切换回拨弹状态
-    if (fabs(error) < 0.15f)
+    if (fabs(error) < 0.3f)
     {
         request_switch(&owner->_state_active._interim_state);
     }

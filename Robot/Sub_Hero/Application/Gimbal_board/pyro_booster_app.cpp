@@ -313,6 +313,6 @@ void deps_init()
     quad_deps_ptr->pid_deps.trigger_pos_pid =
         new pid_t(12.5f, 0.5f, 0.1f, 0.8f, 8.0f, 40, 1, 20, 1, 4);
     quad_deps_ptr->pid_deps.trigger_spd_pid =
-        new pid_t(1.0f, 0.2f, 0.003f, 1.5f, 5.0f, 40,1, 20,1, 4);
+        new pid_t(1.0f, 0.6f, 0.003f, 1.5f, 5.0f, 40,1, 20,1, 4);
 }
 }

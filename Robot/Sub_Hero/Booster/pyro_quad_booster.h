@@ -185,8 +185,8 @@ class quad_booster_t final
         quad_deps_t::motor_deps_t motor;
         quad_deps_t::pid_deps_t pid;
         data_ctx_t data;
-        shoot_data_t shoot_normal_data{11.8f, 10.8f, 7.9f};
-        shoot_data_t shoot_deploy_data{16.3f, 15.0f, 7.9f};
+        shoot_data_t shoot_normal_data{11.7f, 10.9f, 10.0f};
+        shoot_data_t shoot_deploy_data{16.3f, 14.9f, 10.1f};
         quad_booster_cmd_t *cmd{};
     };
 

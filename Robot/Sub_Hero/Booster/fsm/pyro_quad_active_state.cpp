@@ -89,7 +89,7 @@ void quad_booster_t::fsm_active_t::on_execute(owner *owner)
 
     // 3. 拨弹盘堵转判断
     constexpr float STALL_TIME_THRESHOLD   = 600.0f;
-    constexpr float STALL_TORQUE_THRESHOLD = 2.0f;
+    constexpr float STALL_TORQUE_THRESHOLD = 2.5f;
     constexpr float STALL_SPEED_THRESHOLD  = 0.1f;
 
     static float stall_start_time          = 0.0f;

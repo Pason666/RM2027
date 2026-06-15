@@ -279,6 +279,7 @@ void quad_booster_t::_speed_control()
                                 w1 * shoot_data.ball_speed[1] +
                                 w2 * shoot_data.ball_speed[2];
 
+
     float e0 = shoot_data.ball_speed[0] - shoot_data.target_speed;
     float e1 = shoot_data.ball_speed[1] - shoot_data.target_speed;
     float e2 = shoot_data.ball_speed[2] - shoot_data.target_speed;

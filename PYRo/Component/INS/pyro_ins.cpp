@@ -44,6 +44,8 @@ using namespace pyro;
 #define IMU_DIRECT IMU_DIRECT_1
 #elif ROBOT_ID == DARTS_ID
 #define IMU_DIRECT IMU_DIRECT_1
+#elif ROBOT_ID == TARGET_ID
+#define IMU_DIRECT IMU_DIRECT_1
 #endif
 
 #if IMU_DIRECT == IMU_DIRECT_1

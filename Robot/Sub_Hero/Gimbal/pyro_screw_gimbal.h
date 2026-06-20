@@ -72,19 +72,92 @@ struct screw_gimbal_deps_t
 // =========================================================
 // 2. 云台类
 // =========================================================
-class screw_gimbal_t final
-    : public module_base_t<screw_gimbal_t, screw_gimbal_cmd_t,
-                           screw_gimbal_deps_t>
+struct screw_gimbal_data_ctx_t
 {
-    friend class module_base_t;
+    bool is_calibrating{false};
+    bool has_initial_calibrated{false};
+    bool allow_dynamic_calib{true};
 
-    struct motor_ctx_t;
-    struct pid_ctx_t;
-    struct data_ctx_t;
-    struct gimbal_context_t;
+    float pitch_motor_upper_limit{0};
+    float pitch_motor_lower_limit{0};
+
+    float last_pitch_rotor_rad{0};
+    float total_pitch_motor_rad{0};
+
+    bool yaw_wrap_initialized{false};
+    float last_yaw_rotor_rad{0};
+    float total_yaw_motor_rad{0};
+
+    float current_pitch_motor_rad{0};
+    float current_pitch_motor_radps{0};
+    float current_pitch_motor_world{0};
+    float current_jacobian{0};
+
+    float pitch_imu_rad{0};
+    float pitch_imu_radps{0};
+    float yaw_imu_rad{0};
+    float yaw_imu_radps{0};
+    float roll_imu_rad{0};
+    float roll_imu_radps{0};
+
+    float z_accel_imu{0};
+    float x_accel_imu{0};
+    float y_accel_imu{0};
+
+    float current_chassis_pitch_rad{0};
+    float chassis_yaw_imu{0};
+    float chassis_pitch_rad{0};
+    float chassis_q[4]{};
+    float gimbal_q[4]{};
+    float relative_pitch_rad{0};
+    float relative_roll_rad{0};
+    float relative_yaw_motor_rad{0};
+    float relative_yaw_motor_wrapped_rad{0};
+    float relative_yaw_motor_radps{0};
+
+    float target_pitch_rad{0};
+    float target_pitch_radps{0};
+    float target_yaw_rad{0};
+    float target_yaw_radps{0};
+    float yaw_error_rad{0};
+
+    float target_relative_yaw_rad{0};
+    float relative_yaw_error_rad{0};
+
+    float out_pitch_torque{0};
+    float out_yaw_torque{0};
+
+    float pos_imu_leso_z1{};
+    float spd_imu_leso_z0{};
+    float pos_leso_z0{};
+    float pos_leso_z1{};
+    float pos_leso_out{};
+    float spd_leso_z0{};
+};
+
+struct screw_gimbal_context_t
+{
+    screw_gimbal_deps_t::motor_deps_t motor;
+    screw_gimbal_deps_t::pid_deps_t pid;
+    screw_gimbal_data_ctx_t data;
+    screw_gimbal_cmd_t *cmd{};
+};
+
+struct screw_gimbal_module_params_t
+{
+    using CmdType    = screw_gimbal_cmd_t;
+    using ModuleDeps = screw_gimbal_deps_t;
+    using ModuleCtx  = screw_gimbal_context_t;
+};
+
+class screw_gimbal_t final
+    : public module_base_t<screw_gimbal_t, screw_gimbal_module_params_t>
+{
+    friend class module_base_t<screw_gimbal_t, screw_gimbal_module_params_t>;
 
   public:
-    [[nodiscard]] gimbal_context_t& get_ctx();
+    using data_ctx_t       = screw_gimbal_data_ctx_t;
+    using gimbal_context_t = screw_gimbal_context_t;
 
   private:
     screw_gimbal_t();
@@ -121,91 +194,6 @@ class screw_gimbal_t final
     // 动态校准计时与均值缓存
     uint32_t _dynamic_calib_timer{0};
     float _dynamic_calib_sum{0.0f};
-
-    // 运行时数据
-    struct data_ctx_t
-    {
-        bool is_calibrating{false};
-        bool has_initial_calibrated{false};
-        bool allow_dynamic_calib{true}; // 是否允许动态校准
-
-        float pitch_motor_upper_limit{0};
-        float pitch_motor_lower_limit{0};
-
-        // --- Pitch 电机增量套圈处理变量 ---
-        float last_pitch_rotor_rad{0};
-        float total_pitch_motor_rad{0};
-
-        bool yaw_wrap_initialized{false};
-        float last_yaw_rotor_rad{0};
-        float total_yaw_motor_rad{0};
-
-        // --- 反馈 (含 Offset) ---
-        float current_pitch_motor_rad{0};
-        float current_pitch_motor_radps{0};
-        float current_pitch_motor_world{0};
-
-        // 当前姿态下的传动比缓存 (dMotor / dPitch)
-        float current_jacobian{0};
-
-        // 姿态反馈 (基于 IMU)
-        float pitch_imu_rad{0};
-        float pitch_imu_radps{0};
-        float yaw_imu_rad{0};
-        float yaw_imu_radps{0};
-        float roll_imu_rad{0};
-        float roll_imu_radps{0};
-
-        // 加速度反馈 (基于 IMU)
-        float z_accel_imu{0};
-        float x_accel_imu{0};
-        float y_accel_imu{0};
-
-        // 四元数与相对角反馈
-        float current_chassis_pitch_rad{0};
-        float chassis_yaw_imu{0};
-        float chassis_pitch_rad{0};
-        float chassis_q[4]{};
-        float gimbal_q[4]{};
-        float relative_pitch_rad{0};
-        float relative_roll_rad{0};
-        float relative_yaw_motor_rad{0};
-        float relative_yaw_motor_wrapped_rad{0};
-        float relative_yaw_motor_radps{0};
-
-        // 目标与误差
-        float target_pitch_rad{0};
-        float target_pitch_radps{0};
-        float target_yaw_rad{0};
-        float target_yaw_radps{0};
-        float yaw_error_rad{0};
-
-        float target_relative_yaw_rad{0};
-        float relative_yaw_error_rad{0};
-
-        // 输出
-        float out_pitch_torque{0};
-        float out_yaw_torque{0};
-
-        // 调试用
-        float pos_imu_leso_z1;
-        float spd_imu_leso_z0;
-        float pos_leso_z0;
-        float pos_leso_z1;
-        float pos_leso_out;
-        float spd_leso_z0;
-    };
-
-    // 总 Context
-    struct gimbal_context_t
-    {
-        screw_gimbal_deps_t::motor_deps_t motor;
-        screw_gimbal_deps_t::pid_deps_t pid;
-        data_ctx_t data;
-        screw_gimbal_cmd_t *cmd{};
-    };
-
-    gimbal_context_t _ctx;
 
     // =====================================================
     // 状态定义 (HFSM)

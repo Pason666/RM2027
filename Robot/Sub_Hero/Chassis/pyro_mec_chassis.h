@@ -41,20 +41,58 @@ struct mec_deps_t
     pid_deps_t pid_deps{};
 };
 
-class mec_chassis_t final
-    : public module_base_t<mec_chassis_t, mec_cmd_t, mec_deps_t>
+struct mec_data_ctx_t
 {
-    friend class module_base_t<mec_chassis_t, mec_cmd_t, mec_deps_t>;
-    friend class jcom_drv_t;
+    float current_yaw_error{0.0f};
 
-    struct data_ctx_t;
-    struct mec_context_t;
+    bool wheel_online[4]{};
+    float current_wheel_rpm[4]{};
+    float current_wheel_torque[4]{};
+    float current_wheel_temp[4]{};
+    float target_wheel_rpm[4]{};
+    float out_wheel_torque[4]{};
+
+    float real_vx{0.0f};
+    float real_vy{0.0f};
+    float real_wz{0.0f};
+
+    float total_predicted_power{0.0f};
+    float buffer_energy{0.0f};
+};
+
+struct mec_context_t
+{
+    mec_deps_t::motor_deps_t motor;
+    mec_deps_t::pid_deps_t pid;
+    mec_data_ctx_t data;
+
+    mec_cmd_t *cmd{nullptr};
+    powermeter_drv_t *powermeter{nullptr};
+    powermeter_data powermeter_feedback{};
+    supercap_drv_t::chassis_cmd_t supercap_cmd{};
+    supercap_drv_t::cap_feedback_t cap_feedback{};
+    power_node_t *power_motor_data[4]{};
+};
+
+struct mec_module_params_t
+{
+    using CmdType    = mec_cmd_t;
+    using ModuleDeps = mec_deps_t;
+    using ModuleCtx  = mec_context_t;
+};
+
+class mec_chassis_t final
+    : public module_base_t<mec_chassis_t, mec_module_params_t>
+{
+    friend class module_base_t<mec_chassis_t, mec_module_params_t>;
+    friend class jcom_drv_t;
 
   public:
     mec_chassis_t(const mec_chassis_t &)            = delete;
     mec_chassis_t &operator=(const mec_chassis_t &) = delete;
 
-    [[nodiscard]] mec_context_t &get_ctx();
+    using data_ctx_t    = mec_data_ctx_t;
+    using mec_context_t = pyro::mec_context_t;
 
   private:
     mec_chassis_t();
@@ -72,41 +110,6 @@ class mec_chassis_t final
     void _send_motor_command() const;
 
     mecanum_kin_t *_kinematics{nullptr};
-
-    struct data_ctx_t
-    {
-        float current_yaw_error{0.0f};
-
-        bool wheel_online[4]{};
-        float current_wheel_rpm[4]{};
-        float current_wheel_torque[4]{};
-        float current_wheel_temp[4]{};
-        float target_wheel_rpm[4]{};
-        float out_wheel_torque[4]{};
-
-        float real_vx{0.0f};
-        float real_vy{0.0f};
-        float real_wz{0.0f};
-
-        float total_predicted_power{0.0f};
-        float buffer_energy{0.0f};
-    };
-
-    struct mec_context_t
-    {
-        mec_deps_t::motor_deps_t motor;
-        mec_deps_t::pid_deps_t pid;
-        data_ctx_t data;
-
-        mec_cmd_t *cmd{nullptr};
-        powermeter_drv_t *powermeter{nullptr};
-        powermeter_data powermeter_feedback{};
-        supercap_drv_t::chassis_cmd_t supercap_cmd{};
-        supercap_drv_t::cap_feedback_t cap_feedback{};
-        power_node_t *power_motor_data[4]{};
-    };
-
-    mec_context_t _ctx;
 
     using owner = mec_chassis_t;
 

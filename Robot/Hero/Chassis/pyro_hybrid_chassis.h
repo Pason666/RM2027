@@ -68,23 +68,87 @@ struct hybrid_deps_t
 // =========================================================
 // 2. 混合底盘类
 // =========================================================
-class hybrid_chassis_t final
-    : public module_base_t<hybrid_chassis_t, hybrid_cmd_t, hybrid_deps_t>
+struct hybrid_data_ctx_t
 {
-    friend class module_base_t<hybrid_chassis_t, hybrid_cmd_t, hybrid_deps_t>;
+    bool wheel_online[4]{};
+    float current_wheel_rpm[4]{};
+    float current_track_rpm[2]{};
+    float current_leg_rad[2]{};
+    float current_leg_radps[2]{};
+
+    float current_pitch_rad{0};
+    float current_roll_rad{0};
+    float current_yaw_rad{0};
+    float target_pitch_rad{0};
+    float target_yaw_rad{0};
+
+    float real_vx{0};
+    float real_vy{0};
+    float real_wz{0};
+
+    int32_t front_distance_mm{0};
+    int32_t back_distance_mm{0};
+
+    float filtered_front_distance{0.0f};
+    float filtered_back_distance{0.0f};
+    float front_lpf_state[2]{0.0f, 0.0f};
+    float back_lpf_state[2]{0.0f, 0.0f};
+    bool distance_lpf_initialized{false};
+
+    float current_yaw_error{0};
+    float pseudo_gyro_phase_rad{0};
+    float pseudo_gyro_target_yaw_rad{0};
+    uint32_t pseudo_gyro_last_tick{0};
+    bool pseudo_gyro_active{false};
+    float target_wheel_rpm[4]{};
+    float target_track_rpm[2]{};
+    float target_leg_rad[2]{};
+    float target_leg_radps[2]{};
+
+    float out_mecanum_torque[4]{};
+    float out_track_torque[2]{};
+    float out_leg_torque[2]{};
+
+    float current_mecanum_torque[4]{};
+    float current_mecanum_temp[4]{};
+    float current_track_torque[2]{};
+    float current_track_temp[2]{};
+    float total_predicted_power{};
+    float buf_energy{};
+};
+
+struct hybrid_context_t
+{
+    hybrid_deps_t::motor_deps_t motor;
+    hybrid_deps_t::pid_deps_t pid;
+    hybrid_data_ctx_t data;
+    powermeter_drv_t *powermeter{nullptr};
+    powermeter_data powermeter_feedback{};
+    supercap_drv_t::chassis_cmd_t supercap_cmd{};
+    supercap_drv_t::cap_feedback_t cap_feedback{};
+    power_node_t *power_motor_data[6]{};
+    hybrid_cmd_t *cmd{};
+};
+
+struct hybrid_module_params_t
+{
+    using CmdType    = hybrid_cmd_t;
+    using ModuleDeps = hybrid_deps_t;
+    using ModuleCtx  = hybrid_context_t;
+};
+
+class hybrid_chassis_t final
+    : public module_base_t<hybrid_chassis_t, hybrid_module_params_t>
+{
+    friend class module_base_t<hybrid_chassis_t, hybrid_module_params_t>;
 
     friend class jcom_drv_t;
-
-    struct motor_deps_t;
-    struct pid_deps_t;
-    struct data_ctx_t;
-    struct hybrid_context_t;
 
   public:
     hybrid_chassis_t(const hybrid_chassis_t &)            = delete;
     hybrid_chassis_t &operator=(const hybrid_chassis_t &) = delete;
-
-    hybrid_context_t& get_ctx();
+    using data_ctx_t      = hybrid_data_ctx_t;
+    using hybrid_context_t = pyro::hybrid_context_t;
 
   private:
     hybrid_chassis_t();
@@ -108,78 +172,6 @@ class hybrid_chassis_t final
     void _send_motor_command() const;
     hybrid_kin_t *_kinematics{nullptr};
 
-    // 运行时数据
-    struct data_ctx_t
-    {
-        bool wheel_online[4]{};
-        float current_wheel_rpm[4]{};
-        float current_track_rpm[2]{};
-        float current_leg_rad[2]{};
-        float current_leg_radps[2]{};
-
-        // IMU 姿态反馈
-        float current_pitch_rad{0};
-        float current_roll_rad{0};
-        float current_yaw_rad{0};
-        float target_pitch_rad{0};
-        float target_yaw_rad{0};
-
-        // 逆解算速度
-        float real_vx{0};
-        float real_vy{0};
-        float real_wz{0};
-
-        // 测距模块原始反馈
-        int32_t front_distance_mm{0};
-        int32_t back_distance_mm{0};
-
-        // --- 新增：测距 2阶 LPF 状态变量 ---
-        float filtered_front_distance{0.0f};
-        float filtered_back_distance{0.0f};
-        float front_lpf_state[2]{0.0f, 0.0f}; // 数组大小改为 2
-        float back_lpf_state[2]{0.0f, 0.0f};
-        bool  distance_lpf_initialized{false};
-
-        // YAW 电机差值反馈（用于底盘跟随云台）
-        float current_yaw_error{0};
-        float pseudo_gyro_phase_rad{0};
-        float pseudo_gyro_target_yaw_rad{0};
-        uint32_t pseudo_gyro_last_tick{0};
-        bool pseudo_gyro_active{false};
-        float target_wheel_rpm[4]{};
-        float target_track_rpm[2]{};
-        float target_leg_rad[2]{};
-        float target_leg_radps[2]{};
-
-        // 输出
-        float out_mecanum_torque[4]{};
-        float out_track_torque[2]{};
-        float out_leg_torque[2]{};
-
-        // 电机功率相关反馈
-        float current_mecanum_torque[4]{};
-        float current_mecanum_temp[4]{};
-        float current_track_torque[2]{};
-        float current_track_temp[2]{};
-        float total_predicted_power{};
-        float buf_energy{};
-    };
-
-    struct hybrid_context_t
-    {
-        hybrid_deps_t::motor_deps_t motor;
-        hybrid_deps_t::pid_deps_t pid;
-        data_ctx_t data;
-        powermeter_drv_t *powermeter{nullptr};
-        powermeter_data powermeter_feedback{};
-        supercap_drv_t::chassis_cmd_t supercap_cmd{};
-        supercap_drv_t::cap_feedback_t cap_feedback{};
-        power_node_t *power_motor_data[6]{};
-        hybrid_cmd_t *cmd{};
-    };
-
-    // 总 Context
-    hybrid_context_t _ctx;
     bool _last_leg_calibration_flag{false};
 
     // =====================================================

@@ -40,6 +40,7 @@ target_sources(PYRo PRIVATE
         Algorithm/Kinematics/pyro_kin_mec.cpp
         Algorithm/Kinematics/pyro_kin_rudder.cpp
         Algorithm/Kinematics/pyro_kin_wl.cpp
+        Algorithm/Kinematics/pyro_kin_rudomni.cpp
         Algorithm/OLS/pyro_algo_ols.cpp
         Algorithm/PID/pyro_algo_pid.cpp
         Algorithm/EKF/QuaternionEKF.cpp

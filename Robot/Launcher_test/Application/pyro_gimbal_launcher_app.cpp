@@ -100,33 +100,26 @@ static void deps_init()
 
     // --- Yaw轴: 位置环 + 速度环 (GM6020) ---
     test_robot_deps_ptr->pid_deps.yaw_pos_pid =
-        new pid_t(25.0f, 0.1f, 0.0f, 1.0f, 50.0f,
-                  100.0f, 1, 80.0f, 1, 4);
+        new pid_t(50.0f, 0.0f, 0.3f, 0, 18.0f);
     test_robot_deps_ptr->pid_deps.yaw_spd_pid =
-        new pid_t(0.12f, 0.01f, 0.0001f, 2.0f, 20.0f,
-                  80.0f, 1, 40.0f, 1, 4);
+        new pid_t(1.5f, 0.0f, 0.0f, 0.2f, 3);
 
     // --- Pitch轴: 位置环 + 速度环 (DM4310) ---
     test_robot_deps_ptr->pid_deps.pitch_pos_pid =
-        new pid_t(12.0f, 0.05f, 0.01f, 0.5f, 10.0f,
-                  40.0f, 1, 10.0f, 1, 4);
+        new pid_t(30.0f, 0.08f, 0.2f, 0.8f, 12);
     test_robot_deps_ptr->pid_deps.pitch_spd_pid =
-        new pid_t(22.0f, 0.1f, 0.01f, 1.0f, 20.0f,
-                  20.0f, 1, 10.0f, 1, 4);
+        new pid_t(0.6f, 0.0f, 0.001f, 0.5f, 7.0f);
 
     // --- 摩擦轮: 速度环 ×2 (M3508) ---
     for (int i = 0; i < 2; i++)
         test_robot_deps_ptr->pid_deps.friction_spd_pid[i] =
-            new pid_t(6.0f, 0.02f, 0.02f, 2.5f, 20.0f,
-                      320.0f, 1, 80.0f, 1, 4);
+            new pid_t(0.5f, 0.0f, 0.0f, 0.8f, 20.0f);
 
     // --- 拨弹盘: 位置环 + 速度环 (M2006) ---
     test_robot_deps_ptr->pid_deps.feeder_pos_pid =
-        new pid_t(12.0f, 1.0f, 0.1f, 2.0f, 12.0f,
-                  40.0f, 1, 20.0f, 1, 4);
+        new pid_t(30.0f, 0.5f, 0.0f, 3.0f, 20.0f);
     test_robot_deps_ptr->pid_deps.feeder_spd_pid =
-        new pid_t(1.0f, 1.0f, 0.003f, 1.5f, 7.0f,
-                  20.0f, 1, 10.0f, 1, 4);
+        new pid_t(4.0f, 0.02f, 0.0f, 5.0f, 10.0f);
 
     // --- 零点偏移 ---
     test_robot_deps_ptr->yaw_pos_offset   = 0.0f;

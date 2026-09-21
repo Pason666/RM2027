@@ -5,11 +5,15 @@ namespace pyro
 
 void test_robot_t::state_active_t::enter(owner *o)
 {
-    o->_ctx.motor.yaw->enable();
     o->_ctx.motor.pitch->enable();
     o->_ctx.motor.friction[0]->enable();
     o->_ctx.motor.friction[1]->enable();
     o->_ctx.motor.feeder->enable();
+
+    // 上电时: 将目标位置初始化为passive状态记录的位置
+    o->_ctx.data.target_pitch_rad = o->_ctx.data.pitch_init_position;
+    o->_ctx.pid.pitch_pos_pid->clear();
+    o->_ctx.pid.pitch_spd_pid->clear();
 
     // 重新激活摩擦轮 PID (若之前被两阶段停机切为零力矩)
     o->_ctx.data.fric_pid_active = true;

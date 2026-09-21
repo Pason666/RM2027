@@ -66,9 +66,9 @@ add_subdirectory(PYRo)
 
 
 if (ROBOT_ID EQUAL TEST_ROBOT_ID)
-    add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/Robot/Launcher_test)
+    add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/Robot/large_launcher_test)
     target_link_libraries(${CMAKE_PROJECT_NAME}
-            Launcher_test)
+            large_launcher_test)
 elseif (ROBOT_ID EQUAL HERO_ID)
     add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/robot/hero)
     target_link_libraries(${CMAKE_PROJECT_NAME}

@@ -254,8 +254,9 @@ dji_m2006_motor_drv_t::dji_m2006_motor_drv_t(
 }
 
 dji_gm_6020_motor_drv_t::dji_gm_6020_motor_drv_t(
-    dji_motor_tx_frame_t::register_id_t id, can_hub_t::which_can which)
-    : dji_motor_drv_t(id, which)
+    dji_motor_tx_frame_t::register_id_t id, can_hub_t::which_can which,
+    control_mode_t mode)
+    : dji_motor_drv_t(id, which), _control_mode(mode)
 {
     switch (id)
     {
@@ -263,14 +264,14 @@ dji_gm_6020_motor_drv_t::dji_gm_6020_motor_drv_t(
         case dji_motor_tx_frame_t::id_2:
         case dji_motor_tx_frame_t::id_3:
         case dji_motor_tx_frame_t::id_4:
-            _tx_id = 0x1ff;
+            _tx_id = (_control_mode == CURRENT_MODE) ? 0x1fe : 0x1ff;
             _rx_id = 0x204 + id + 1;
             break;
         case dji_motor_tx_frame_t::id_5:
         case dji_motor_tx_frame_t::id_6:
         case dji_motor_tx_frame_t::id_7:
             // case dji_motor_tx_frame_t::id_8: for gm6020 id8 is unavailable
-            _tx_id = 0x2fe;
+            _tx_id = (_control_mode == CURRENT_MODE) ? 0x2fe : 0x2ff;
             _rx_id = 0x204 + id + 1;
             break;
         default:

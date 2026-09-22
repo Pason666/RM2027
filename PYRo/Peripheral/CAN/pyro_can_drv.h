@@ -15,10 +15,17 @@ namespace pyro
 class can_msg_buffer_t
 {
 public:
-    explicit can_msg_buffer_t(uint32_t id);
+    enum id_type_t
+    {
+        STANDARD_ID = 0,
+        EXTENDED_ID = 1
+    };
+
+    explicit can_msg_buffer_t(uint32_t id, id_type_t type = STANDARD_ID);
     ~can_msg_buffer_t();
 
     [[nodiscard]] uint32_t get_id() const;
+    [[nodiscard]] id_type_t get_id_type() const;
     [[nodiscard]] bool is_fresh() const;
     void mark_read();
     void update_data(const uint8_t *data);
@@ -27,6 +34,7 @@ public:
 
 private:
     uint32_t _id;
+    id_type_t _id_type;
     std::array<uint8_t, 8> _buffer;
     volatile bool _is_fresh;
     volatile TickType_t _last_update_time;
@@ -36,6 +44,7 @@ class can_drv_t
 {
     const uint8_t MAX_ID_REGIST_NUM = 32;
     using can_id_regist_t           = uint16_t;
+    using register_key_t = std::pair<uint32_t, can_msg_buffer_t::id_type_t>;
 
 public:
     explicit can_drv_t(FDCAN_HandleTypeDef *hfdcan);
@@ -43,13 +52,15 @@ public:
 
     status_t init();
     status_t start() const;
-    status_t send_msg(uint32_t id, const uint8_t *data) const;
+    status_t send_msg(uint32_t id, const uint8_t *data,
+                      can_msg_buffer_t::id_type_t type = can_msg_buffer_t::STANDARD_ID) const;
     status_t register_rx_msg(can_msg_buffer_t *msg_buffer);
-    status_t handle_rx_msg(uint32_t id, const uint8_t *data);
+    status_t handle_rx_msg(uint32_t id, const uint8_t *data,
+                           can_msg_buffer_t::id_type_t type);
 
 private:
     FDCAN_HandleTypeDef *_hfdcan;
-    map_t<uint32_t, can_msg_buffer_t *> _registerlist;
+    map_t<register_key_t, can_msg_buffer_t *> _registerlist;
 };
 
 class can_hub_t
@@ -69,7 +80,8 @@ public:
     status_t hub_unregister_can_obj(FDCAN_HandleTypeDef *hfdcan);
     can_drv_t *hub_get_can_obj(which_can which_can);
     status_t hub_handle_callback(FDCAN_HandleTypeDef *hfdcan,
-                                 uint32_t identifier, const uint8_t *data);
+                                 uint32_t identifier, const uint8_t *data,
+                                 can_msg_buffer_t::id_type_t type);
 
 private:
     can_hub_t();

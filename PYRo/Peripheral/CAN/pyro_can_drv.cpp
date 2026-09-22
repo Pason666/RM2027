@@ -59,8 +59,8 @@ status_t recover_bus_off(FDCAN_HandleTypeDef *hfdcan)
 // ==========================================
 // can_msg_buffer_t Implementation
 // ==========================================
-can_msg_buffer_t::can_msg_buffer_t(const uint32_t id)
-    : _id(id), _buffer{}, _is_fresh(false), _last_update_time(0)
+can_msg_buffer_t::can_msg_buffer_t(const uint32_t id, const id_type_t type)
+    : _id(id), _id_type(type), _buffer{}, _is_fresh(false), _last_update_time(0)
 {
 }
 
@@ -69,6 +69,11 @@ can_msg_buffer_t::~can_msg_buffer_t() = default;
 uint32_t can_msg_buffer_t::get_id() const
 {
     return _id;
+}
+
+can_msg_buffer_t::id_type_t can_msg_buffer_t::get_id_type() const
+{
+    return _id_type;
 }
 
 bool can_msg_buffer_t::is_fresh() const
@@ -122,18 +127,34 @@ can_drv_t::~can_drv_t() = default;
 
 pyro::status_t can_drv_t::init()
 {
-    FDCAN_FilterTypeDef fdcan_filter;
-    fdcan_filter.IdType       = FDCAN_STANDARD_ID;
-    fdcan_filter.FilterIndex  = 0;
-    fdcan_filter.FilterType   = FDCAN_FILTER_MASK;
-    fdcan_filter.FilterConfig = FDCAN_FILTER_TO_RXFIFO0;
-    fdcan_filter.FilterID1    = 0x00;
-    fdcan_filter.FilterID2    = 0x00;
+    // Configure standard ID filter
+    FDCAN_FilterTypeDef fdcan_filter_std;
+    fdcan_filter_std.IdType       = FDCAN_STANDARD_ID;
+    fdcan_filter_std.FilterIndex  = 0;
+    fdcan_filter_std.FilterType   = FDCAN_FILTER_MASK;
+    fdcan_filter_std.FilterConfig = FDCAN_FILTER_TO_RXFIFO0;
+    fdcan_filter_std.FilterID1    = 0x00;
+    fdcan_filter_std.FilterID2    = 0x00;
 
-    if (HAL_OK != HAL_FDCAN_ConfigFilter(_hfdcan, &fdcan_filter))
+    if (HAL_OK != HAL_FDCAN_ConfigFilter(_hfdcan, &fdcan_filter_std))
         return pyro::PYRO_ERROR;
+
+    // Configure extended ID filter
+    FDCAN_FilterTypeDef fdcan_filter_ext;
+    fdcan_filter_ext.IdType       = FDCAN_EXTENDED_ID;
+    fdcan_filter_ext.FilterIndex  = 0;
+    fdcan_filter_ext.FilterType   = FDCAN_FILTER_MASK;
+    fdcan_filter_ext.FilterConfig = FDCAN_FILTER_TO_RXFIFO0;
+    fdcan_filter_ext.FilterID1    = 0x00;
+    fdcan_filter_ext.FilterID2    = 0x00;
+
+    if (HAL_OK != HAL_FDCAN_ConfigFilter(_hfdcan, &fdcan_filter_ext))
+        return pyro::PYRO_ERROR;
+
+    // Configure global filter to accept both standard and extended frames
     if (HAL_OK !=
-        HAL_FDCAN_ConfigGlobalFilter(_hfdcan, FDCAN_REJECT, FDCAN_REJECT,
+        HAL_FDCAN_ConfigGlobalFilter(_hfdcan, FDCAN_ACCEPT_IN_RX_FIFO0,
+                                     FDCAN_ACCEPT_IN_RX_FIFO0,
                                      FDCAN_REJECT_REMOTE, FDCAN_REJECT_REMOTE))
         return pyro::PYRO_ERROR;
     if (HAL_OK != HAL_FDCAN_ConfigFifoWatermark(_hfdcan, FDCAN_CFG_RX_FIFO0, 1))
@@ -153,7 +174,8 @@ pyro::status_t can_drv_t::start() const
     return reactivate_can_notifications(_hfdcan);
 }
 
-pyro::status_t can_drv_t::send_msg(const uint32_t id, const uint8_t *data) const
+pyro::status_t can_drv_t::send_msg(const uint32_t id, const uint8_t *data,
+                                   const can_msg_buffer_t::id_type_t type) const
 {
     if (nullptr == _hfdcan || nullptr == data)
         return pyro::PYRO_PARAM_ERROR;
@@ -167,7 +189,9 @@ pyro::status_t can_drv_t::send_msg(const uint32_t id, const uint8_t *data) const
 
     FDCAN_TxHeaderTypeDef tx_header;
 
-    tx_header.IdType              = FDCAN_STANDARD_ID;
+    tx_header.IdType = (type == can_msg_buffer_t::EXTENDED_ID)
+                       ? FDCAN_EXTENDED_ID
+                       : FDCAN_STANDARD_ID;
     tx_header.Identifier          = id;
     tx_header.TxFrameType         = FDCAN_DATA_FRAME;
     tx_header.DataLength          = FDCAN_DLC_BYTES_8;
@@ -209,29 +233,31 @@ pyro::status_t can_drv_t::send_msg(const uint32_t id, const uint8_t *data) const
 
 pyro::status_t can_drv_t::register_rx_msg(can_msg_buffer_t *msg_buffer)
 {
-    const uint32_t id = msg_buffer->get_id();
+    const register_key_t key(msg_buffer->get_id(), msg_buffer->get_id_type());
 
     taskENTER_CRITICAL();
-    if (this->_registerlist.exist(id))
+    if (this->_registerlist.exist(key))
     {
         taskEXIT_CRITICAL();
         return pyro::PYRO_ERROR;
     }
-    this->_registerlist[id] = msg_buffer;
+    this->_registerlist[key] = msg_buffer;
     taskEXIT_CRITICAL();
 
     return pyro::PYRO_OK;
 }
 
 __attribute__((section(".itcm_text"))) pyro::status_t
-can_drv_t::handle_rx_msg(const uint32_t id, const uint8_t *data)
+can_drv_t::handle_rx_msg(const uint32_t id, const uint8_t *data,
+                         const can_msg_buffer_t::id_type_t type)
 {
-    if (!this->_registerlist.exist(id))
+    const register_key_t key(id, type);
+    if (!this->_registerlist.exist(key))
     {
         return pyro::PYRO_NOT_FOUND;
     }
 
-    can_msg_buffer_t *msg = this->_registerlist[id];
+    can_msg_buffer_t *msg = this->_registerlist[key];
     msg->update_data(data);
 
     return pyro::PYRO_OK;
@@ -305,12 +331,13 @@ can_drv_t *can_hub_t::hub_get_can_obj(const which_can which_can)
 
 __attribute__((section(".itcm_text"))) pyro::status_t
 can_hub_t::hub_handle_callback(FDCAN_HandleTypeDef *hfdcan,
-                               const uint32_t identifier, const uint8_t *data)
+                               const uint32_t identifier, const uint8_t *data,
+                               const can_msg_buffer_t::id_type_t type)
 {
     if (!this->_can_drv_map.exist(hfdcan))
         return pyro::PYRO_ERROR;
 
-    return this->_can_drv_map[hfdcan]->handle_rx_msg(identifier, data);
+    return this->_can_drv_map[hfdcan]->handle_rx_msg(identifier, data, type);
 }
 
 }; // namespace pyro
@@ -320,16 +347,15 @@ can_hub_t::hub_handle_callback(FDCAN_HandleTypeDef *hfdcan,
 // ==========================================
 __attribute__((section(".itcm_text"))) void
 can_global_handle(FDCAN_HandleTypeDef *hfdcan, const uint32_t identifier,
-                  const uint8_t *data)
+                  const uint8_t *data, const pyro::can_msg_buffer_t::id_type_t type)
 {
     pyro::can_hub_t::get_instance()->hub_handle_callback(hfdcan, identifier,
-                                                         data);
+                                                         data, type);
 }
 
 extern "C" __attribute__((section(".itcm_text"))) void
 HAL_FDCAN_RxFifo0Callback(FDCAN_HandleTypeDef *hfdcan, uint32_t RxFifo0ITs)
 {
-    // [修复安全隐患] rx_header 作为局部变量分配在栈上，防止中断嵌套/并发覆盖
     FDCAN_RxHeaderTypeDef rx_header;
     uint8_t data[8];
 
@@ -340,8 +366,13 @@ HAL_FDCAN_RxFifo0Callback(FDCAN_HandleTypeDef *hfdcan, uint32_t RxFifo0ITs)
     }
 
     if (FDCAN_FRAME_CLASSIC == rx_header.RxFrameType &&
-        FDCAN_STANDARD_ID == rx_header.IdType)
+        (FDCAN_STANDARD_ID == rx_header.IdType ||
+         FDCAN_EXTENDED_ID == rx_header.IdType))
     {
-        can_global_handle(hfdcan, rx_header.Identifier, data);
+        const pyro::can_msg_buffer_t::id_type_t type =
+            (rx_header.IdType == FDCAN_EXTENDED_ID)
+            ? pyro::can_msg_buffer_t::EXTENDED_ID
+            : pyro::can_msg_buffer_t::STANDARD_ID;
+        can_global_handle(hfdcan, rx_header.Identifier, data, type);
     }
 }

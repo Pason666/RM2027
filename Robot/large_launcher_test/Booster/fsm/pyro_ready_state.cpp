@@ -1,4 +1,4 @@
-#include "pyro_board_drv.h"
+#include "pyro_referee.h"
 #include "pyro_dwt_drv.h"
 #include "pyro_large_launcher.h"
 #include "large_launcher_config.h"
@@ -24,14 +24,14 @@ void tri_booster_t::fsm_active_t::state_ready_t::execute(owner *owner)
         owner->_ctx.data.signal_timer = dwt_drv_t::get_timeline_ms();
 
         // 从裁判系统获取热量数据
-        auto &referee = referee_drv_t::get_instance();
+        auto *referee = referee_drv_t::get_instance();
         bool heat_ok = true;  // 默认允许发射
 
         if (referee->is_online())
         {
             const auto &referee_data = referee->get_data();
-            uint16_t heat_limit = referee_data.power_heat_data.shooter_17mm_1_barrel_heat_limit;
-            uint16_t heat = referee_data.power_heat_data.shooter_17mm_1_barrel_heat;
+            uint16_t heat_limit = referee_data.robot_status.shooter_barrel_heat_limit;
+            uint16_t heat = referee_data.power_heat.shooter_42mm_barrel_heat;
 
             if (0xFFFF == heat_limit || 0 == heat_limit)
             {

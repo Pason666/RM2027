@@ -1,7 +1,6 @@
 #include "pyro_large_launcher.h"
 #include "pyro_algo_common.h"
 #include "pyro_bsp_uart.h"
-#include "pyro_board_drv.h"
 #include "pyro_dwt_drv.h"
 #include "pyro_referee.h"
 #include "large_launcher_config.h"
@@ -110,7 +109,7 @@ void tri_booster_t::_fsm_execute()
 void tri_booster_t::_speed_control()
 {
     static uint16_t last_launching_num = 0;
-    auto &referee = referee_drv_t::get_instance();
+    auto *referee = referee_drv_t::get_instance();
 
     if (!referee->is_online()) return;
 
@@ -119,8 +118,8 @@ void tri_booster_t::_speed_control()
     auto &shoot_data = _ctx.shoot_data;
     _ctx.data.target_shoot_speed = shoot_data.target_speed;
 
-    uint16_t current_launching_num = referee_data.shoot_data.launching_frequency;
-    float shoot_speed = referee_data.shoot_data.bullet_speed;
+    uint16_t current_launching_num = referee_data.shoot.launching_frequency;
+    float shoot_speed = referee_data.shoot.initial_speed;
 
     if (current_launching_num == last_launching_num)
     {

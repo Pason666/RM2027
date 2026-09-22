@@ -1,6 +1,8 @@
 #include "pyro_bsp_uart.h"
 #include "pyro_can_drv.h"
 #include "pyro_dr16_rc_drv.h"
+#include "pyro_vt03_rc_drv.h"
+#include "pyro_referee.h"
 #include "pyro_dwt_drv.h"
 #include "pyro_ins.h"
 

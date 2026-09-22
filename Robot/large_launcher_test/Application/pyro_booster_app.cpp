@@ -6,6 +6,7 @@
 #include "pyro_vt03_rc_drv.h"
 #include "pyro_rc_base_drv.h"
 #include "pyro_referee.h"
+#include "pyro_algo_pid.h"
 
 using namespace pyro;
 
@@ -55,17 +56,17 @@ static void deps_init()
     // ==================== PID 分配 ====================
     // --- 摩擦轮: 速度环 ×3 (M3508) ---
     tri_deps_ptr->pid_deps.fric_pid[0] =
-        new pid_t(11.315f, 0.03f, 0.004f, 2.5f, 20, 240, 1, 80, 1, 4);
+        new pyro::pid_t(11.315f, 0.03f, 0.004f, 2.5f, 20, 240, 1, 80, 1, 4);
     tri_deps_ptr->pid_deps.fric_pid[1] =
-        new pid_t(11.315f, 0.03f, 0.004f, 2.5f, 20, 240, 1, 80, 1, 4);
+        new pyro::pid_t(11.315f, 0.03f, 0.004f, 2.5f, 20, 240, 1, 80, 1, 4);
     tri_deps_ptr->pid_deps.fric_pid[2] =
-        new pid_t(11.315f, 0.03f, 0.004f, 2.5f, 20, 240, 1, 80, 1, 4);
+        new pyro::pid_t(11.315f, 0.03f, 0.004f, 2.5f, 20, 240, 1, 80, 1, 4);
 
     // --- 拨弹盘: 位置环 + 速度环 (DM4310) ---
     tri_deps_ptr->pid_deps.trigger_pos_pid =
-        new pid_t(8.0f, 0.03f, 0.0015f, 0.3f, 2.0f, 40, 1, 20, 1, 4);
+        new pyro::pid_t(8.0f, 0.03f, 0.0015f, 0.3f, 2.0f, 40, 1, 20, 1, 4);
     tri_deps_ptr->pid_deps.trigger_spd_pid =
-        new pid_t(0.9f, 0.9f, 0.0015f, 1.0f, 5.0f, 30, 1, 20, 1, 4);
+        new pyro::pid_t(0.9f, 0.9f, 0.0015f, 1.0f, 5.0f, 30, 1, 20, 1, 4);
 }
 
 // =========================================================
@@ -175,7 +176,7 @@ void booster_thread(void *argument)
     }
 }
 
-void booster_init(void *argument)
+void large_launcher_init(void *argument)
 {
     tri_booster_cmd_ptr = new tri_booster_cmd_t();
     tri_booster_ptr     = tri_booster_t::instance();

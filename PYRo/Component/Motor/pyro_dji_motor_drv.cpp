@@ -288,8 +288,19 @@ dji_gm_6020_motor_drv_t::dji_gm_6020_motor_drv_t(
     _tx_frame =
         dji_motor_tx_frame_pool_t::get_instance()->get_frame(which, _tx_id);
     _tx_frame->register_id(_register_id);
-    _max_torque_f = 3.0f;
-    _max_torque_i = 16384;
+    
+    // 根据控制模式设置不同的映射范围
+    _max_torque_f = 3.0f;  // 最大力矩 3.0 N·m
+    if (_control_mode == CURRENT_MODE)
+    {
+        // 电流模式：给定值范围 -16384~0~16384，对应 -3A~0~3A
+        _max_torque_i = 16384;
+    }
+    else  // VOLTAGE_MODE
+    {
+        // 电压模式：给定值范围 -25000~0~25000
+        _max_torque_i = 25000;
+    }
 }
 
 }

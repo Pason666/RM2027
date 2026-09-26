@@ -17,7 +17,7 @@ struct test_robot_cmd_t final : public cmd_base_t
     float pitch_rate;        // Pitch轴目标角速度 rad/s (来自遥控器左摇杆Y)
     float friction_speed;    // 摩擦轮目标转速 rad/s
     float feeder_speed;      // 拨弹盘连发目标转速 rad/s (进入连发时设定)
-    bool  feeder_trigger;    // 拨弹盘触发信号 (上升沿触发单发)
+    bool  feeder_trigger;    // 拨弹盘触发信号 (上升沿触发单发/初始化)
     bool  fire_enable;       // 连发模式使能
     bool  force_stop;        // 强制停止 (左拨杆在UP时为true)
 
@@ -96,22 +96,26 @@ struct test_robot_data_ctx_t
     // --- 拨弹盘子状态 ---
     enum class trig_state_e : uint8_t
     {
+        IDLE,          // 空闲: 未初始化状态
+        INIT_FORWARD,  // 初始化: 正转直到卡住找零点
         READY,         // 就绪: 位置环锁位
-        SINGLE,        // 单发: 位置环推进 PI/4
+        SINGLE,        // 单发: 位置环推进 SINGLE_SHOT_ANGLE
         CONTINUE,      // 连发: 速度环恒转速
-        CALI_REVERSE,  // 校准反转: 高速反转找机械死区
-        CALI_FORWARD,  // 校准正转: 从死区正转脱离
+        JAM_RECOVERY,  // 卡弹恢复: 无力一段时间后重试
         DONE,          // 完成: 位置环锁位, 下一帧回 READY
-    } trig_state{trig_state_e::READY};
+    } trig_state{trig_state_e::IDLE};
 
-    // --- 校准 ---
-    bool     is_calibrated{false};      // 是否已完成校准
-    float    trigger_offset{0};         // 编码器零点偏移 (反转到底时的角度)
-    trig_state_e target_after_cali{trig_state_e::SINGLE}; // 校准后目标状态
+    // --- 初始化 ---
+    bool     is_initialized{false};     // 是否已完成初始化
+    bool     init_just_completed{false}; // 初始化刚完成标志（用于通知应用层打开摩擦轮）
+    float    trigger_offset{0};         // 编码器零点偏移 (正转卡住时的角度)
 
-    // --- 堵转检测 ---
-    uint32_t block_start_tick{0};       // 堵转起始时刻 (0=未堵转)
-    uint32_t single_start_tick{0};     // 单发开始时刻 (用于超时)
+    // --- 卡弹检测 ---
+    uint32_t jam_start_tick{0};         // 卡弹起始时刻 (0=未卡弹)
+    uint32_t jam_recovery_start_tick{0}; // 卡弹恢复开始时刻
+    uint8_t  jam_recovery_count{0};     // 当前单发的卡弹恢复次数
+    uint32_t single_start_tick{0};      // 单发开始时刻 (用于超时)
+    trig_state_e state_before_jam{trig_state_e::READY}; // 卡弹前的状态
 
     // --- 命令缓存 (用于子状态机内部消费) ---
     bool cmd_feeder_trigger{false};
@@ -154,6 +158,10 @@ class test_robot_t final
     using data_ctx_t           = test_robot_data_ctx_t;
     using test_robot_context_t = pyro::test_robot_context_t;
 
+    // 供外部访问的接口
+    bool is_init_just_completed() const { return _ctx.data.init_just_completed; }
+    void clear_init_completed_flag() { _ctx.data.init_just_completed = false; }
+
   private:
     test_robot_t();
     ~test_robot_t() override = default;
@@ -173,12 +181,13 @@ class test_robot_t final
     void _trig_fsm_execute();
 
     // 子状态处理
+    void _trig_idle_execute();
+    void _trig_init_forward_execute();
     void _trig_ready_enter();
     void _trig_ready_execute();
     void _trig_single_execute();
     void _trig_continue_execute();
-    void _trig_cali_reverse_execute();
-    void _trig_cali_forward_execute();
+    void _trig_jam_recovery_execute();
     void _trig_done_execute();
 
     // 切换到子状态

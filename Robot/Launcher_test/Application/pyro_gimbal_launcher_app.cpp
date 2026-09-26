@@ -9,9 +9,9 @@
  *
  *   左摇杆Y → Pitch 角速度控制
  *
- *   SW_L UP→MID   → 摩擦轮打开 (固定转速)
+ *   SW_L UP→MID   → 拨弹盘正转卡住初始化零点, 然后摩擦轮打开
  *   SW_L MID→UP   → 摩擦轮关闭
- *   SW_L MID→DOWN → 触发单发射击
+ *   SW_L DOWN→MID 或 DOWN→UP → 触发单发射击
  *   SW_L DOWN 维持 ≥ 800ms → 进入连发模式
  *
  * 硬件映射:
@@ -28,11 +28,9 @@
 using namespace pyro;
 
 // ========== 任务通知事件位 ==========
-constexpr uint32_t EVENT_BIT_FRIC_ON  = (1u << 0); // SW_L UP→MID: 打开摩擦轮
+constexpr uint32_t EVENT_BIT_INIT     = (1u << 0); // SW_L UP→MID: 初始化拨弹盘
 constexpr uint32_t EVENT_BIT_FRIC_OFF = (1u << 1); // SW_L MID→UP: 关闭摩擦轮
-constexpr uint32_t EVENT_BIT_FIRE     = (1u << 2); // SW_L MID→DOWN: 单发触发
-constexpr uint32_t EVENT_BIT_FIRE_CLR = (1u << 3); // SW_L 离开 DOWN: 清除连发
-constexpr uint32_t EVENT_BIT_FIRE_BURST = (1u << 4); // SW_L DOWN≥800ms: 连发启动
+constexpr uint32_t EVENT_BIT_FIRE     = (1u << 2); // SW_L DOWN→MID/UP: 单发触发
 
 // ========== 全局句柄 ==========
 static TaskHandle_t      test_robot_task_handle = nullptr;
@@ -105,9 +103,9 @@ static void deps_init()
     // --- 拨弹盘: 位置环 + 速度环 (M2006) ---
     // 单发需要较大力矩推动弹丸，提高P值和输出限幅
     test_robot_deps_ptr->pid_deps.feeder_pos_pid =
-        new pid_t(45.0f, 0.4f, 0.0f, 5.0f, 25.0f);
+        new pid_t(40.0f, 1.0f, 0.0f, 5.0f, 25.0f);
     test_robot_deps_ptr->pid_deps.feeder_spd_pid =
-        new pid_t(8.0f, 0.08f, 0.0f, 8.0f, 10.0f);
+        new pid_t(2.5f, 0.0f, 0.0f, 8.0f, 10.0f);
 }
 
 // =========================================================
@@ -150,22 +148,30 @@ void test_robot_thread(void *argument)
         sw_pos_t sw_l = rc.switches.left.current_pos;
 
         // ---- 处理左拨杆边沿事件 ----
-        if (notify_val & EVENT_BIT_FRIC_ON)
+        // 默认情况下trigger为false，只在事件发生时置true
+        test_robot_cmd_ptr->feeder_trigger = false;
+
+        if (notify_val & EVENT_BIT_INIT)
+        {
+            // UP→MID: 触发初始化, 初始化完成后摩擦轮会自动打开
+            test_robot_cmd_ptr->feeder_trigger = true;
+        }
+
+        if (notify_val & EVENT_BIT_FIRE)
+        {
+            // DOWN→MID/UP: 触发单发
+            test_robot_cmd_ptr->feeder_trigger = true;
+        }
+
+        // ---- 检查初始化是否刚完成，如果完成则打开摩擦轮 ----
+        if (test_robot_ptr->is_init_just_completed())
+        {
             test_robot_cmd_ptr->friction_speed = TEST_FRICTION_DEFAULT_SPEED;
+            test_robot_ptr->clear_init_completed_flag();  // 清除标志，避免重复处理
+        }
 
         if (notify_val & EVENT_BIT_FRIC_OFF)
             test_robot_cmd_ptr->friction_speed = 0.0f;
-
-        if (notify_val & EVENT_BIT_FIRE)
-            test_robot_cmd_ptr->feeder_trigger = true;
-        else
-            test_robot_cmd_ptr->feeder_trigger = false;
-
-        if (notify_val & EVENT_BIT_FIRE_CLR)
-        {
-            test_robot_cmd_ptr->fire_enable  = false;
-            test_robot_cmd_ptr->feeder_speed = 0.0f;
-        }
 
         // ---- 左拨杆UP: 强制停止拨弹盘 ----
         test_robot_cmd_ptr->force_stop = (sw_pos_t::UP == sw_l);
@@ -183,6 +189,9 @@ void test_robot_thread(void *argument)
         else
         {
             sw_l_down_ticks = 0;
+            // 离开DOWN位置，清除连发
+            test_robot_cmd_ptr->fire_enable  = false;
+            test_robot_cmd_ptr->feeder_speed = 0.0f;
         }
 
         // ---- 右开关: 模式切换 ----
@@ -225,15 +234,13 @@ void test_robot_init(void *argument)
     auto &vrc = rc_drv_t::read();
 
     sw_broker::subscribe(&vrc.switches.left, sw_event_t::UP_TO_MID,
-                         test_robot_task_handle, EVENT_BIT_FRIC_ON);
+                         test_robot_task_handle, EVENT_BIT_INIT);
     sw_broker::subscribe(&vrc.switches.left, sw_event_t::MID_TO_UP,
                          test_robot_task_handle, EVENT_BIT_FRIC_OFF);
-    sw_broker::subscribe(&vrc.switches.left, sw_event_t::MID_TO_DOWN,
-                         test_robot_task_handle, EVENT_BIT_FIRE);
     sw_broker::subscribe(&vrc.switches.left, sw_event_t::DOWN_TO_MID,
-                         test_robot_task_handle, EVENT_BIT_FIRE_CLR);
+                         test_robot_task_handle, EVENT_BIT_FIRE);
     sw_broker::subscribe(&vrc.switches.left, sw_event_t::DOWN_TO_UP,
-                         test_robot_task_handle, EVENT_BIT_FIRE_CLR);
+                         test_robot_task_handle, EVENT_BIT_FIRE);
 
     vTaskDelete(nullptr);
 }

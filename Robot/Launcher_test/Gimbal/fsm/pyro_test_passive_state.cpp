@@ -5,7 +5,6 @@ namespace pyro
 
 void test_robot_t::state_passive_t::enter(owner *o)
 {
-    o->_ctx.motor.yaw->disable();
     o->_ctx.motor.pitch->disable();
     o->_ctx.motor.friction[0]->disable();
     o->_ctx.motor.friction[1]->disable();
@@ -14,7 +13,9 @@ void test_robot_t::state_passive_t::enter(owner *o)
 
 void test_robot_t::state_passive_t::execute(owner *o)
 {
-    o->_ctx.motor.yaw->send_torque(0);
+    // 持续记录pitch当前位置，用于上电时的初始化
+    o->_ctx.data.pitch_init_position = o->_ctx.data.current_pitch_rad;
+
     o->_ctx.motor.pitch->send_torque(0);
     o->_ctx.motor.friction[0]->send_torque(0);
     o->_ctx.motor.friction[1]->send_torque(0);

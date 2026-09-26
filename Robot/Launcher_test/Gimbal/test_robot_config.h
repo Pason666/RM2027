@@ -10,8 +10,14 @@ namespace pyro
 // Test Robot 云台 + 发射机构物理参数
 // =========================================================
 
+/// Pitch轴最小位置限制 (rad)
+constexpr float PITCH_MIN_LIMIT = 0.2970f;
+
+/// Pitch轴最大位置限制 (rad)
+constexpr float PITCH_MAX_LIMIT = 0.5866f;
+
 /// 摩擦轮默认目标转速 (rad/s)
-constexpr float TEST_FRICTION_DEFAULT_SPEED = 500.0f;
+constexpr float TEST_FRICTION_DEFAULT_SPEED = 616.0f;
 
 /// 摩擦轮停机速度阈值 (rad/s), 低于此值切零力矩
 constexpr float TEST_FRIC_STOP_THRESHOLD = 10.0f;
@@ -30,11 +36,11 @@ constexpr float CALI_REVERSE_RADPS = -3.0f;
 /// 校准正转目标角度 (rad), 从死区正转 C 角度确保脱离
 constexpr float CALI_FORWARD_ANGLE = 0.2f;
 
-/// 堵转检测速度误差阈值 (50% = 目标速度的 50%)
-constexpr float CALI_BLOCK_THRESHOLD = 0.5f;
+/// 堵转检测速度误差阈值 (70% = 目标速度的 70%)
+constexpr float CALI_BLOCK_THRESHOLD = 0.7f;
 
 /// 堵转检测时间阈值 (ms), 条件持续超过此值判定为堵转
-constexpr uint16_t CALI_BLOCK_TIME_MS = 1000;
+constexpr uint16_t CALI_BLOCK_TIME_MS = 1500;
 
 /// 校准完成角度误差阈值 (rad)
 constexpr float CALI_DONE_ANGLE_THRESHOLD = 0.01f;
@@ -46,7 +52,7 @@ constexpr float SINGLE_DONE_ANGLE_THRESHOLD = 0.003f;
 constexpr uint16_t SINGLE_DONE_TIMEOUT_MS = 500;
 
 /// 单发目标角度: PI/4 = 45° per shot (8发/圈)
-constexpr float SINGLE_SHOT_ANGLE = 0.785398163f; // PI / 4
+constexpr float SINGLE_SHOT_ANGLE = PI / 4; // PI / 4
 
 } // namespace pyro
 

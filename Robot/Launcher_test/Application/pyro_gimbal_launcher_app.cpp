@@ -7,7 +7,7 @@
  *   SW_R MID   → ACTIVE  (使能整个系统, 云台跟随)
  *   SW_R DOWN  → ACTIVE  (使能整个系统, 云台跟随)
  *
- *   左摇杆X/Y → Yaw/Pitch 角速度控制
+ *   左摇杆Y → Pitch 角速度控制
  *
  *   SW_L UP→MID   → 摩擦轮打开 (固定转速)
  *   SW_L MID→UP   → 摩擦轮关闭
@@ -15,8 +15,7 @@
  *   SW_L DOWN 维持 ≥ 800ms → 进入连发模式
  *
  * 硬件映射:
- *   CAN1: Yaw GM6020 (ID=1) + Pitch DM4310
- *   CAN2: Friction L M3508 (ID=1) + Friction R M3508 (ID=2) + Feeder M2006 (ID=3)
+ *   CAN2: Pitch DM4310 + Friction L M3508 (ID=1) + Friction R M3508 (ID=2) + Feeder M2006 (ID=3)
  */
 
 #include "pyro_module_base.h"
@@ -52,8 +51,7 @@ static float rcdata_filter(float data)
     return data;
 }
 
-/// 摇杆满偏时云台角速度 (rad/s): Yaw ≈ 360°/s, Pitch ≈ 180°/s
-constexpr float GIMBAL_YAW_RATE_SCALE   = PI * 1.3f;
+/// 摇杆满偏时云台角速度 (rad/s): Pitch ≈ 180°/s
 constexpr float GIMBAL_PITCH_RATE_SCALE = PI * 0.65f;
 
 /// 左拨杆维持在 DOWN 超过此值进入连发模式 (ms)
@@ -64,15 +62,10 @@ static void deps_init()
 {
     test_robot_deps_ptr = new test_robot_deps_t();
 
-    // ==================== CAN1: 云台电机 ====================
-    // Yaw轴: GM6020, CAN1, ID=1
-    test_robot_deps_ptr->motor_deps.yaw =
-        new dji_gm_6020_motor_drv_t(dji_motor_tx_frame_t::id_1,
-                                     can_hub_t::can1);
-
-    // Pitch轴: DM4310, CAN1 (MIT 协议)
+    // ==================== CAN2: 云台电机 ====================
+    // Pitch轴: DM4310, CAN2 (MIT 协议)
     test_robot_deps_ptr->motor_deps.pitch =
-        new dm_motor_drv_t(0x01, 0x11, can_hub_t::can1);
+        new dm_motor_drv_t(0x01, 0x00, can_hub_t::can2);
     static_cast<dm_motor_drv_t *>(test_robot_deps_ptr->motor_deps.pitch)
         ->set_position_range(-PI, PI);
     static_cast<dm_motor_drv_t *>(test_robot_deps_ptr->motor_deps.pitch)
@@ -98,12 +91,6 @@ static void deps_init()
 
     // ==================== PID 分配 ====================
 
-    // --- Yaw轴: 位置环 + 速度环 (GM6020) ---
-    test_robot_deps_ptr->pid_deps.yaw_pos_pid =
-        new pid_t(50.0f, 0.0f, 0.3f, 0, 18.0f);
-    test_robot_deps_ptr->pid_deps.yaw_spd_pid =
-        new pid_t(1.5f, 0.0f, 0.0f, 0.2f, 3);
-
     // --- Pitch轴: 位置环 + 速度环 (DM4310) ---
     test_robot_deps_ptr->pid_deps.pitch_pos_pid =
         new pid_t(30.0f, 0.08f, 0.2f, 0.8f, 12);
@@ -116,14 +103,11 @@ static void deps_init()
             new pid_t(0.5f, 0.0f, 0.0f, 0.8f, 20.0f);
 
     // --- 拨弹盘: 位置环 + 速度环 (M2006) ---
+    // 单发需要较大力矩推动弹丸，提高P值和输出限幅
     test_robot_deps_ptr->pid_deps.feeder_pos_pid =
-        new pid_t(30.0f, 0.5f, 0.0f, 3.0f, 20.0f);
+        new pid_t(45.0f, 0.4f, 0.0f, 5.0f, 25.0f);
     test_robot_deps_ptr->pid_deps.feeder_spd_pid =
-        new pid_t(4.0f, 0.02f, 0.0f, 5.0f, 10.0f);
-
-    // --- 零点偏移 ---
-    test_robot_deps_ptr->yaw_pos_offset   = 0.0f;
-    test_robot_deps_ptr->pitch_pos_offset = 0.0f;
+        new pid_t(8.0f, 0.08f, 0.0f, 8.0f, 10.0f);
 }
 
 // =========================================================
@@ -141,6 +125,22 @@ void test_robot_thread(void *argument)
         // 1ms 超时轮询: 事件唤醒或超时后继续处理摇杆
         uint32_t notify_val = 0;
         xTaskNotifyWait(0x00, UINT32_MAX, &notify_val, pdMS_TO_TICKS(1));
+
+        // ---- 检查遥控器是否在线 ----
+        if (!dr16_drv_t::instance().check_online())
+        {
+            // 遥控器离线: 强制进入 PASSIVE 模式, 关闭所有输出
+            test_robot_cmd_ptr->mode           = cmd_base_t::mode_t::PASSIVE;
+            test_robot_cmd_ptr->pitch_rate     = 0.0f;
+            test_robot_cmd_ptr->friction_speed = 0.0f;
+            test_robot_cmd_ptr->feeder_trigger = false;
+            test_robot_cmd_ptr->fire_enable    = false;
+            test_robot_cmd_ptr->feeder_speed   = 0.0f;
+            sw_l_down_ticks = 0;
+
+            test_robot_ptr->set_command(*test_robot_cmd_ptr);
+            continue;
+        }
 
         // ---- 处理 RC 数据 (加读锁) ----
         read_scope_lock lock(rc_drv_t::get_lock());
@@ -167,6 +167,9 @@ void test_robot_thread(void *argument)
             test_robot_cmd_ptr->feeder_speed = 0.0f;
         }
 
+        // ---- 左拨杆UP: 强制停止拨弹盘 ----
+        test_robot_cmd_ptr->force_stop = (sw_pos_t::UP == sw_l);
+
         // ---- DOWN 维持计时 → 连发 ----
         if (sw_pos_t::DOWN == sw_l)
         {
@@ -186,7 +189,6 @@ void test_robot_thread(void *argument)
         if (sw_pos_t::UP == sw_r)
         {
             test_robot_cmd_ptr->mode           = cmd_base_t::mode_t::PASSIVE;
-            test_robot_cmd_ptr->yaw_rate       = 0.0f;
             test_robot_cmd_ptr->pitch_rate     = 0.0f;
             test_robot_cmd_ptr->friction_speed = 0.0f;
             test_robot_cmd_ptr->feeder_trigger = false;
@@ -196,9 +198,7 @@ void test_robot_thread(void *argument)
         {
             test_robot_cmd_ptr->mode = cmd_base_t::mode_t::ACTIVE;
 
-            // 左摇杆 → Yaw/Pitch 角速度
-            test_robot_cmd_ptr->yaw_rate =
-                -rcdata_filter(rc.axes.lx) * GIMBAL_YAW_RATE_SCALE;
+            // 左摇杆Y → Pitch 角速度
             test_robot_cmd_ptr->pitch_rate =
                 -rcdata_filter(rc.axes.ly) * GIMBAL_PITCH_RATE_SCALE;
         }

@@ -14,18 +14,18 @@ namespace pyro
 // =========================================================
 struct test_robot_cmd_t final : public cmd_base_t
 {
-    float yaw_rate;          // Yaw轴目标角速度 rad/s (来自遥控器左摇杆X)
     float pitch_rate;        // Pitch轴目标角速度 rad/s (来自遥控器左摇杆Y)
     float friction_speed;    // 摩擦轮目标转速 rad/s
     float feeder_speed;      // 拨弹盘连发目标转速 rad/s (进入连发时设定)
     bool  feeder_trigger;    // 拨弹盘触发信号 (上升沿触发单发)
     bool  fire_enable;       // 连发模式使能
+    bool  force_stop;        // 强制停止 (左拨杆在UP时为true)
 
     test_robot_cmd_t()
-        : yaw_rate(0), pitch_rate(0),
+        : pitch_rate(0),
           friction_speed(TEST_FRICTION_DEFAULT_SPEED),
           feeder_speed(TRIGGER_CONTINUOUS_RADPS),
-          feeder_trigger(false), fire_enable(false)
+          feeder_trigger(false), fire_enable(false), force_stop(false)
     {
     }
 };
@@ -37,18 +37,13 @@ struct test_robot_deps_t
 {
     struct motor_deps_t
     {
-        motor_base_t *yaw{nullptr};             // Yaw轴  GM6020 (CAN1, ID=1)
-        motor_base_t *pitch{nullptr};           // Pitch轴 DM4310 (CAN1)
+        motor_base_t *pitch{nullptr};           // Pitch轴 DM4310 (CAN2)
         motor_base_t *friction[2]{nullptr};     // 摩擦轮×2 M3508 (CAN2, ID=1,2)
         motor_base_t *feeder{nullptr};          // 拨弹盘 M2006 (CAN2, ID=3)
     };
 
     struct pid_deps_t
     {
-        // Yaw轴: 位置环 + 速度环
-        pid_t *yaw_pos_pid{nullptr};
-        pid_t *yaw_spd_pid{nullptr};
-
         // Pitch轴: 位置环 + 速度环
         pid_t *pitch_pos_pid{nullptr};
         pid_t *pitch_spd_pid{nullptr};
@@ -63,9 +58,6 @@ struct test_robot_deps_t
 
     motor_deps_t motor_deps{};
     pid_deps_t   pid_deps{};
-
-    float yaw_pos_offset{0};    // Yaw轴零点偏移 (rad)
-    float pitch_pos_offset{0};  // Pitch轴零点偏移 (rad)
 };
 
 // =========================================================
@@ -74,17 +66,12 @@ struct test_robot_deps_t
 struct test_robot_data_ctx_t
 {
     // --- 云台 ---
-    float current_yaw_rad{0};
-    float current_yaw_radps{0};
-    float target_yaw_rad{0};
-    float target_yaw_radps{0};
-    float out_yaw_torque{0};
-
     float current_pitch_rad{0};
     float current_pitch_radps{0};
     float target_pitch_rad{0};
     float target_pitch_radps{0};
     float out_pitch_torque{0};
+    float pitch_init_position{0};  // 上电前记录的pitch位置，用于初始化目标位置
 
     // --- 摩擦轮 ---
     float current_friction_radps[2]{};
@@ -139,7 +126,6 @@ struct test_robot_context_t
     test_robot_deps_t::motor_deps_t motor;
     test_robot_deps_t::pid_deps_t   pid;
     test_robot_data_ctx_t           data;
-    float                           yaw_pos_offset{0};
     float                           pitch_pos_offset{0};
     test_robot_cmd_t               *cmd{};
 };

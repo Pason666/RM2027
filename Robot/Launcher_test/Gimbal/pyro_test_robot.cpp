@@ -5,6 +5,8 @@
 #include <arm_math.h>
 #include <cmath>
 
+float pitch_position;
+
 namespace pyro
 {
 
@@ -32,10 +34,8 @@ test_robot_t::test_robot_t()
 // =========================================================
 status_t test_robot_t::_init()
 {
-    _ctx.motor            = _module_deps.motor_deps;
-    _ctx.pid              = _module_deps.pid_deps;
-    _ctx.yaw_pos_offset   = _module_deps.yaw_pos_offset;
-    _ctx.pitch_pos_offset = _module_deps.pitch_pos_offset;
+    _ctx.motor = _module_deps.motor_deps;
+    _ctx.pid   = _module_deps.pid_deps;
 
     return PYRO_OK;
 }
@@ -47,31 +47,24 @@ status_t test_robot_t::_init()
 void test_robot_t::_update_feedback()
 {
     // 更新所有电机反馈
-    _ctx.motor.yaw->update_feedback();
     _ctx.motor.pitch->update_feedback();
     _ctx.motor.friction[0]->update_feedback();
     _ctx.motor.friction[1]->update_feedback();
     _ctx.motor.feeder->update_feedback();
 
-    // 1. Yaw轴当前位置和角速度 (带零点偏移)
-    _ctx.data.current_yaw_radps = _ctx.motor.yaw->get_current_rotate();
-    _ctx.data.current_yaw_rad =
-        _ctx.motor.yaw->get_current_position() - _ctx.yaw_pos_offset;
-    _ctx.data.current_yaw_rad = wrap_pi(_ctx.data.current_yaw_rad);
-
-    // 2. Pitch轴当前位置和角速度 (带零点偏移)
+    // 1. Pitch轴当前位置和角速度 (无零点偏移)
     _ctx.data.current_pitch_radps = _ctx.motor.pitch->get_current_rotate();
-    _ctx.data.current_pitch_rad =
-        _ctx.motor.pitch->get_current_position() - _ctx.pitch_pos_offset;
-    _ctx.data.current_pitch_rad = wrap_pi(_ctx.data.current_pitch_rad);
+    _ctx.data.current_pitch_rad = _ctx.motor.pitch->get_current_position();
 
-    // 3. 摩擦轮当前角速度
+    pitch_position = _ctx.data.current_pitch_rad;
+
+    // 2. 摩擦轮当前角速度
     _ctx.data.current_friction_radps[0] =
         _ctx.motor.friction[0]->get_current_rotate();
     _ctx.data.current_friction_radps[1] =
         _ctx.motor.friction[1]->get_current_rotate();
 
-    // 4. 拨弹盘: 多圈连续角度追踪
+    // 3. 拨弹盘: 多圈连续角度追踪
     float rotor_rad = _ctx.motor.feeder->get_current_position();
 
     if (_ctx.data.feeder_first_update)
@@ -99,7 +92,7 @@ void test_robot_t::_update_feedback()
 }
 
 // =========================================================
-// 云台控制 (Yaw + Pitch 双轴 位置环 → 速度环)
+// 云台控制 (Pitch 单轴 位置环 → 速度环)
 //   摇杆非零: 积分目标位置 → PID跟踪
 //   摇杆归零: PID锁位 (位置环锁当前目标不动)
 // =========================================================
@@ -107,20 +100,14 @@ void test_robot_t::_gimbal_control()
 {
     constexpr float CTRL_DT = 0.001f; // 1ms
 
-    // --- Yaw轴: 摇杆角速度 → 位置积分 → 位置环 → 速度环 ---
-    _ctx.data.target_yaw_rad += _ctx.cmd->yaw_rate * CTRL_DT;
-    _ctx.data.target_yaw_rad = wrap_pi(_ctx.data.target_yaw_rad);
-
-    _ctx.data.target_yaw_radps =
-        _ctx.pid.yaw_pos_pid->calculate(_ctx.data.target_yaw_rad,
-                                         _ctx.data.current_yaw_rad);
-    _ctx.data.out_yaw_torque =
-        _ctx.pid.yaw_spd_pid->calculate(_ctx.data.target_yaw_radps,
-                                         _ctx.data.current_yaw_radps);
-
-    // --- Pitch轴: 摇杆角速度 → 位置积分 → 位置环 → 速度环 ---
+    // --- Pitch轴: 摇杆角速度 → 位置积分 → 限幅 → 位置环 → 速度环 ---
     _ctx.data.target_pitch_rad += _ctx.cmd->pitch_rate * CTRL_DT;
-    _ctx.data.target_pitch_rad = wrap_pi(_ctx.data.target_pitch_rad);
+
+    // 限制pitch目标位置在允许范围内
+    if (_ctx.data.target_pitch_rad < PITCH_MIN_LIMIT)
+        _ctx.data.target_pitch_rad = PITCH_MIN_LIMIT;
+    if (_ctx.data.target_pitch_rad > PITCH_MAX_LIMIT)
+        _ctx.data.target_pitch_rad = PITCH_MAX_LIMIT;
 
     _ctx.data.target_pitch_radps =
         _ctx.pid.pitch_pos_pid->calculate(_ctx.data.target_pitch_rad,
@@ -146,13 +133,15 @@ void test_robot_t::_friction_control()
     if (_ctx.data.fric_pid_active)
     {
         // PID 速度环 (含主动刹车)
-    for (int i = 0; i < 2; i++)
-    {
-        _ctx.data.out_friction_torque[i] =
-            _ctx.pid.friction_spd_pid[i]->calculate(
+        _ctx.data.out_friction_torque[0] =
+            _ctx.pid.friction_spd_pid[0]->calculate(
+                -_ctx.cmd->friction_speed,
+                _ctx.data.current_friction_radps[0]);
+
+        _ctx.data.out_friction_torque[1] =
+            _ctx.pid.friction_spd_pid[1]->calculate(
                 _ctx.cmd->friction_speed,
-                _ctx.data.current_friction_radps[i]);
-    }
+                _ctx.data.current_friction_radps[1]);
 
         // 目标为零且两轮均已停转 → 切换到零力矩
         if (_ctx.cmd->friction_speed == 0.0f &&
@@ -233,9 +222,17 @@ void test_robot_t::_trig_goto(decltype(test_robot_data_ctx_t::trig_state) s)
 
     case s_t::CONTINUE:
     {
-        // 连发: 速度环, 校准不再需要
-        _ctx.data.is_calibrated       = false;
-        _ctx.pid.feeder_spd_pid->clear();
+        // 连发: 速度环
+        // 退出连发后需要重新校准，因为速度环会有累积误差
+        _ctx.data.is_calibrated = false;
+
+        // 注意: 不清除速度环PID积分，避免重新建立积分造成卡顿
+        // 仅在首次进入或从其他状态切换时清除（但堵转恢复时不清除）
+        if (_ctx.data.trig_state != s_t::CONTINUE &&
+            _ctx.data.trig_state != s_t::CALI_FORWARD)
+        {
+            _ctx.pid.feeder_spd_pid->clear();
+        }
         _ctx.data.target_feeder_radps = _ctx.cmd->feeder_speed;
         _ctx.data.block_start_tick    = 0;
         break;
@@ -475,6 +472,16 @@ void test_robot_t::_trig_fsm_execute()
 {
     using s_t = test_robot_data_ctx_t::trig_state_e;
 
+    // --- 优先检查: 左拨杆在UP时, 强制回到 READY 状态 ---
+    if (_ctx.cmd->force_stop)
+    {
+        if (_ctx.data.trig_state != s_t::READY)
+        {
+            _trig_goto(s_t::READY);
+            return;
+        }
+    }
+
     switch (_ctx.data.trig_state)
     {
     case s_t::READY:         _trig_ready_execute();         break;
@@ -515,7 +522,6 @@ void test_robot_t::_feeder_control()
 void test_robot_t::_send_motor_command() const
 {
     // 云台
-    _ctx.motor.yaw->send_torque(_ctx.data.out_yaw_torque);
     _ctx.motor.pitch->send_torque(_ctx.data.out_pitch_torque);
 
     // 摩擦轮

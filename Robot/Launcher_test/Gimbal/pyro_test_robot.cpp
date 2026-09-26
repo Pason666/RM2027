@@ -171,15 +171,33 @@ void test_robot_t::_trig_goto(decltype(test_robot_data_ctx_t::trig_state) s)
 {
     using s_t = test_robot_data_ctx_t::trig_state_e;
 
-    // 退出旧状态 → 清除堵转计时
-    _ctx.data.block_start_tick = 0;
+    // 退出旧状态 → 清除卡弹计时
+    _ctx.data.jam_start_tick = 0;
 
     // 进入新状态
     switch (s)
     {
+    case s_t::IDLE:
+        // 空闲状态: 位置环锁位
+        _ctx.pid.feeder_pos_pid->clear();
+        _ctx.pid.feeder_spd_pid->clear();
+        _ctx.data.target_feeder_rad = _ctx.data.current_feeder_rad;
+        _ctx.data.target_feeder_radps = 0;
+        break;
+
+    case s_t::INIT_FORWARD:
+    {
+        // 初始化正转: 速度环正转直至卡住
+        _ctx.data.jam_start_tick = 0;
+        _ctx.pid.feeder_spd_pid->clear();
+        _ctx.data.target_feeder_radps = INIT_FORWARD_RADPS;
+        break;
+    }
+
     case s_t::READY:
         _trig_ready_enter();
         break;
+
     case s_t::DONE:
         // DONE 状态: 位置环锁位
         _ctx.pid.feeder_pos_pid->clear();
@@ -188,58 +206,108 @@ void test_robot_t::_trig_goto(decltype(test_robot_data_ctx_t::trig_state) s)
         _ctx.data.target_feeder_radps = 0;
         break;
 
-    case s_t::CALI_REVERSE:
-    {
-        // 校准反转: 速度环, 高速反转直至堵转
-        _ctx.data.block_start_tick = 0;
-        _ctx.pid.feeder_spd_pid->clear();
-        _ctx.data.target_feeder_radps = CALI_REVERSE_RADPS;
-        break;
-    }
-
-    case s_t::CALI_FORWARD:
-    {
-        // 校准正转: 位置环, 从死区正转 CALI_FORWARD_ANGLE
-        _ctx.pid.feeder_pos_pid->clear();
-        _ctx.pid.feeder_spd_pid->clear();
-        _ctx.data.target_feeder_rad =
-            _ctx.data.current_feeder_rad + CALI_FORWARD_ANGLE;
-        _ctx.data.target_feeder_radps = 0;
-        break;
-    }
-
     case s_t::SINGLE:
     {
-        // 单发: 位置环推进 PI/4
+        // 单发: 从当前目标位置再推进一个槽位
         _ctx.pid.feeder_pos_pid->clear();
         _ctx.pid.feeder_spd_pid->clear();
-            _ctx.data.target_feeder_rad += SINGLE_SHOT_ANGLE;
+
+        // 基于当前目标位置（而非当前实际位置）计算下一个槽位
+        // 这样可以避免累积误差和计算错误
+        float relative_target = _ctx.data.target_feeder_rad - _ctx.data.trigger_offset;
+        // 计算目标在第几个槽位（向上取整，确保到达下一个完整槽位）
+        int32_t current_target_slot = static_cast<int32_t>(std::ceil(relative_target / SINGLE_SHOT_ANGLE));
+        // 下一个槽位
+        int32_t next_slot = current_target_slot + 1;
+        // 计算新的目标位置
+        _ctx.data.target_feeder_rad = _ctx.data.trigger_offset + next_slot * SINGLE_SHOT_ANGLE;
+
         _ctx.data.target_feeder_radps = 0;
-        _ctx.data.block_start_tick    = 0;
+        _ctx.data.jam_start_tick    = 0;
+        _ctx.data.jam_recovery_count = 0;  // 重置卡弹恢复计数
         _ctx.data.single_start_tick   = xTaskGetTickCount();
         break;
-        }
+    }
 
     case s_t::CONTINUE:
     {
         // 连发: 速度环
-        // 退出连发后需要重新校准，因为速度环会有累积误差
-        _ctx.data.is_calibrated = false;
-
         // 注意: 不清除速度环PID积分，避免重新建立积分造成卡顿
-        // 仅在首次进入或从其他状态切换时清除（但堵转恢复时不清除）
         if (_ctx.data.trig_state != s_t::CONTINUE &&
-            _ctx.data.trig_state != s_t::CALI_FORWARD)
+            _ctx.data.trig_state != s_t::JAM_RECOVERY)
         {
             _ctx.pid.feeder_spd_pid->clear();
         }
         _ctx.data.target_feeder_radps = _ctx.cmd->feeder_speed;
-        _ctx.data.block_start_tick    = 0;
+        _ctx.data.jam_start_tick    = 0;
+        break;
+    }
+
+    case s_t::JAM_RECOVERY:
+    {
+        // 卡弹恢复: 无力状态
+        _ctx.data.jam_recovery_start_tick = xTaskGetTickCount();
+        _ctx.data.target_feeder_radps = 0;
         break;
     }
     }
 
     _ctx.data.trig_state = s;
+}
+
+// =========================================================
+// 拨弹盘子状态: IDLE 执行
+//   等待初始化触发信号
+// =========================================================
+void test_robot_t::_trig_idle_execute()
+{
+    // 位置环锁位
+    _ctx.data.target_feeder_rad = _ctx.data.current_feeder_rad;
+    _ctx.data.target_feeder_radps = 0;
+
+    // 等待初始化触发 (feeder_trigger信号)
+    bool trigger = _ctx.cmd->feeder_trigger && !_ctx.data.cmd_feeder_trigger;
+    _ctx.data.cmd_feeder_trigger = _ctx.cmd->feeder_trigger;
+
+    if (trigger)
+    {
+        // 触发初始化: 正转找零点
+        _trig_goto(test_robot_data_ctx_t::trig_state_e::INIT_FORWARD);
+    }
+}
+
+// =========================================================
+// 拨弹盘子状态: INIT_FORWARD 执行
+//   正转直到卡住, 记录零点, 打开摩擦轮
+// =========================================================
+void test_robot_t::_trig_init_forward_execute()
+{
+    uint32_t now = xTaskGetTickCount();
+
+    // 维持正转速度
+    _ctx.data.target_feeder_radps = INIT_FORWARD_RADPS;
+
+    // --- 卡住检测: 实际速度低于阈值且持续一段时间 ---
+    if (std::abs(_ctx.data.current_feeder_radps) < JAM_SPEED_THRESHOLD)
+    {
+        if (_ctx.data.jam_start_tick == 0)
+            _ctx.data.jam_start_tick = now;
+        else if (now - _ctx.data.jam_start_tick >= pdMS_TO_TICKS(JAM_DETECT_TIME_MS))
+        {
+            // 卡住确认 → 记录零点 → 设置初始化完成标志
+            _ctx.data.trigger_offset = _ctx.data.current_feeder_rad;
+            _ctx.data.is_initialized = true;
+            _ctx.data.init_just_completed = true;  // 设置标志供应用层查询
+
+            // 进入就绪状态
+            _trig_goto(test_robot_data_ctx_t::trig_state_e::READY);
+            return;
+        }
+    }
+    else
+    {
+        _ctx.data.jam_start_tick = 0;
+    }
 }
 
 // =========================================================
@@ -256,7 +324,7 @@ void test_robot_t::_trig_ready_enter()
 
 // =========================================================
 // 拨弹盘子状态: READY 执行
-//   等待命令 → 路由到 SINGLE / CONTINUE (未校准则先反转校准)
+//   等待命令 → 路由到 SINGLE / CONTINUE
 // =========================================================
 void test_robot_t::_trig_ready_execute()
 {
@@ -267,8 +335,9 @@ void test_robot_t::_trig_ready_execute()
     _ctx.data.cmd_feeder_trigger = _ctx.cmd->feeder_trigger;
     _ctx.data.cmd_fire_enable    = _ctx.cmd->fire_enable;
 
-    // 位置环锁位
-    _ctx.data.target_feeder_rad = _ctx.data.current_feeder_rad;
+    // 不要每帧更新目标位置！目标位置在 enter 时已经设置好
+    // 保持位置环锁定在进入时的位置
+    // _ctx.data.target_feeder_rad 已经在 enter 中设置，这里不动
     _ctx.data.target_feeder_radps = 0;
 
     // --- 连发 ---
@@ -281,23 +350,13 @@ void test_robot_t::_trig_ready_execute()
     // --- 单发触发 ---
     if (trigger)
     {
-        if (!_ctx.data.is_calibrated)
-        {
-            // 未校准 → 先反转校准
-            _ctx.data.target_after_cali =
-                test_robot_data_ctx_t::trig_state_e::SINGLE;
-            _trig_goto(test_robot_data_ctx_t::trig_state_e::CALI_REVERSE);
-        }
-        else
-        {
-            _trig_goto(test_robot_data_ctx_t::trig_state_e::SINGLE);
-        }
+        _trig_goto(test_robot_data_ctx_t::trig_state_e::SINGLE);
     }
 }
 
 // =========================================================
 // 拨弹盘子状态: SINGLE 执行
-//   位置环推进 PI/4, 堵转时进入校准, 到达目标时回 READY
+//   位置环推进 SINGLE_SHOT_ANGLE, 检测卡弹, 到达目标时回 READY
 // =========================================================
 void test_robot_t::_trig_single_execute()
 {
@@ -306,39 +365,47 @@ void test_robot_t::_trig_single_execute()
 
     // (位置环由 _trig_fsm_execute 外层统一调用, 此处仅做状态判定)
 
-    // --- 堵转检测: 误差大 + 实际速度极低且持续 ≥ 1000ms ---
-    if (std::abs(err) > SINGLE_SHOT_ANGLE / 8.0f &&
-        std::abs(_ctx.data.current_feeder_radps) < 0.3f)
+    // --- 卡弹检测: 误差大 + 实际速度极低且持续 ---
+    // 但如果已经恢复过2次，就不再检测卡弹，直接放弃
+    if (_ctx.data.jam_recovery_count < 2 &&
+        std::abs(err) > SINGLE_SHOT_ANGLE / 8.0f &&
+        std::abs(_ctx.data.current_feeder_radps) < JAM_SPEED_THRESHOLD)
     {
-        if (_ctx.data.block_start_tick == 0)
-            _ctx.data.block_start_tick = now;
-        else if (now - _ctx.data.block_start_tick >= pdMS_TO_TICKS(CALI_BLOCK_TIME_MS))
+        if (_ctx.data.jam_start_tick == 0)
+            _ctx.data.jam_start_tick = now;
+        else if (now - _ctx.data.jam_start_tick >= pdMS_TO_TICKS(JAM_DETECT_TIME_MS))
         {
-            // 堵转 → 反转校准
-            _ctx.data.target_after_cali =
-                test_robot_data_ctx_t::trig_state_e::SINGLE;
-            _trig_goto(test_robot_data_ctx_t::trig_state_e::CALI_REVERSE);
+            // 卡弹 → 进入恢复状态
+            _ctx.data.jam_recovery_count++;
+            _ctx.data.state_before_jam = test_robot_data_ctx_t::trig_state_e::SINGLE;
+            _trig_goto(test_robot_data_ctx_t::trig_state_e::JAM_RECOVERY);
             return;
         }
     }
     else
     {
-        _ctx.data.block_start_tick = 0;
+        _ctx.data.jam_start_tick = 0;
     }
 
-    // --- 到位判定: 角度误差 < 阈值 或 超时 ---
-    if (std::abs(err) < SINGLE_DONE_ANGLE_THRESHOLD ||
-        (now - _ctx.data.single_start_tick) > pdMS_TO_TICKS(SINGLE_DONE_TIMEOUT_MS))
+    // --- 到位判定: 角度误差 < 阈值 或 超时 或 速度很低 ---
+    bool angle_reached = std::abs(err) < SINGLE_DONE_ANGLE_THRESHOLD;
+    bool timeout = (now - _ctx.data.single_start_tick) > pdMS_TO_TICKS(SINGLE_DONE_TIMEOUT_MS);
+    // 如果误差不太大且速度很低，也认为到位（可能是卡住了或者力矩不够）
+    bool stalled = (std::abs(err) < SINGLE_SHOT_ANGLE / 4.0f) &&
+                   (std::abs(_ctx.data.current_feeder_radps) < 0.5f) &&
+                   ((now - _ctx.data.single_start_tick) > pdMS_TO_TICKS(200));
+
+    if (angle_reached || timeout || stalled)
     {
         _ctx.data.fire_count++;
         _ctx.data.last_shot_feeder_rad = _ctx.data.current_feeder_rad;
         _trig_goto(test_robot_data_ctx_t::trig_state_e::DONE);
     }
-    }
+}
 
 // =========================================================
 // 拨弹盘子状态: CONTINUE 执行
-//   速度环恒转速, 堵转时进入校准
+//   速度环恒转速, 检测卡弹
 // =========================================================
 void test_robot_t::_trig_continue_execute()
 {
@@ -359,7 +426,7 @@ void test_robot_t::_trig_continue_execute()
     // 速度环
     _ctx.data.target_feeder_radps = _ctx.cmd->feeder_speed;
 
-    // --- 物理发弹计数: 角度跨过 PI/4 边界 → fire_count++ ---
+    // --- 物理发弹计数: 角度跨过 SINGLE_SHOT_ANGLE 边界 → fire_count++ ---
     {
         float d = _ctx.data.current_feeder_rad - _ctx.data.last_shot_feeder_rad;
         while (d >= SINGLE_SHOT_ANGLE)
@@ -370,98 +437,51 @@ void test_robot_t::_trig_continue_execute()
         }
     }
 
-    // --- 堵转检测: 速度误差 > 目标 50% 且 实际极低 → 反转校准 ---
-    float speed_err = std::abs(_ctx.data.target_feeder_radps) -
-                      std::abs(_ctx.data.current_feeder_radps);
-    if (speed_err > std::abs(_ctx.data.target_feeder_radps) * CALI_BLOCK_THRESHOLD &&
-        std::abs(_ctx.data.current_feeder_radps) < 0.3f)
+    // --- 卡弹检测: 速度过低 ---
+    if (std::abs(_ctx.data.current_feeder_radps) < JAM_SPEED_THRESHOLD)
     {
-        if (_ctx.data.block_start_tick == 0)
-            _ctx.data.block_start_tick = now;
-        else if (now - _ctx.data.block_start_tick >= pdMS_TO_TICKS(CALI_BLOCK_TIME_MS))
+        if (_ctx.data.jam_start_tick == 0)
+            _ctx.data.jam_start_tick = now;
+        else if (now - _ctx.data.jam_start_tick >= pdMS_TO_TICKS(JAM_DETECT_TIME_MS))
         {
-            // 堵转 → 反转校准
-            _ctx.data.target_after_cali =
-                test_robot_data_ctx_t::trig_state_e::CONTINUE;
-            _trig_goto(test_robot_data_ctx_t::trig_state_e::CALI_REVERSE);
+            // 卡弹 → 进入恢复状态
+            _ctx.data.state_before_jam = test_robot_data_ctx_t::trig_state_e::CONTINUE;
+            _trig_goto(test_robot_data_ctx_t::trig_state_e::JAM_RECOVERY);
             return;
         }
     }
     else
     {
-        _ctx.data.block_start_tick = 0;
+        _ctx.data.jam_start_tick = 0;
     }
 }
 
 // =========================================================
-// 拨弹盘子状态: CALI_REVERSE 执行
-//   高速反转直至碰到机械死区 (堵转), 记录零点偏移
+// 拨弹盘子状态: JAM_RECOVERY 执行
+//   无力一段时间后重新尝试
 // =========================================================
-void test_robot_t::_trig_cali_reverse_execute()
+void test_robot_t::_trig_jam_recovery_execute()
 {
     uint32_t now = xTaskGetTickCount();
 
-    // 维持反转速度
-    _ctx.data.target_feeder_radps = CALI_REVERSE_RADPS;
+    // 无力状态 (零力矩)
+    _ctx.data.out_feeder_torque = 0;
 
-    // --- 堵转检测: 实际速度远小于目标 → 碰到机械限位 ---
-    float speed_err = std::abs(_ctx.data.current_feeder_radps -
-                                _ctx.data.target_feeder_radps);
-    if (speed_err > std::abs(CALI_REVERSE_RADPS) * CALI_BLOCK_THRESHOLD)
+    // 恢复时间到 → 返回卡弹前的状态
+    if (now - _ctx.data.jam_recovery_start_tick >= pdMS_TO_TICKS(JAM_RECOVERY_TIME_MS))
     {
-        if (_ctx.data.block_start_tick == 0)
-            _ctx.data.block_start_tick = now;
-        else if (now - _ctx.data.block_start_tick >= pdMS_TO_TICKS(CALI_BLOCK_TIME_MS))
-        {
-            // 堵转确认 → 记录零点偏移 → 正转校准
-            _ctx.data.trigger_offset = _ctx.data.current_feeder_rad;
-            _trig_goto(test_robot_data_ctx_t::trig_state_e::CALI_FORWARD);
-            return;
-        }
-    }
-    else
-    {
-        _ctx.data.block_start_tick = 0;
-    }
-}
-
-// =========================================================
-// 拨弹盘子状态: CALI_FORWARD 执行
-//   从死区正转一小段角度, 完成后校准标记
-// =========================================================
-void test_robot_t::_trig_cali_forward_execute()
-{
-    float err = _ctx.data.target_feeder_rad - _ctx.data.current_feeder_rad;
-
-    // (位置环由 _trig_fsm_execute 外层统一调用)
-
-    // --- 校准完成 ---
-    if (std::abs(err) < CALI_DONE_ANGLE_THRESHOLD)
-    {
-        _ctx.data.is_calibrated = true;
-
-        // 重置目标角度为当前值, 对齐到最近的槽位
-        float relative = _ctx.data.current_feeder_rad - _ctx.data.trigger_offset;
-        int32_t count  = static_cast<int32_t>(relative / SINGLE_SHOT_ANGLE);
-        _ctx.data.target_feeder_rad =
-            _ctx.data.trigger_offset + count * SINGLE_SHOT_ANGLE;
-
-        // 跳转到校准前的目标状态
-        _trig_goto(_ctx.data.target_after_cali);
+        _trig_goto(_ctx.data.state_before_jam);
     }
 }
 
 // =========================================================
 // 拨弹盘子状态: DONE 执行
-//   位置环锁位, 下一帧回 READY
+//   直接回到 READY，由 READY enter 处理位置锁定
 // =========================================================
 void test_robot_t::_trig_done_execute()
 {
-    // 位置环锁位
-    _ctx.data.target_feeder_rad   = _ctx.data.current_feeder_rad;
-    _ctx.data.target_feeder_radps = 0;
-
-    // 直接回到就绪
+    // 直接回到就绪，不在这里设置目标位置
+    // _trig_ready_enter() 会清除PID并锁定当前位置
     _trig_goto(test_robot_data_ctx_t::trig_state_e::READY);
 }
 
@@ -472,34 +492,42 @@ void test_robot_t::_trig_fsm_execute()
 {
     using s_t = test_robot_data_ctx_t::trig_state_e;
 
-    // --- 优先检查: 左拨杆在UP时, 强制回到 READY 状态 ---
+    // --- 优先检查: 左拨杆在UP时, 强制回到 IDLE 状态 ---
     if (_ctx.cmd->force_stop)
     {
-        if (_ctx.data.trig_state != s_t::READY)
+        if (_ctx.data.trig_state != s_t::IDLE)
         {
-            _trig_goto(s_t::READY);
+            _trig_goto(s_t::IDLE);
             return;
         }
     }
 
     switch (_ctx.data.trig_state)
     {
+    case s_t::IDLE:          _trig_idle_execute();          break;
+    case s_t::INIT_FORWARD:  _trig_init_forward_execute();  break;
     case s_t::READY:         _trig_ready_execute();         break;
     case s_t::SINGLE:        _trig_single_execute();        break;
     case s_t::CONTINUE:      _trig_continue_execute();      break;
-    case s_t::CALI_REVERSE:  _trig_cali_reverse_execute();  break;
-    case s_t::CALI_FORWARD:  _trig_cali_forward_execute();  break;
+    case s_t::JAM_RECOVERY:  _trig_jam_recovery_execute();  break;
     case s_t::DONE:          _trig_done_execute();          break;
     }
 
-    // 统一位置环 → 速度环 → 扭矩
-    // CONTINUE / CALI_REVERSE: 纯速度模式, target_feeder_radps 由子状态直接给定
-    if (_ctx.data.trig_state != s_t::CONTINUE &&
-        _ctx.data.trig_state != s_t::CALI_REVERSE)
+    // JAM_RECOVERY 状态: 直接输出零力矩, 不执行PID
+    if (_ctx.data.trig_state == s_t::JAM_RECOVERY)
     {
-    _ctx.data.target_feeder_radps =
-        _ctx.pid.feeder_pos_pid->calculate(_ctx.data.target_feeder_rad,
-                                            _ctx.data.current_feeder_rad);
+        _ctx.data.out_feeder_torque = 0;
+        return;
+    }
+
+    // 统一位置环 → 速度环 → 扭矩
+    // CONTINUE / INIT_FORWARD: 纯速度模式, target_feeder_radps 由子状态直接给定
+    if (_ctx.data.trig_state != s_t::CONTINUE &&
+        _ctx.data.trig_state != s_t::INIT_FORWARD)
+    {
+        _ctx.data.target_feeder_radps =
+            _ctx.pid.feeder_pos_pid->calculate(_ctx.data.target_feeder_rad,
+                                                _ctx.data.current_feeder_rad);
     }
     // 速度环 → 扭矩
     _ctx.data.out_feeder_torque =

@@ -6,6 +6,9 @@
 #include "pyro_dwt_drv.h"
 #include "pyro_ins.h"
 
+// CyberGear测试应用
+extern "C" void cybergear_app_init();
+
 namespace pyro
 {
 extern "C"
@@ -52,6 +55,9 @@ extern "C"
         REFEREE_UART.enable_rx_dma();
         referee_drv_t::get_instance()->init();
 #endif
+
+        // 启动CyberGear电机测试
+        cybergear_app_init();
 
         vTaskDelete(nullptr);
     }

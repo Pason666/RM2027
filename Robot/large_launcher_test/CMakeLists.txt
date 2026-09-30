@@ -20,6 +20,7 @@ target_sources(large_launcher_test
         PRIVATE
         # === Application ===
         Application/pyro_booster_app.cpp
+        Application/pyro_cybergear_app.cpp
 
         # === Booster 模块 (三摩擦轮 + 拨弹盘) ===
         Booster/pyro_large_launcher.cpp

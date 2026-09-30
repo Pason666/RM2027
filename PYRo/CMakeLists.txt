@@ -51,6 +51,7 @@ target_sources(PYRo PRIVATE
         Component/CRC/PYRo_crc.cpp
         Component/Motor/pyro_dji_motor_drv.cpp
         Component/Motor/pyro_dm_motor_drv.cpp
+        Component/Motor/pyro_cybergear_motor_drv.cpp
         Component/Motor/pyro_motor_base.cpp
         Component/Powercontrol/pyro_power_control.cpp
         Component/Powermeter/pyro_powermeter.cpp

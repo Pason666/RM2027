@@ -60,7 +60,12 @@ status_t recover_bus_off(FDCAN_HandleTypeDef *hfdcan)
 // can_msg_buffer_t Implementation
 // ==========================================
 can_msg_buffer_t::can_msg_buffer_t(const uint32_t id, const id_type_t type)
-    : _id(id), _id_type(type), _buffer{}, _is_fresh(false), _last_update_time(0)
+    : _id(id), _mask(0xFFFFFFFF), _use_mask(false), _id_type(type), _buffer{}, _is_fresh(false), _last_update_time(0), _received_id(0)
+{
+}
+
+can_msg_buffer_t::can_msg_buffer_t(const uint32_t id, const uint32_t mask, const id_type_t type)
+    : _id(id), _mask(mask), _use_mask(true), _id_type(type), _buffer{}, _is_fresh(false), _last_update_time(0), _received_id(0)
 {
 }
 
@@ -86,18 +91,38 @@ void can_msg_buffer_t::mark_read()
     _is_fresh = false;
 }
 
+uint32_t can_msg_buffer_t::get_mask() const
+{
+    return _mask;
+}
+
+bool can_msg_buffer_t::matches(uint32_t received_id) const
+{
+    if (!_use_mask)
+    {
+        // 精确匹配
+        return received_id == _id;
+    }
+    else
+    {
+        // 掩码匹配：只比较mask中为1的位
+        return (received_id & _mask) == (_id & _mask);
+    }
+}
+
 TickType_t can_msg_buffer_t::get_last_update_time() const
 {
     return _last_update_time;
 }
 
 __attribute__((section(".itcm_text"))) void
-can_msg_buffer_t::update_data(const uint8_t *data)
+can_msg_buffer_t::update_data(const uint8_t *data, const uint32_t received_id)
 {
     // [中断安全] 使用带 FROM_ISR 后缀的临界区宏
     const UBaseType_t uxSavedInterruptStatus = taskENTER_CRITICAL_FROM_ISR();
 
     memcpy(_buffer.data(), data, 8);
+    _received_id      = received_id;
     _last_update_time = xTaskGetTickCountFromISR();
     _is_fresh         = true;
 
@@ -113,6 +138,23 @@ bool can_msg_buffer_t::get_data(std::array<uint8_t, 8> &data) const
     taskEXIT_CRITICAL();
 
     return fresh_status;
+}
+
+bool can_msg_buffer_t::get_data(std::array<uint8_t, 8> &data, uint32_t &received_id) const
+{
+    // [任务安全] 防止在读取时被 CAN 接收中断打断导致脏数据
+    taskENTER_CRITICAL();
+    memcpy(data.data(), _buffer.data(), 8);
+    received_id = _received_id;
+    const bool fresh_status = _is_fresh;
+    taskEXIT_CRITICAL();
+
+    return fresh_status;
+}
+
+uint32_t can_msg_buffer_t::get_received_id() const
+{
+    return _received_id;
 }
 
 // ==========================================
@@ -233,34 +275,84 @@ pyro::status_t can_drv_t::send_msg(const uint32_t id, const uint8_t *data,
 
 pyro::status_t can_drv_t::register_rx_msg(can_msg_buffer_t *msg_buffer)
 {
-    const register_key_t key(msg_buffer->get_id(), msg_buffer->get_id_type());
-
-    taskENTER_CRITICAL();
-    if (this->_registerlist.exist(key))
+    if (msg_buffer->get_mask() == 0xFFFFFFFF)
     {
+        // 精确匹配，用map存储
+        const register_key_t key(msg_buffer->get_id(), msg_buffer->get_id_type());
+
+        taskENTER_CRITICAL();
+        if (this->_registerlist.exist(key))
+        {
+            taskEXIT_CRITICAL();
+            return pyro::PYRO_ERROR;
+        }
+        this->_registerlist[key] = msg_buffer;
         taskEXIT_CRITICAL();
-        return pyro::PYRO_ERROR;
     }
-    this->_registerlist[key] = msg_buffer;
-    taskEXIT_CRITICAL();
+    else
+    {
+        // 使用掩码，存到数组
+        taskENTER_CRITICAL();
+        if (_mask_buffer_count < 10)
+        {
+            _mask_buffers[_mask_buffer_count++] = msg_buffer;
+            taskEXIT_CRITICAL();
+        }
+        else
+        {
+            taskEXIT_CRITICAL();
+            return PYRO_ERROR;
+        }
+    }
 
     return pyro::PYRO_OK;
+}
+
+// CAN调试全局变量（外部定义，如果不存在则使用弱引用）
+extern "C" {
+    extern uint32_t can_debug_last_extended_id __attribute__((weak));
+    extern uint32_t can_debug_frame_count __attribute__((weak));
+    extern uint32_t can_debug_ids[10] __attribute__((weak));
+    extern uint8_t can_debug_id_index __attribute__((weak));
 }
 
 __attribute__((section(".itcm_text"))) pyro::status_t
 can_drv_t::handle_rx_msg(const uint32_t id, const uint8_t *data,
                          const can_msg_buffer_t::id_type_t type)
 {
-    const register_key_t key(id, type);
-    if (!this->_registerlist.exist(key))
+    // 调试：记录所有扩展帧（如果调试变量存在）
+    if (type == can_msg_buffer_t::EXTENDED_ID)
     {
-        return pyro::PYRO_NOT_FOUND;
+        if (&can_debug_last_extended_id != nullptr)
+        {
+            can_debug_last_extended_id = id;
+            can_debug_frame_count++;
+            can_debug_ids[can_debug_id_index] = id;
+            can_debug_id_index = (can_debug_id_index + 1) % 10;
+        }
     }
 
-    can_msg_buffer_t *msg = this->_registerlist[key];
-    msg->update_data(data);
+    // 先尝试精确匹配（快速路径）
+    const register_key_t key(id, type);
+    if (this->_registerlist.exist(key))
+    {
+        can_msg_buffer_t *msg = this->_registerlist[key];
+        msg->update_data(data, id);
+        return pyro::PYRO_OK;
+    }
 
-    return pyro::PYRO_OK;
+    // 如果精确匹配失败，尝试掩码匹配
+    for (int i = 0; i < _mask_buffer_count; i++)
+    {
+        can_msg_buffer_t *msg = _mask_buffers[i];
+        if (msg && msg->get_id_type() == type && msg->matches(id))
+        {
+            msg->update_data(data, id);
+            return pyro::PYRO_OK;
+        }
+    }
+
+    return pyro::PYRO_NOT_FOUND;
 }
 
 // ==========================================

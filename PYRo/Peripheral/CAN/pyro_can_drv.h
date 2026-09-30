@@ -22,22 +22,30 @@ public:
     };
 
     explicit can_msg_buffer_t(uint32_t id, id_type_t type = STANDARD_ID);
+    explicit can_msg_buffer_t(uint32_t id, uint32_t mask, id_type_t type = STANDARD_ID); // 带掩码的构造函数
     ~can_msg_buffer_t();
 
     [[nodiscard]] uint32_t get_id() const;
+    [[nodiscard]] uint32_t get_mask() const;
+    [[nodiscard]] bool matches(uint32_t received_id) const; // 检查ID是否匹配
     [[nodiscard]] id_type_t get_id_type() const;
     [[nodiscard]] bool is_fresh() const;
     void mark_read();
-    void update_data(const uint8_t *data);
+    void update_data(const uint8_t *data, uint32_t received_id);
     [[nodiscard]] bool get_data(std::array<uint8_t, 8> &data) const;
+    [[nodiscard]] bool get_data(std::array<uint8_t, 8> &data, uint32_t &received_id) const;
     [[nodiscard]] TickType_t get_last_update_time() const;
+    [[nodiscard]] uint32_t get_received_id() const;
 
 private:
     uint32_t _id;
+    uint32_t _mask;    // 掩码：1表示必须匹配，0表示忽略
+    bool _use_mask;    // 是否使用掩码过滤
     id_type_t _id_type;
     std::array<uint8_t, 8> _buffer;
     volatile bool _is_fresh;
     volatile TickType_t _last_update_time;
+    volatile uint32_t _received_id;
 };
 
 class can_drv_t
@@ -61,6 +69,10 @@ public:
 private:
     FDCAN_HandleTypeDef *_hfdcan;
     map_t<register_key_t, can_msg_buffer_t *> _registerlist;
+
+    // 专门存储使用掩码的消息缓冲区
+    can_msg_buffer_t *_mask_buffers[10];
+    int _mask_buffer_count;
 };
 
 class can_hub_t

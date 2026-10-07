@@ -1,0 +1,66 @@
+CompileFlags:
+  Add:
+    # ARM Cortex-M7 架构
+    - -mcpu=cortex-m7
+    - -mfpu=fpv5-d16
+    - -mfloat-abi=hard
+    - -mthumb
+
+    # C++标准
+    - -std=gnu++17
+
+    # 系统包含路径（ARM工具链）
+    - -isystem
+    - C:\Application\workspace\GNU-Arm-toolchain\10 2021.10\arm-none-eabi\include\c++\10.3.1
+    - -isystem
+    - C:\Application\workspace\GNU-Arm-toolchain\10 2021.10\arm-none-eabi\include\c++\10.3.1\arm-none-eabi
+    - -isystem
+    - C:\Application\workspace\GNU-Arm-toolchain\10 2021.10\arm-none-eabi\include
+    - -isystem
+    - C:\Application\workspace\GNU-Arm-toolchain\10 2021.10\lib\gcc\arm-none-eabi\10.3.1\include
+
+    # 项目头文件路径
+    - -IC:\RM\Code\RM2027\Core\Inc
+    - -IC:\RM\Code\RM2027\Drivers\STM32H7xx_HAL_Driver\Inc
+    - -IC:\RM\Code\RM2027\Drivers\STM32H7xx_HAL_Driver\Inc\Legacy
+    - -IC:\RM\Code\RM2027\Drivers\CMSIS\Device\ST\STM32H7xx\Include
+    - -IC:\RM\Code\RM2027\Drivers\CMSIS\Include
+    - -IC:\RM\Code\RM2027\Middlewares\Third_Party\FreeRTOS\Source\include
+    - -IC:\RM\Code\RM2027\Middlewares\Third_Party\FreeRTOS\Source\CMSIS_RTOS_V2
+    - -IC:\RM\Code\RM2027\Middlewares\Third_Party\FreeRTOS\Source\portable\GCC\ARM_CM7\r0p1
+    - -IC:\RM\Code\RM2027\PYRo\Core
+    - -IC:\RM\Code\RM2027\PYRo\Peripheral\CAN
+    - -IC:\RM\Code\RM2027\PYRo\Peripheral\UART
+    - -IC:\RM\Code\RM2027\PYRo\Peripheral\TIM
+    - -IC:\RM\Code\RM2027\PYRo\Peripheral\SPI
+    - -IC:\RM\Code\RM2027\PYRo\Device
+    - -IC:\RM\Code\RM2027\PYRo\Algorithm
+    - -IC:\RM\Code\RM2027\PYRo\Component\Motor
+    - -IC:\RM\Code\RM2027\PYRo\Component\RC
+    - -IC:\RM\Code\RM2027\PYRo\Component\Referee
+    - -IC:\RM\Code\RM2027\PYRo\Component\IMU
+    - -IC:\RM\Code\RM2027\PYRo\Module
+    - -IC:\RM\Code\RM2027\PYRo\Communication
+    - -IC:\RM\Code\RM2027\PYRo\Debug
+    - -IC:\RM\Code\RM2027\Robot\large_launcher_test
+    - -IC:\RM\Code\RM2027\Robot\large_launcher_test\Booster
+    - -IC:\RM\Code\RM2027\Robot\large_launcher_test\Application
+
+    # 项目宏定义
+    - -DUSE_HAL_DRIVER
+    - -DSTM32H723xx
+    - -DROBOT_ID=0
+    - -DARM_MATH_CM7
+
+  # 移除可能导致问题的标志
+  Remove:
+    - -mno-*
+    - -Werror
+
+Diagnostics:
+  UnusedIncludes: None
+  MissingIncludes: None
+  Suppress:
+    - no_member_suggest
+    - unused-parameter
+    - unused-variable

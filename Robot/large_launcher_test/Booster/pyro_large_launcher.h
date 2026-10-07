@@ -82,13 +82,17 @@ struct tri_booster_data_ctx_t
     float current_fric_torque[3]{};
     float out_fric_torque[3]{};
     float out_trig_torque{0};
+
+    // 校准相关
+    uint32_t homing_jam_start_tick{0}; // 卡住开始时间
+    float trigger_zero_position{0};     // 校准记录的零点位置
 };
 
 struct tri_booster_shoot_data_t
 {
     const float target_speed{};
-    float fric_mps{};  // 三个摩擦轮统一速度
-    const float initial_fric_mps = fric_mps;
+    const float initial_fric_mps{};  // ⚠️ 改成第二个参数
+    float fric_mps{initial_fric_mps};  // 从initial_fric_mps初始化
     float ball_speed[3]{};
     float avg_ball_speed = target_speed;
     float real_ball_speed[8]{};
@@ -160,7 +164,8 @@ class tri_booster_t final
     static float _normalize_angle(float angle);
     static bool _is_trigger_located(float trigger_rad);
     static float _get_next_trigger_preset(float trigger_rad,
-                                          float min_advance_rad);
+                                          float min_advance_rad,
+                                          float zero_position);
 
     using owner = tri_booster_t;
 
@@ -181,9 +186,6 @@ class tri_booster_t final
             void enter(owner *owner) override;
             void execute(owner *owner) override;
             void exit(owner *owner) override;
-
-          private:
-            float _homing_turnback_start_time{0.0f};
         };
         struct state_interim_t final : public state_t<owner>
         {

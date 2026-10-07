@@ -166,9 +166,9 @@ class cybergear_motor_drv_t : public motor_base_t
     status_t set_position_ref(float loc_ref);
 
     // 设置反馈数据的物理范围（用于正确解析反馈）
-    void set_position_range(float min, float max);
-    void set_velocity_range(float min, float max);
-    void set_torque_range(float min, float max);
+    void set_position_range(float min, float max) override;
+    void set_rotate_range(float min, float max) override;
+    void set_torque_range(float min, float max) override;
 
   protected:
     uint8_t _motor_id;    // 目标电机ID

@@ -90,9 +90,6 @@ extern "C" void cybergear_app_init()
     // 创建电机对象
     motor = new cybergear_motor_drv_t(127, 0, can_hub_t::can1);
 
-    // 设置位置反馈范围为 [-π, π]
-    const float pi = 3.14159265359f;
-
     // 创建控制任务
     xTaskCreate(control_task, "cybergear_ctrl", 1024, nullptr,
                 configMAX_PRIORITIES - 3, nullptr);

@@ -7,6 +7,7 @@
 #include "pyro_rc_base_drv.h"
 #include "pyro_referee.h"
 #include "pyro_algo_pid.h"
+#include "pyro_powermeter.h"
 
 using namespace pyro;
 
@@ -21,6 +22,8 @@ static TaskHandle_t booster_task_handle   = nullptr;
 static tri_booster_t *tri_booster_ptr         = nullptr;
 static tri_booster_cmd_t *tri_booster_cmd_ptr = nullptr;
 static tri_deps_t *tri_deps_ptr               = nullptr;
+powermeter_drv_t *power_meter;
+powermeter_data power_data;
 
 // ========== 函数声明 ==========
 static void booster_dr16_cmd(uint32_t notify_val);
@@ -36,37 +39,37 @@ static void deps_init()
 
     // ==================== CAN2: 三个摩擦轮 M3508 ====================
     tri_deps_ptr->motor_deps.fric_wheels[0] =
-        new dji_m3508_motor_drv_t(dji_motor_tx_frame_t::id_1, can_hub_t::can2);
+        new dji_m3508_motor_drv_t(dji_motor_tx_frame_t::id_1, can_hub_t::can1);
     tri_deps_ptr->motor_deps.fric_wheels[1] =
-        new dji_m3508_motor_drv_t(dji_motor_tx_frame_t::id_2, can_hub_t::can2);
+        new dji_m3508_motor_drv_t(dji_motor_tx_frame_t::id_2, can_hub_t::can1);
     tri_deps_ptr->motor_deps.fric_wheels[2] =
-        new dji_m3508_motor_drv_t(dji_motor_tx_frame_t::id_3, can_hub_t::can2);
+        new dji_m3508_motor_drv_t(dji_motor_tx_frame_t::id_3, can_hub_t::can1);
 
     // ==================== CAN1: 拨弹盘 DM4310 ====================
     tri_deps_ptr->motor_deps.trigger_wheel =
-        new dm_motor_drv_t(0x51, 0x61, can_hub_t::can1);
+        new dm_motor_drv_t(0x15, 0x16, can_hub_t::can2);
 
-    static_cast<dm_motor_drv_t *>(tri_deps_ptr->motor_deps.trigger_wheel)
-        ->set_position_range(-PI, PI);
-    static_cast<dm_motor_drv_t *>(tri_deps_ptr->motor_deps.trigger_wheel)
-        ->set_rotate_range(-30.0f, 30.0f);
-    static_cast<dm_motor_drv_t *>(tri_deps_ptr->motor_deps.trigger_wheel)
-        ->set_torque_range(-7.0f, 7.0f);
+    tri_deps_ptr->motor_deps.trigger_wheel->set_position_range(-PI, PI);
+    tri_deps_ptr->motor_deps.trigger_wheel->set_rotate_range(-20.0f, 20.0f);
+    tri_deps_ptr->motor_deps.trigger_wheel->set_torque_range(-10.0f, 10.0f);
 
     // ==================== PID 分配 ====================
     // --- 摩擦轮: 速度环 ×3 (M3508) ---
     tri_deps_ptr->pid_deps.fric_pid[0] =
-        new pyro::pid_t(11.315f, 0.03f, 0.004f, 2.5f, 20, 240, 1, 80, 1, 4);
+        new pyro::pid_t(11.322f, 0.03f, 0.004f, 2.5f, 20);
     tri_deps_ptr->pid_deps.fric_pid[1] =
-        new pyro::pid_t(11.315f, 0.03f, 0.004f, 2.5f, 20, 240, 1, 80, 1, 4);
+        new pyro::pid_t(11.322f, 0.03f, 0.004f, 2.5f, 20);
     tri_deps_ptr->pid_deps.fric_pid[2] =
-        new pyro::pid_t(11.315f, 0.03f, 0.004f, 2.5f, 20, 240, 1, 80, 1, 4);
+        new pyro::pid_t(11.322f, 0.03f, 0.004f, 2.5f, 20);
 
     // --- 拨弹盘: 位置环 + 速度环 (DM4310) ---
     tri_deps_ptr->pid_deps.trigger_pos_pid =
         new pyro::pid_t(8.0f, 0.03f, 0.0015f, 0.3f, 2.0f, 40, 1, 20, 1, 4);
     tri_deps_ptr->pid_deps.trigger_spd_pid =
-        new pyro::pid_t(0.9f, 0.9f, 0.0015f, 1.0f, 5.0f, 30, 1, 20, 1, 4);
+        new pyro::pid_t(0.3f, 0.9f, 0.0015f, 1.0f, 5.0f, 30, 1, 20, 1, 4);
+
+    power_meter = new pyro::powermeter_drv_t(0x212, pyro::can_hub_t::can1);
+    power_meter->init();
 }
 
 // =========================================================
@@ -77,7 +80,7 @@ void booster_dr16_cmd(uint32_t notify_val)
     read_scope_lock lock(rc_drv_t::get_lock());
     auto &vrc = rc_drv_t::read();
 
-    if (sw_pos_t::DOWN == vrc.switches.right.current_pos)
+    if (sw_pos_t::UP == vrc.switches.right.current_pos)
     {
         tri_booster_cmd_ptr->mode    = cmd_base_t::mode_t::PASSIVE;
         tri_booster_cmd_ptr->fric_on = false;
@@ -86,9 +89,16 @@ void booster_dr16_cmd(uint32_t notify_val)
 
     tri_booster_cmd_ptr->mode = cmd_base_t::mode_t::ACTIVE;
 
-    if (notify_val & EVENT_BIT_FRIC_TOGGLE)
+    // 摩擦轮控制：右摇杆在中 && 左摇杆在中或下
+    if (vrc.switches.right.current_pos == sw_pos_t::MID &&
+        (vrc.switches.left.current_pos == sw_pos_t::MID ||
+         vrc.switches.left.current_pos == sw_pos_t::DOWN))
     {
-        tri_booster_cmd_ptr->fric_on = !tri_booster_cmd_ptr->fric_on;
+        tri_booster_cmd_ptr->fric_on = true;
+    }
+    else
+    {
+        tri_booster_cmd_ptr->fric_on = false;
     }
 
     if (sw_pos_t::MID == vrc.switches.right.current_pos)
@@ -96,6 +106,11 @@ void booster_dr16_cmd(uint32_t notify_val)
         if (notify_val & EVENT_BIT_FIRE)
         {
             tri_booster_cmd_ptr->fire_count++;
+        }
+        
+        if (notify_val & EVENT_BIT_TRIGGER_RESET)
+        {
+            tri_booster_cmd_ptr->reset_count++;
         }
     }
 }
@@ -170,6 +185,8 @@ void booster_thread(void *argument)
             tri_booster_cmd_ptr->mode    = cmd_base_t::mode_t::PASSIVE;
             tri_booster_cmd_ptr->fric_on = false;
         }
+
+        power_meter->get_data(power_data);
 
         tri_booster_ptr->set_command(*tri_booster_cmd_ptr);
         vTaskDelay(1);

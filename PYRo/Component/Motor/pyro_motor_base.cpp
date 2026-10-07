@@ -43,4 +43,27 @@ bool motor_base_t::is_online(void)
     return _online;
 }
 
+// 默认实现：什么都不做
+// 大疆电机等固定范围的电机可以使用默认实现
+void motor_base_t::set_position_range(float min, float max)
+{
+    // 默认空实现
+    (void)min;
+    (void)max;
+}
+
+void motor_base_t::set_rotate_range(float min, float max)
+{
+    // 默认空实现
+    (void)min;
+    (void)max;
+}
+
+void motor_base_t::set_torque_range(float min, float max)
+{
+    // 默认空实现
+    (void)min;
+    (void)max;
+}
+
 } // namespace pyro

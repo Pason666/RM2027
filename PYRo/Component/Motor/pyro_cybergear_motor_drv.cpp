@@ -41,10 +41,10 @@ void cybergear_can_id_t::decode(uint32_t raw_extended_id)
 cybergear_motor_drv_t::cybergear_motor_drv_t(uint8_t motor_id, uint8_t master_id,
                                              can_hub_t::which_can which)
     : motor_base_t(which), _motor_id(motor_id), _master_id(master_id),
+      _current_run_mode(MODE_CURRENT),  // 默认电流模式（按声明顺序）
       _min_position(-12.566f), _max_position(12.566f),
       _min_velocity(-30.0f), _max_velocity(30.0f),
-      _min_torque(-12.0f), _max_torque(12.0f),
-      _current_run_mode(MODE_CURRENT)  // 默认电流模式
+      _min_torque(-12.0f), _max_torque(12.0f)
 {
     // 初始化故障状态和模式
     _fault_status = {false, false, false, false, false, false};
@@ -687,7 +687,7 @@ void cybergear_motor_drv_t::set_position_range(float min, float max)
     _max_position = max;
 }
 
-void cybergear_motor_drv_t::set_velocity_range(float min, float max)
+void cybergear_motor_drv_t::set_rotate_range(float min, float max)
 {
     _min_velocity = min;
     _max_velocity = max;

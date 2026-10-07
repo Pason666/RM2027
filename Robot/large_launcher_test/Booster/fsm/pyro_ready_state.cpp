@@ -52,10 +52,16 @@ void tri_booster_t::fsm_active_t::state_ready_t::execute(owner *owner)
 
         if (heat_ok)
         {
+            // 使用校准记录的零点位置，如果未校准则使用默认值
+            const float zero_pos = (owner->_ctx.data.trigger_zero_position != 0.0f)
+                                   ? owner->_ctx.data.trigger_zero_position
+                                   : TRIGGER_OFFSET;
+
             owner->_ctx.data.target_trig_rad =
                 tri_booster_t::_get_next_trigger_preset(
                     owner->_ctx.data.current_trig_rad,
-                    TRIGGER_PRESET_MIN_ADVANCE_RAD);
+                    TRIGGER_PRESET_MIN_ADVANCE_RAD,
+                    zero_pos);
 
             request_switch(&owner->_state_active._busy_state);
         }
@@ -86,7 +92,8 @@ void tri_booster_t::fsm_active_t::state_ready_t::execute(owner *owner)
         _fric_unready_start_time = 0.0f;
     }
 
-    owner->_trigger_position_control();
+    // 拨弹盘发零力矩
+    owner->_ctx.data.out_trig_torque = 0.0f;
     owner->_send_trigger_command();
 }
 

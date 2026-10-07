@@ -43,10 +43,12 @@ bool tri_booster_t::_is_trigger_located(float trigger_rad)
 }
 
 float tri_booster_t::_get_next_trigger_preset(float trigger_rad,
-                                               float min_advance_rad)
+                                               float min_advance_rad,
+                                               float zero_position)
 {
     constexpr float TRIGGER_SLOT_RAD = PI / 3.0f;
-    const float delta = _normalize_angle(trigger_rad - TRIGGER_OFFSET);
+
+    const float delta = _normalize_angle(trigger_rad - zero_position);
     const bool feed_positive = TRIGGER_FEED_DIR > 0.0f;
     float preset_index = feed_positive
                              ? std::ceil(delta / TRIGGER_SLOT_RAD)
@@ -60,7 +62,7 @@ float tri_booster_t::_get_next_trigger_preset(float trigger_rad,
         preset_index += feed_positive ? 1.0f : -1.0f;
     }
 
-    return _normalize_angle(TRIGGER_OFFSET + preset_index * TRIGGER_SLOT_RAD);
+    return _normalize_angle(zero_position + preset_index * TRIGGER_SLOT_RAD);
 }
 
 void tri_booster_t::_update_feedback()

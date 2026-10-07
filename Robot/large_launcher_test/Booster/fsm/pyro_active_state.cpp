@@ -6,6 +6,10 @@
 namespace pyro
 {
 
+// 全局调试变量：摩擦轮速度监控
+volatile float g_debug_fric_target[3] = {0, 0, 0};
+volatile float g_debug_fric_current[3] = {0, 0, 0};
+
 void tri_booster_t::fsm_active_t::on_enter(owner *owner)
 {
     static_cast<dm_motor_drv_t *>(owner->_ctx.motor.trigger_wheel)
@@ -40,6 +44,13 @@ void tri_booster_t::fsm_active_t::on_execute(owner *owner)
 
     owner->_speed_control();
 
+    // 更新调试变量
+    for (int i = 0; i < 3; i++)
+    {
+        g_debug_fric_target[i] = owner->_ctx.data.target_fric_mps[i];
+        g_debug_fric_current[i] = owner->_ctx.data.current_fric_mps[i];
+    }
+
     if (owner->_ctx.cmd->fric_on)
     {
         auto &shoot_data = owner->_ctx.shoot_data;
@@ -65,6 +76,7 @@ void tri_booster_t::fsm_active_t::on_execute(owner *owner)
             }
         }
     }
+
     owner->_send_fric_command();
 
     owner->_launch_delay_calculate();

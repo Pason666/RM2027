@@ -15,6 +15,7 @@ extern "C"
 {
     can_drv_t *can1_drv;
     can_drv_t *can2_drv;
+    can_drv_t *can3_drv;
     ins_drv_t *ins_drv;
 
     void pyro_init_thread(void *argument)
@@ -24,10 +25,19 @@ extern "C"
         // 单板控制: 仅初始化 CAN1 (云台) 和 CAN2 (发射机构)
         can1_drv = new can_drv_t(&hfdcan1);
         can2_drv = new can_drv_t(&hfdcan2);
-        can1_drv->init();
-        can2_drv->init();
+        can3_drv = new can_drv_t(&hfdcan3);
+
+        status_t can1_status = can1_drv->init();
+        status_t can2_status = can2_drv->init();
+        status_t can3_status = can3_drv->init();
+
+        (void)can1_status;  // 避免未使用警告
+        (void)can2_status;
+        (void)can3_status;
+
         can1_drv->start(); // NOLINT
         can2_drv->start(); // NOLINT
+        can3_drv->start();
 
         ins_drv = ins_drv_t::get_instance();
         ins_drv->init();

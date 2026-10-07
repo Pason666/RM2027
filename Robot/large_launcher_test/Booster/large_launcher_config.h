@@ -8,9 +8,9 @@ namespace pyro
 
 // ========== 摩擦轮参数 ==========
 /// 摩擦轮半径 (m) - 三个摩擦轮
-constexpr float FRIC1_RADIUS = 0.04f;  // 第一组摩擦轮半径
-constexpr float FRIC2_RADIUS = 0.04f;  // 第二组摩擦轮半径
-constexpr float FRIC3_RADIUS = 0.04f;  // 第三组摩擦轮半径
+constexpr float FRIC1_RADIUS = 0.07f;  // 第一组摩擦轮半径
+constexpr float FRIC2_RADIUS = 0.07f;  // 第二组摩擦轮半径
+constexpr float FRIC3_RADIUS = 0.07f;  // 第三组摩擦轮半径
 
 /// 摩擦轮停机速度阈值 (rad/s), 低于此值切零力矩
 constexpr float FRIC_STOP_THRESHOLD = 10.0f;

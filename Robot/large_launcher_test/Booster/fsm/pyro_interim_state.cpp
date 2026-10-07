@@ -56,7 +56,8 @@ void tri_booster_t::fsm_active_t::state_interim_t::execute(owner *owner)
         owner->_ctx.data.fric_err = false;
     }
 
-    owner->_trigger_position_control();
+    // 拨弹盘发零力矩
+    owner->_ctx.data.out_trig_torque = 0.0f;
     owner->_send_trigger_command();
 }
 

@@ -205,12 +205,16 @@ class tri_booster_t final
 
           private:
             float _fric_unready_start_time{0.0f};
+            bool _first_execute{true};  // 标记是否是第一次执行
         };
         struct state_busy_t final : public state_t<owner>
         {
             void enter(owner *owner) override;
             void execute(owner *owner) override;
             void exit(owner *owner) override;
+
+          private:
+            float _start_time_ms{0.0f};  // 进入状态的时间
         };
         struct state_stall_t final : public state_t<owner>
         {

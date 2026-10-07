@@ -3,18 +3,43 @@
 #include "pyro_large_launcher.h"
 #include "large_launcher_config.h"
 
+// 调试变量
+extern "C" {
+    uint32_t g_debug_ready_count = 0;
+    uint32_t g_debug_fire_cmd = 0;
+    uint32_t g_debug_fire_internal = 0;
+    uint8_t g_debug_in_ready = 0;
+}
+
 namespace pyro
 {
 void tri_booster_t::fsm_active_t::state_ready_t::enter(owner *owner)
 {
-    owner->_ctx.data.internal_fire_count = owner->_ctx.cmd->fire_count;
+    // 不同步fire_count，由interim的enter负责
     owner->_ctx.data.fric_err = false;
     owner->_ctx.data.ready_state_flag = true;
     _fric_unready_start_time = 0.0f;
+    _first_execute = true;
+
+    // 清空PID积分，但保持target不变（继续锁定在busy计算的目标位置）
+    owner->_ctx.pid.trigger_pos_pid->clear();
+    owner->_ctx.pid.trigger_spd_pid->clear();
+    owner->_ctx.data.target_trig_radps = 0.0f;
 }
 
 void tri_booster_t::fsm_active_t::state_ready_t::execute(owner *owner)
 {
+    g_debug_ready_count++;
+    g_debug_in_ready = 1;
+    g_debug_fire_cmd = owner->_ctx.cmd->fire_count;
+    g_debug_fire_internal = owner->_ctx.data.internal_fire_count;
+
+    // 移除第一次同步逻辑，由interim负责
+    if (_first_execute)
+    {
+        _first_execute = false;
+    }
+
     constexpr float FRIC_SWITCH_BUFFER_MS = 50.0f;
     const float now_ms = dwt_drv_t::get_timeline_ms();
 

@@ -1,6 +1,15 @@
 #include "pyro_dwt_drv.h"
 #include "pyro_large_launcher.h"
 
+// 调试变量
+extern "C" {
+    float g_debug_interim_target = 0.0f;
+    float g_debug_interim_current = 0.0f;
+    float g_debug_interim_error = 0.0f;
+    float g_debug_interim_torque = 0.0f;
+    uint8_t g_debug_in_interim = 0;
+}
+
 namespace pyro
 {
 void tri_booster_t::fsm_active_t::state_interim_t::enter(owner *owner)
@@ -8,13 +17,25 @@ void tri_booster_t::fsm_active_t::state_interim_t::enter(owner *owner)
     _ready_wait_start_time  = dwt_drv_t::get_timeline_ms();
     _fric_ready_start_time  = 0.0f;
     owner->_ctx.data.fric_err = false;
+
+    // 在进入interim时同步fire_count，避免在ready时丢失
+    owner->_ctx.data.internal_fire_count = owner->_ctx.cmd->fire_count;
 }
 
 void tri_booster_t::fsm_active_t::state_interim_t::execute(owner *owner)
 {
+    g_debug_in_interim = 1;
+
     constexpr float FRIC_READY_TIMEOUT_MS = 1000.0f;
     constexpr float FRIC_SWITCH_BUFFER_MS = 50.0f;
     const float now_ms = dwt_drv_t::get_timeline_ms();
+
+    // 调试：记录目标、当前位置
+    g_debug_interim_target = owner->_ctx.data.target_trig_rad;
+    g_debug_interim_current = owner->_ctx.data.current_trig_rad;
+    float error = owner->_ctx.data.target_trig_rad - owner->_ctx.data.current_trig_rad;
+    g_debug_interim_error = tri_booster_t::_normalize_angle(error);
+    g_debug_interim_torque = owner->_ctx.data.out_trig_torque;
 
     // 三个摩擦轮转速判断 - 已关闭
     const bool fric_ready = true;
@@ -57,8 +78,8 @@ void tri_booster_t::fsm_active_t::state_interim_t::execute(owner *owner)
         owner->_ctx.data.fric_err = false;
     }
 
-    // 拨弹盘发零力矩
-    owner->_ctx.data.out_trig_torque = 0.0f;
+    // 拨弹盘保持目标位置（不要改变target，让它保持为计算出的位置）
+    owner->_trigger_position_control();
     owner->_send_trigger_command();
 }
 

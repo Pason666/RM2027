@@ -252,25 +252,13 @@ void tri_booster_t::_trigger_position_control()
     float error = _ctx.data.target_trig_rad - _ctx.data.current_trig_rad;
     error       = _normalize_angle(error);
 
+    // 位置环 → 速度环（完全仿照 Launcher_test，无前馈）
     _ctx.data.target_trig_radps = _ctx.pid.trigger_pos_pid->calculate(error, 0.0f);
 
-    static float ff_torque = 0.0f;
-    constexpr float TRIG_FF_SPEED_DEADBAND = 1.0f;
-    constexpr float TRIG_FF_TORQUE = 0.505f;
-
-    const float feed_speed = _ctx.data.target_trig_radps * TRIGGER_FEED_DIR;
-    if (feed_speed > TRIG_FF_SPEED_DEADBAND)
-    {
-        ff_torque = TRIGGER_FEED_DIR * TRIG_FF_TORQUE;
-    }
-    else if (feed_speed < 0.0f)
-    {
-        ff_torque = 0.0f;
-    }
-
+    // 速度环 → 扭矩
     _ctx.data.out_trig_torque =
         _ctx.pid.trigger_spd_pid->calculate(_ctx.data.target_trig_radps,
-                                            _ctx.data.current_trig_radps) + ff_torque;
+                                            _ctx.data.current_trig_radps);
 
     _ctx.data.out_trig_torque = std::clamp(_ctx.data.out_trig_torque, -7.0f, 7.0f);
 }

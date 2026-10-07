@@ -16,15 +16,16 @@ void tri_booster_t::fsm_active_t::state_interim_t::execute(owner *owner)
     constexpr float FRIC_SWITCH_BUFFER_MS = 50.0f;
     const float now_ms = dwt_drv_t::get_timeline_ms();
 
-    // 三个摩擦轮转速判断
-    const bool fric_ready =
-        abs(owner->_ctx.data.current_fric_mps[0] -
-            owner->_ctx.data.target_fric_mps[0]) < 1.0f &&
-        abs(owner->_ctx.data.current_fric_mps[1] -
-            owner->_ctx.data.target_fric_mps[1]) < 1.0f &&
-        abs(owner->_ctx.data.current_fric_mps[2] -
-            owner->_ctx.data.target_fric_mps[2]) < 1.0f &&
-        owner->_ctx.cmd->fric_on;
+    // 三个摩擦轮转速判断 - 已关闭
+    const bool fric_ready = true;
+    // const bool fric_ready =
+    //     abs(owner->_ctx.data.current_fric_mps[0] -
+    //         owner->_ctx.data.target_fric_mps[0]) < 1.0f &&
+    //     abs(owner->_ctx.data.current_fric_mps[1] -
+    //         owner->_ctx.data.target_fric_mps[1]) < 1.0f &&
+    //     abs(owner->_ctx.data.current_fric_mps[2] -
+    //         owner->_ctx.data.target_fric_mps[2]) < 1.0f &&
+    //     owner->_ctx.cmd->fric_on;
 
     if (fric_ready)
     {

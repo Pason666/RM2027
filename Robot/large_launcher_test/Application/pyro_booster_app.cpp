@@ -47,7 +47,7 @@ static void deps_init()
 
     // ==================== CAN1: 拨弹盘 DM4310 ====================
     tri_deps_ptr->motor_deps.trigger_wheel =
-        new dm_motor_drv_t(0x15, 0x16, can_hub_t::can2);
+        new dm_motor_drv_t(0x15, 0x16, can_hub_t::can1);
 
     tri_deps_ptr->motor_deps.trigger_wheel->set_position_range(-PI, PI);
     tri_deps_ptr->motor_deps.trigger_wheel->set_rotate_range(-20.0f, 20.0f);

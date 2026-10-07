@@ -151,11 +151,6 @@ class cybergear_motor_drv_t : public motor_base_t
 
     // 模式切换和控制的高层接口
     status_t set_run_mode(run_mode_t mode);
-    // 高层模式控制接口（简化初始化流程）
-    // 注意：这些函数只是初始化辅助函数，实际控制需要循环调用 send_motion_control()
-    status_t init_current_mode();                  // 切换到电流模式并使能
-    status_t init_speed_mode(float limit_cur);     // 切换到速度模式、使能并设置电流限制
-    status_t init_position_mode(float limit_spd);  // 切换到位置模式、使能并设置速度限制
 
     // 模式专用控制接口（推荐使用）
     status_t send_control(float value);                      // 单变量控制（根据当前模式自动分配）

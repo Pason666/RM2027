@@ -138,13 +138,23 @@ status_t cybergear_motor_drv_t::enable()
         return PYRO_ERROR;
     }
 
+    // 1. 先设置为电流模式
+    status_t ret = set_run_mode(MODE_CURRENT);
+    if (ret != PYRO_OK)
+    {
+        return ret;
+    }
+
+    vTaskDelay(pdMS_TO_TICKS(10));  // 等待模式切换完成
+
+    // 2. 发送使能命令
     // 构建29位ID: bit[28:24]=3, bit[15:8]=master_id, bit[7:0]=motor_id
     cybergear_can_id_t tx_id(3, _master_id, _motor_id);
     uint32_t can_id = tx_id.encode();
 
     // 数据区为空
     uint8_t data[8] = {0};
-    status_t ret = _can_drv->send_msg(can_id, data, can_msg_buffer_t::EXTENDED_ID);
+    ret = _can_drv->send_msg(can_id, data, can_msg_buffer_t::EXTENDED_ID);
 
     if (ret == PYRO_OK)
     {
@@ -555,8 +565,9 @@ status_t cybergear_motor_drv_t::update_feedback()
 
 status_t cybergear_motor_drv_t::send_torque(float torque)
 {
-    // TODO: 实现扭矩控制命令
-    return PYRO_ERROR;
+    // 直接发送力矩指令（电流模式）
+    // 这是基类接口，不依赖当前模式，直接控制力矩
+    return send_motion_control(0.0f, 0.0f, 0.0f, 0.0f, torque);
 }
 
 status_t cybergear_motor_drv_t::get_device_id(uint64_t &mcu_id)
@@ -617,54 +628,6 @@ status_t cybergear_motor_drv_t::set_run_mode(run_mode_t mode)
     return write_param(PARAM_RUN_MODE, static_cast<uint8_t>(mode));
 }
 
-status_t cybergear_motor_drv_t::init_current_mode()
-{
-    // 1. 设置运行模式为电流模式
-    status_t ret = set_run_mode(MODE_CURRENT);
-    if (ret != PYRO_OK) return ret;
-
-    vTaskDelay(pdMS_TO_TICKS(10));  // 短暂延时确保模式切换完成
-
-    // 2. 使能电机
-    return enable();
-}
-
-status_t cybergear_motor_drv_t::init_speed_mode(float limit_cur)
-{
-    // 1. 设置运行模式为速度模式
-    status_t ret = set_run_mode(MODE_SPEED);
-    if (ret != PYRO_OK) return ret;
-
-    vTaskDelay(pdMS_TO_TICKS(10));
-
-    // 2. 使能电机
-    ret = enable();
-    if (ret != PYRO_OK) return ret;
-
-    vTaskDelay(pdMS_TO_TICKS(10));
-
-    // 3. 设置电流限制
-    return write_param(PARAM_LIMIT_CUR, limit_cur);
-}
-
-status_t cybergear_motor_drv_t::init_position_mode(float limit_spd)
-{
-    // 1. 设置运行模式为位置模式
-    status_t ret = set_run_mode(MODE_POSITION);
-    if (ret != PYRO_OK) return ret;
-
-    vTaskDelay(pdMS_TO_TICKS(10));
-
-    // 2. 使能电机
-    ret = enable();
-    if (ret != PYRO_OK) return ret;
-
-    vTaskDelay(pdMS_TO_TICKS(10));
-
-    // 3. 设置速度限制
-    return write_param(PARAM_LIMIT_SPD, limit_spd);
-}
-
 status_t cybergear_motor_drv_t::set_current_ref(float iq_ref)
 {
     return write_param(PARAM_IQ_REF, iq_ref);
@@ -688,7 +651,7 @@ status_t cybergear_motor_drv_t::send_control(float value)
 {
     // 根据当前运行模式自动分配
     switch (_current_run_mode)
-    {
+{
     case MODE_CURRENT:
         // 电流模式：value = 力矩 (Nm)
         return send_motion_control(0.0f, 0.0f, 0.0f, 0.0f, value);

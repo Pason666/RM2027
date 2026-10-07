@@ -6,8 +6,8 @@
 #include "pyro_dwt_drv.h"
 #include "pyro_ins.h"
 
-// CyberGear测试应用
-extern "C" void cybergear_app_init();
+// 发射机构测试应用
+extern "C" void large_launcher_init(void *argument);
 
 namespace pyro
 {
@@ -56,8 +56,8 @@ extern "C"
         referee_drv_t::get_instance()->init();
 #endif
 
-        // 启动CyberGear电机测试
-        cybergear_app_init();
+        // 启动发射机构测试
+        large_launcher_init(nullptr);
 
         vTaskDelete(nullptr);
     }

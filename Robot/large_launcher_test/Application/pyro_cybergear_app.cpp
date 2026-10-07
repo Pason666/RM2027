@@ -19,7 +19,7 @@ using namespace pyro;
 // 全局对象
 // ==========================================
 
-static cybergear_motor_drv_t *motor = nullptr;
+static motor_base_t *motor = nullptr;
 static pid_t *position_pid = nullptr;
 static pid_t *velocity_pid = nullptr;
 
@@ -32,7 +32,7 @@ static void control_task(void *argument)
     vTaskDelay(pdMS_TO_TICKS(1000));
 
     // 初始化电流模式
-    motor->init_current_mode();
+    motor->enable();
     vTaskDelay(pdMS_TO_TICKS(100));
 
     // 初始化PID控制器
@@ -62,16 +62,16 @@ static void control_task(void *argument)
             float target_torque = velocity_pid->calculate(target_velocity, current_velocity);
 
             // 发送控制指令
-            motor->send_control(target_torque);
+            motor->send_torque(target_torque);
 
-            // 检查故障
-            auto fault = motor->get_detailed_fault();
-            if (fault.motor_over_temp || fault.driver_chip_fault ||
-                fault.under_voltage || fault.over_voltage)
-            {
-                motor->disable();
-                break;
-            }
+            // // 检查故障
+            // auto fault = motor->get_detailed_fault();
+            // if (fault.motor_over_temp || fault.driver_chip_fault ||
+            //     fault.under_voltage || fault.over_voltage)
+            // {
+            //     motor->disable();
+            //     break;
+            // }
         }
 
         vTaskDelay(pdMS_TO_TICKS(10));  // 100Hz控制频率
@@ -92,7 +92,6 @@ extern "C" void cybergear_app_init()
 
     // 设置位置反馈范围为 [-π, π]
     const float pi = 3.14159265359f;
-    motor->set_position_range(-pi, pi);
 
     // 创建控制任务
     xTaskCreate(control_task, "cybergear_ctrl", 1024, nullptr,

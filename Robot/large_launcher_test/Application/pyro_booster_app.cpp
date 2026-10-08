@@ -63,11 +63,11 @@ static void deps_init()
         new pyro::pid_t(11.322f, 0.03f, 0.004f, 2.5f, 20);
 
     // --- 拨弹盘: 位置环 + 速度环 (DM4310) ---
-    // 进一步降低P，增加少量D提供阻尼，减少震荡
+    // 提高P和输出限幅，加快响应速度
     tri_deps_ptr->pid_deps.trigger_pos_pid =
-        new pyro::pid_t(5.0f, 0.0f, 0.0f, 0.5f, 3.0f);
+        new pyro::pid_t(12.0f, 0.0f, 0.0f, 1.0f, 5.0f);
     tri_deps_ptr->pid_deps.trigger_spd_pid =
-        new pyro::pid_t(0.5f, 0.0f, 0.0f, 1.0f, 5.0f);
+        new pyro::pid_t(0.6f, 0.0f, 0.0f, 1.5f, 8.0f);
 
     power_meter = new pyro::powermeter_drv_t(0x212, pyro::can_hub_t::can1);
     power_meter->init();

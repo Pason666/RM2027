@@ -86,6 +86,8 @@ struct tri_booster_data_ctx_t
     // 校准相关
     uint32_t homing_jam_start_tick{0}; // 卡住开始时间
     float trigger_zero_position{0};     // 校准记录的零点位置
+    bool homing_jam_detected{false};    // 是否已检测到堵转
+    float homing_forward_target{0};     // 正转目标位置
 };
 
 struct tri_booster_shoot_data_t

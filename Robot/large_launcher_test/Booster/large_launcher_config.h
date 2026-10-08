@@ -44,6 +44,9 @@ constexpr float CALI_REVERSE_RADPS = -3.0f;
 /// 校准正转目标角度 (rad)
 constexpr float CALI_FORWARD_ANGLE = 0.0f;
 
+/// 校准完成后正转偏移量 (rad) - 避免零点在堵转位置
+constexpr float HOMING_FORWARD_OFFSET = 0.2f;
+
 /// 堵转检测速度误差阈值 (70%)
 constexpr float CALI_BLOCK_THRESHOLD = 0.7f;
 

@@ -28,10 +28,13 @@ constexpr float TRIGGER_CONTINUOUS_RADPS = 20.0f;
 /// M2006 拨弹电机减速比
 constexpr float TRIGGER_GEAR_RATIO = 36.0f;
 
+/// 拨弹盘进弹方向 (1.0 为正向, -1.0 为反向)
+constexpr float TRIGGER_FEED_DIR = 1.0f;
+
 // ========== 校准参数 ==========
 
-/// 初始化正转速度 (rad/s), 正转寻找机械死区
-constexpr float INIT_FORWARD_RADPS = 3.0f;
+/// 校准转速 (rad/s), 寻找机械死区 (实际方向由 TRIGGER_FEED_DIR 决定)
+constexpr float HOMING_SPEED_RADPS = 3.0f;
 
 /// 堵转检测速度阈值 (rad/s), 低于此值且力矩达到阈值判定为堵转
 constexpr float JAM_SPEED_THRESHOLD = 0.3f;

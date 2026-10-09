@@ -187,10 +187,10 @@ void test_robot_t::_trig_goto(decltype(test_robot_data_ctx_t::trig_state) s)
 
     case s_t::INIT_FORWARD:
     {
-        // 初始化正转: 速度环正转直至卡住
+        // 校准: 速度环寻找机械死区 (考虑方向)
         _ctx.data.jam_start_tick = 0;
         _ctx.pid.feeder_spd_pid->clear();
-        _ctx.data.target_feeder_radps = INIT_FORWARD_RADPS;
+        _ctx.data.target_feeder_radps = HOMING_SPEED_RADPS * TRIGGER_FEED_DIR;
         break;
     }
 
@@ -215,12 +215,12 @@ void test_robot_t::_trig_goto(decltype(test_robot_data_ctx_t::trig_state) s)
         // 基于当前目标位置（而非当前实际位置）计算下一个槽位
         // 这样可以避免累积误差和计算错误
         float relative_target = _ctx.data.target_feeder_rad - _ctx.data.trigger_offset;
-        // 计算目标在第几个槽位（向上取整，确保到达下一个完整槽位）
-        int32_t current_target_slot = static_cast<int32_t>(std::ceil(relative_target / SINGLE_SHOT_ANGLE));
+        // 计算目标在第几个槽位（向上取整，确保到达下一个完整槽位，考虑方向）
+        int32_t current_target_slot = static_cast<int32_t>(std::ceil(relative_target / (SINGLE_SHOT_ANGLE * TRIGGER_FEED_DIR)));
         // 下一个槽位
         int32_t next_slot = current_target_slot + 1;
         // 计算新的目标位置
-        _ctx.data.target_feeder_rad = _ctx.data.trigger_offset + next_slot * SINGLE_SHOT_ANGLE;
+        _ctx.data.target_feeder_rad = _ctx.data.trigger_offset + next_slot * SINGLE_SHOT_ANGLE * TRIGGER_FEED_DIR;
 
         _ctx.data.target_feeder_radps = 0;
         _ctx.data.jam_start_tick    = 0;
@@ -238,7 +238,7 @@ void test_robot_t::_trig_goto(decltype(test_robot_data_ctx_t::trig_state) s)
         {
             _ctx.pid.feeder_spd_pid->clear();
         }
-        _ctx.data.target_feeder_radps = _ctx.cmd->feeder_speed;
+        _ctx.data.target_feeder_radps = _ctx.cmd->feeder_speed * TRIGGER_FEED_DIR;
         _ctx.data.jam_start_tick    = 0;
         break;
     }
@@ -284,8 +284,8 @@ void test_robot_t::_trig_init_forward_execute()
 {
     uint32_t now = xTaskGetTickCount();
 
-    // 维持正转速度
-    _ctx.data.target_feeder_radps = INIT_FORWARD_RADPS;
+    // 维持校准速度 (考虑方向)
+    _ctx.data.target_feeder_radps = HOMING_SPEED_RADPS * TRIGGER_FEED_DIR;
 
     // --- 卡住检测: 实际速度低于阈值且持续一段时间 ---
     if (std::abs(_ctx.data.current_feeder_radps) < JAM_SPEED_THRESHOLD)
@@ -368,7 +368,7 @@ void test_robot_t::_trig_single_execute()
     // --- 卡弹检测: 误差大 + 实际速度极低且持续 ---
     // 但如果已经恢复过2次，就不再检测卡弹，直接放弃
     if (_ctx.data.jam_recovery_count < 2 &&
-        std::abs(err) > SINGLE_SHOT_ANGLE / 8.0f &&
+        std::abs(err * TRIGGER_FEED_DIR) > SINGLE_SHOT_ANGLE / 8.0f &&
         std::abs(_ctx.data.current_feeder_radps) < JAM_SPEED_THRESHOLD)
     {
         if (_ctx.data.jam_start_tick == 0)
@@ -388,10 +388,10 @@ void test_robot_t::_trig_single_execute()
     }
 
     // --- 到位判定: 角度误差 < 阈值 或 超时 或 速度很低 ---
-    bool angle_reached = std::abs(err) < SINGLE_DONE_ANGLE_THRESHOLD;
+    bool angle_reached = std::abs(err * TRIGGER_FEED_DIR) < SINGLE_DONE_ANGLE_THRESHOLD;
     bool timeout = (now - _ctx.data.single_start_tick) > pdMS_TO_TICKS(SINGLE_DONE_TIMEOUT_MS);
     // 如果误差不太大且速度很低，也认为到位（可能是卡住了或者力矩不够）
-    bool stalled = (std::abs(err) < SINGLE_SHOT_ANGLE / 4.0f) &&
+    bool stalled = (std::abs(err * TRIGGER_FEED_DIR) < SINGLE_SHOT_ANGLE / 4.0f) &&
                    (std::abs(_ctx.data.current_feeder_radps) < 0.5f) &&
                    ((now - _ctx.data.single_start_tick) > pdMS_TO_TICKS(200));
 
@@ -414,25 +414,25 @@ void test_robot_t::_trig_continue_execute()
     // 退出连发 → DONE
     if (!_ctx.cmd->fire_enable)
     {
-        // 对齐到前方最近的槽位
+        // 对齐到前方最近的槽位（考虑方向）
         float relative = _ctx.data.current_feeder_rad - _ctx.data.trigger_offset;
-        int32_t count  = static_cast<int32_t>(relative / SINGLE_SHOT_ANGLE) + 1;
+        int32_t count  = static_cast<int32_t>(relative / (SINGLE_SHOT_ANGLE * TRIGGER_FEED_DIR)) + 1;
         _ctx.data.target_feeder_rad =
-            _ctx.data.trigger_offset + count * SINGLE_SHOT_ANGLE;
+            _ctx.data.trigger_offset + count * SINGLE_SHOT_ANGLE * TRIGGER_FEED_DIR;
         _trig_goto(test_robot_data_ctx_t::trig_state_e::DONE);
         return;
     }
 
-    // 速度环
-    _ctx.data.target_feeder_radps = _ctx.cmd->feeder_speed;
+    // 速度环（考虑方向）
+    _ctx.data.target_feeder_radps = _ctx.cmd->feeder_speed * TRIGGER_FEED_DIR;
 
-    // --- 物理发弹计数: 角度跨过 SINGLE_SHOT_ANGLE 边界 → fire_count++ ---
+    // --- 物理发弹计数: 角度跨过槽位边界 → fire_count++ ---
     {
-        float d = _ctx.data.current_feeder_rad - _ctx.data.last_shot_feeder_rad;
+        float d = (_ctx.data.current_feeder_rad - _ctx.data.last_shot_feeder_rad) * TRIGGER_FEED_DIR;
         while (d >= SINGLE_SHOT_ANGLE)
         {
             _ctx.data.fire_count++;
-            _ctx.data.last_shot_feeder_rad += SINGLE_SHOT_ANGLE;
+            _ctx.data.last_shot_feeder_rad += SINGLE_SHOT_ANGLE * TRIGGER_FEED_DIR;
             d -= SINGLE_SHOT_ANGLE;
         }
     }

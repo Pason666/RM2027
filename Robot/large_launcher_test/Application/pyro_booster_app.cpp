@@ -25,6 +25,10 @@ static tri_deps_t *tri_deps_ptr               = nullptr;
 powermeter_drv_t *power_meter;
 powermeter_data power_data;
 
+// 拨弹盘转速监视
+extern "C" {
+    float g_trigger_speed = 0.0f;  // 拨弹盘当前转速 (rad/s)
+}
 
 // ========== 函数声明 ==========
 static void booster_dr16_cmd(uint32_t notify_val);
@@ -66,7 +70,7 @@ static void deps_init()
     // --- 拨弹盘: 位置环 + 速度环 (DM4310) ---
     // 提高P和输出限幅，加快响应速度
     tri_deps_ptr->pid_deps.trigger_pos_pid =
-        new pyro::pid_t(12.0f, 0.0f, 0.0f, 1.0f, 5.0f);
+        new pyro::pid_t(20.0f, 0.0f, 0.0f, 1.0f, 10.0f);
     tri_deps_ptr->pid_deps.trigger_spd_pid =
         new pyro::pid_t(0.6f, 0.0f, 0.0f, 1.5f, 8.0f);
 
@@ -197,8 +201,11 @@ void booster_thread(void *argument)
         }
 
         tri_booster_ptr->set_command(*tri_booster_cmd_ptr);
-        
+
         power_meter->get_data(power_data);
+
+        // 更新拨弹盘转速监视
+        g_trigger_speed = tri_booster_ptr->get_ctx().data.current_trig_radps;
 
         vTaskDelay(1);
     }

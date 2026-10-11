@@ -3,14 +3,6 @@
 #include "pyro_large_launcher.h"
 #include "large_launcher_config.h"
 
-// 调试变量
-extern "C" {
-    uint32_t g_debug_ready_count = 0;
-    uint32_t g_debug_fire_cmd = 0;
-    uint32_t g_debug_fire_internal = 0;
-    uint8_t g_debug_in_ready = 0;
-}
-
 namespace pyro
 {
 void tri_booster_t::fsm_active_t::state_ready_t::enter(owner *owner)
@@ -29,12 +21,6 @@ void tri_booster_t::fsm_active_t::state_ready_t::enter(owner *owner)
 
 void tri_booster_t::fsm_active_t::state_ready_t::execute(owner *owner)
 {
-    g_debug_ready_count++;
-    g_debug_in_ready = 1;
-    g_debug_fire_cmd = owner->_ctx.cmd->fire_count;
-    g_debug_fire_internal = owner->_ctx.data.internal_fire_count;
-
-    // 移除第一次同步逻辑，由interim负责
     if (_first_execute)
     {
         _first_execute = false;

@@ -57,9 +57,12 @@ void tri_booster_t::fsm_active_t::state_homing_t::execute(owner *owner)
         owner->_trigger_position_control();
         owner->_send_trigger_command();
 
-        // 检查是否到位
-        float position_error = std::abs(owner->_ctx.data.current_trig_rad -
-                                        owner->_ctx.data.homing_forward_target);
+        // 检查是否到位（先归一化角度差再取绝对值）
+        float angle_diff = owner->_ctx.data.current_trig_rad -
+                          owner->_ctx.data.homing_forward_target;
+        angle_diff = tri_booster_t::_normalize_angle(angle_diff);
+        float position_error = std::abs(angle_diff);
+
         if (position_error < FORWARD_POSITION_THRESHOLD)
         {
             // 记录当前位置为零点
@@ -74,7 +77,6 @@ void tri_booster_t::fsm_active_t::state_homing_t::execute(owner *owner)
 
 void tri_booster_t::fsm_active_t::state_homing_t::exit(owner *owner)
 {
-    owner->_ctx.data.target_trig_rad   = owner->_ctx.data.current_trig_rad;
     owner->_ctx.data.target_trig_radps = 0.0f;
 }
 } // namespace pyro

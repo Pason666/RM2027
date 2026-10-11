@@ -7,6 +7,7 @@
 #include "pyro_rc_base_drv.h"
 #include "pyro_referee.h"
 #include "pyro_algo_pid.h"
+#include "pyro_powermeter.h"
 
 using namespace pyro;
 
@@ -21,6 +22,9 @@ static TaskHandle_t booster_task_handle   = nullptr;
 static tri_booster_t *tri_booster_ptr         = nullptr;
 static tri_booster_cmd_t *tri_booster_cmd_ptr = nullptr;
 static tri_deps_t *tri_deps_ptr               = nullptr;
+powermeter_drv_t *power_meter;
+powermeter_data power_data;
+
 
 // ========== 函数声明 ==========
 static void booster_dr16_cmd(uint32_t notify_val);
@@ -65,6 +69,17 @@ static void deps_init()
         new pyro::pid_t(12.0f, 0.0f, 0.0f, 1.0f, 5.0f);
     tri_deps_ptr->pid_deps.trigger_spd_pid =
         new pyro::pid_t(0.6f, 0.0f, 0.0f, 1.5f, 8.0f);
+
+    // ==================== 功率计初始化 ====================
+    static bool power_meter_initialized = false;
+    if (!power_meter_initialized)
+    {
+        power_meter = new pyro::powermeter_drv_t(0x212, pyro::can_hub_t::can1);
+        status_t init_result = power_meter->init();
+
+        // 只有成功时才标记为已初始化
+        power_meter_initialized = (init_result == PYRO_OK);
+    }
 }
 
 // =========================================================
@@ -182,6 +197,9 @@ void booster_thread(void *argument)
         }
 
         tri_booster_ptr->set_command(*tri_booster_cmd_ptr);
+        
+        power_meter->get_data(power_data);
+
         vTaskDelay(1);
     }
 }

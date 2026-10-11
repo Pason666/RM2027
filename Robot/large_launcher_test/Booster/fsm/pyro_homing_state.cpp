@@ -37,10 +37,10 @@ void tri_booster_t::fsm_active_t::state_homing_t::execute(owner *owner)
             else if (now_tick - owner->_ctx.data.homing_jam_start_tick >=
                      pdMS_TO_TICKS(JAM_DETECT_TIME_MS))
             {
-                // 卡住确认 → 进入正转阶段
+                // 卡住确认 → 进入正转阶段（考虑方向）
                 owner->_ctx.data.homing_jam_detected = true;
                 owner->_ctx.data.homing_forward_target =
-                    owner->_ctx.data.current_trig_rad + HOMING_FORWARD_OFFSET;
+                    owner->_ctx.data.current_trig_rad + HOMING_FORWARD_OFFSET * TRIGGER_FEED_DIR;
                 owner->_ctx.data.target_trig_rad = owner->_ctx.data.homing_forward_target;
             }
         }

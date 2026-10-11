@@ -23,30 +23,36 @@ constexpr float TEST_FRICTION_DEFAULT_SPEED = 550.0f;
 constexpr float TEST_FRIC_STOP_THRESHOLD = 10.0f;
 
 /// 拨弹盘连发模式目标转速 (rad/s)
-constexpr float TRIGGER_CONTINUOUS_RADPS = 20.0f;
+constexpr float TRIGGER_CONTINUOUS_RADPS = 15.0f;
 
 /// M2006 拨弹电机减速比
-constexpr float TRIGGER_GEAR_RATIO = 36.0f;
+constexpr float TRIGGER_GEAR_RATIO = 94.0f;
 
 /// 拨弹盘进弹方向 (1.0 为正向, -1.0 为反向)
 constexpr float TRIGGER_FEED_DIR = 1.0f;
 
 // ========== 校准参数 ==========
 
-/// 校准转速 (rad/s), 寻找机械死区 (实际方向由 TRIGGER_FEED_DIR 决定)
+/// 校准转速 (rad/s), 反转寻找机械死区 (实际方向与 TRIGGER_FEED_DIR 相反)
 constexpr float HOMING_SPEED_RADPS = 3.0f;
 
 /// 堵转检测速度阈值 (rad/s), 低于此值且力矩达到阈值判定为堵转
-constexpr float JAM_SPEED_THRESHOLD = 0.3f;
+constexpr float JAM_SPEED_THRESHOLD = 2.0f;
 
 /// 堵转检测力矩阈值 (Nm), 力矩超过此值且速度低判定为堵转
-constexpr float JAM_TORQUE_THRESHOLD = 8.0f;
+constexpr float JAM_TORQUE_THRESHOLD = 0.6f;
 
 /// 堵转检测时间阈值 (ms), 条件持续超过此值判定为堵转
 constexpr uint16_t JAM_DETECT_TIME_MS = 200;
 
+/// 校准完成后正转偏移量 (rad) - 避免零点在堵转位置
+constexpr float HOMING_FORWARD_OFFSET = 0.7777f;
+
 /// 卡弹恢复无力时间 (ms)
 constexpr uint16_t JAM_RECOVERY_TIME_MS = 500;
+
+/// 卡弹恢复反转速度 (rad/s) - 反转解决卡弹
+constexpr float JAM_RECOVERY_REVERSE_RADPS = -5.0f;
 
 /// 单发完成: 角度误差阈值 (rad)
 constexpr float SINGLE_DONE_ANGLE_THRESHOLD = 0.03f;  // 放宽到0.03 rad (约1.7度)
@@ -61,7 +67,7 @@ constexpr uint16_t SINGLE_DONE_TIMEOUT_MS = 400;  // 缩短到400ms，避免长�
 /// - 10发/圈: PI/5 = 0.6283 rad (36度)
 /// 建议实际测量后调整此值
 /// 如果经常双发，减小此值；如果拨不出，增大此值
-constexpr float SINGLE_SHOT_ANGLE = 2*PI/9;  // 微调: 约38.9度 (比40度略小)
+constexpr float SINGLE_SHOT_ANGLE = PI/4;  // 微调: 约38.9度 (比40度略小)
 
 } // namespace pyro
 

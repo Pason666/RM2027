@@ -9,7 +9,7 @@
  *
  *   左摇杆Y → Pitch 角速度控制
  *
- *   SW_L UP→MID   → 拨弹盘正转卡住初始化零点, 然后摩擦轮打开
+ *   SW_L UP→MID   → 拨弹盘反转校准零点 + 立即开启摩擦轮
  *   SW_L MID→UP   → 摩擦轮关闭
  *   SW_L DOWN→MID 或 DOWN→UP → 触发单发射击
  *   SW_L DOWN 维持 ≥ 800ms → 进入连发模式
@@ -101,11 +101,11 @@ static void deps_init()
             new pid_t(0.5f, 0.0f, 0.0f, 0.8f, 20.0f);
 
     // --- 拨弹盘: 位置环 + 速度环 (M2006) ---
-    // 单发需要较大力矩推动弹丸，提高P值和输出限幅
+    // 降低P值，增加D阻尼，减少超调
     test_robot_deps_ptr->pid_deps.feeder_pos_pid =
-        new pid_t(40.0f, 1.0f, 0.0f, 5.0f, 25.0f);
+        new pid_t(15.0f, 0.2f, 0.5f, 5.0f, 25.0f);
     test_robot_deps_ptr->pid_deps.feeder_spd_pid =
-        new pid_t(2.5f, 0.0f, 0.0f, 8.0f, 10.0f);
+        new pid_t(1.2f, 0.0f, 0.0f, 8.0f, 10.0f);
 }
 
 // =========================================================
@@ -153,8 +153,9 @@ void test_robot_thread(void *argument)
 
         if (notify_val & EVENT_BIT_INIT)
         {
-            // UP→MID: 触发初始化, 初始化完成后摩擦轮会自动打开
+            // UP→MID: 触发初始化，立即打开摩擦轮
             test_robot_cmd_ptr->feeder_trigger = true;
+            test_robot_cmd_ptr->friction_speed = TEST_FRICTION_DEFAULT_SPEED;
         }
 
         if (notify_val & EVENT_BIT_FIRE)
@@ -163,11 +164,10 @@ void test_robot_thread(void *argument)
             test_robot_cmd_ptr->feeder_trigger = true;
         }
 
-        // ---- 检查初始化是否刚完成，如果完成则打开摩擦轮 ----
+        // ---- 检查初始化是否刚完成（不再需要延迟开摩擦轮） ----
         if (test_robot_ptr->is_init_just_completed())
         {
-            test_robot_cmd_ptr->friction_speed = TEST_FRICTION_DEFAULT_SPEED;
-            test_robot_ptr->clear_init_completed_flag();  // 清除标志，避免重复处理
+            test_robot_ptr->clear_init_completed_flag();  // 清除标志
         }
 
         if (notify_val & EVENT_BIT_FRIC_OFF)

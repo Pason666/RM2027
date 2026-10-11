@@ -108,7 +108,9 @@ struct test_robot_data_ctx_t
     // --- 初始化 ---
     bool     is_initialized{false};     // 是否已完成初始化
     bool     init_just_completed{false}; // 初始化刚完成标志（用于通知应用层打开摩擦轮）
-    float    trigger_offset{0};         // 编码器零点偏移 (正转卡住时的角度)
+    float    trigger_offset{0};         // 编码器零点偏移 (校准完成后的零点位置)
+    bool     homing_jam_detected{false}; // 校准时是否已检测到堵转
+    float    homing_forward_target{0};   // 校准正转目标位置
 
     // --- 卡弹检测 ---
     uint32_t jam_start_tick{0};         // 卡弹起始时刻 (0=未卡弹)

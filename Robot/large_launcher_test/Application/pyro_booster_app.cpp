@@ -30,6 +30,9 @@ extern "C" {
     float g_trigger_speed = 0.0f;  // 拨弹盘当前转速 (rad/s)
 }
 
+// 裁判系统数据 (全局可见用于调试)
+referee_data_t referee_data;
+
 // ========== 函数声明 ==========
 static void booster_dr16_cmd(uint32_t notify_val);
 static void booster_vt03_cmd(uint32_t notify_val);
@@ -202,7 +205,15 @@ void booster_thread(void *argument)
 
         tri_booster_ptr->set_command(*tri_booster_cmd_ptr);
 
+        // 更新功率计数据
         power_meter->get_data(power_data);
+
+        // 更新裁判系统数据
+        auto *referee = referee_drv_t::get_instance();
+        if (referee && referee->is_online())
+        {
+            referee_data = referee->get_data();
+        }
 
         // 更新拨弹盘转速监视
         g_trigger_speed = tri_booster_ptr->get_ctx().data.current_trig_radps;

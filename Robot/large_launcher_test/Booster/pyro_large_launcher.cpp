@@ -67,6 +67,8 @@ float tri_booster_t::_get_next_trigger_preset(float trigger_rad,
 
 void tri_booster_t::_update_feedback()
 {
+    constexpr float fric_directions[3] = {FRIC1_DIRECTION, FRIC2_DIRECTION, FRIC3_DIRECTION};
+
     // 更新三个摩擦轮的反馈
     for (int i = 0; i < 3; i++)
     {
@@ -75,13 +77,13 @@ void tri_booster_t::_update_feedback()
             _ctx.motor.fric_wheels[i]->get_current_torque();
     }
 
-    // 计算摩擦轮线速度 (m/s)
+    // 计算摩擦轮线速度 (m/s)，应用方向配置
     _ctx.data.current_fric_mps[0] =
-        _ctx.motor.fric_wheels[0]->get_current_rotate() * FRIC1_RADIUS;
+        fric_directions[0] * _ctx.motor.fric_wheels[0]->get_current_rotate() * FRIC1_RADIUS;
     _ctx.data.current_fric_mps[1] =
-        _ctx.motor.fric_wheels[1]->get_current_rotate() * FRIC2_RADIUS;
+        fric_directions[1] * _ctx.motor.fric_wheels[1]->get_current_rotate() * FRIC2_RADIUS;
     _ctx.data.current_fric_mps[2] =
-        _ctx.motor.fric_wheels[2]->get_current_rotate() * FRIC3_RADIUS;
+        fric_directions[2] * _ctx.motor.fric_wheels[2]->get_current_rotate() * FRIC3_RADIUS;
 
     for (int i = 0; i < 3; i++)
     {
@@ -282,19 +284,23 @@ void tri_booster_t::_trigger_speed_control()
 
 void tri_booster_t::_send_fric_command() const
 {
+    constexpr float fric_directions[3] = {FRIC1_DIRECTION, FRIC2_DIRECTION, FRIC3_DIRECTION};
+
     for (int i = 0; i < 3; i++)
     {
         _ctx.motor.fric_wheels[i]->send_torque(
-            _ctx.data.out_fric_torque[i] +
-            0.08f * _ctx.data.current_fric_torque[i]);
+            fric_directions[i] * (_ctx.data.out_fric_torque[i] +
+            0.08f * _ctx.data.current_fric_torque[i]));
     }
 }
 
 void tri_booster_t::_send_raw_fric_command() const
 {
+    constexpr float fric_directions[3] = {FRIC1_DIRECTION, FRIC2_DIRECTION, FRIC3_DIRECTION};
+
     for (int i = 0; i < 3; i++)
     {
-        _ctx.motor.fric_wheels[i]->send_torque(_ctx.data.out_fric_torque[i]);
+        _ctx.motor.fric_wheels[i]->send_torque(fric_directions[i] * _ctx.data.out_fric_torque[i]);
     }
 }
 

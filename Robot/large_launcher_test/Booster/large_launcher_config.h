@@ -8,15 +8,26 @@ namespace pyro
 
 // ========== 摩擦轮参数 ==========
 /// 摩擦轮半径 (m) - 三个摩擦轮
-constexpr float FRIC1_RADIUS = 0.07f;  // 第一组摩擦轮半径
-constexpr float FRIC2_RADIUS = 0.07f;  // 第二组摩擦轮半径
-constexpr float FRIC3_RADIUS = 0.07f;  // 第三组摩擦轮半径
+constexpr float FRIC1_RADIUS = 0.035f;  // 第一组摩擦轮半径
+constexpr float FRIC2_RADIUS = 0.035f;  // 第二组摩擦轮半径
+constexpr float FRIC3_RADIUS = 0.035f;  // 第三组摩擦轮半径
+
+/// 摩擦轮旋转方向 (1.0 为正转, -1.0 为反转)
+constexpr float FRIC1_DIRECTION = -1.0f;   // 第一个摩擦轮方向
+constexpr float FRIC2_DIRECTION = -1.0f;  // 第二个摩擦轮方向
+constexpr float FRIC3_DIRECTION = -1.0f;   // 第三个摩擦轮方向
 
 /// 摩擦轮停机速度阈值 (rad/s), 低于此值切零力矩
 constexpr float FRIC_STOP_THRESHOLD = 10.0f;
 
 /// 防卡弹反转力矩
 constexpr float FRIC_ANTI_JAM_REVERSE_TORQUE = 4.0f;
+
+/// 目标弹速 (m/s)
+constexpr float TARGET_BULLET_SPEED = 16.3f;
+
+/// 初始摩擦轮线速度 (m/s)
+constexpr float INITIAL_FRIC_SPEED_MPS = 15.6f;
 
 // ========== 拨弹盘参数 (DM4310) ==========
 /// 拨弹盘编码器偏移 (根据实际机械结构调整)
@@ -45,7 +56,7 @@ constexpr float CALI_REVERSE_RADPS = -3.0f;
 constexpr float CALI_FORWARD_ANGLE = 0.0f;
 
 /// 校准完成后正转偏移量 (rad) - 避免零点在堵转位置
-constexpr float HOMING_FORWARD_OFFSET = 0.5f;
+constexpr float HOMING_FORWARD_OFFSET = 0.9f;
 
 /// 堵转检测速度误差阈值 (70%)
 constexpr float CALI_BLOCK_THRESHOLD = 0.7f;

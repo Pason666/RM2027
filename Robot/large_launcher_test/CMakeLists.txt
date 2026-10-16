@@ -49,7 +49,7 @@ target_include_directories(large_launcher_test
 target_compile_definitions(PYRo PUBLIC
         DR16_UART=PYRO_UART5
         VT03_UART=PYRO_UART1
-        REFEREE_UART=PYRO_UART7
+        REFEREE_UART=PYRO_UART1
 )
 
 # ===================== 链接依赖库 =====================

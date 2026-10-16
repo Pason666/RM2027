@@ -4,6 +4,7 @@
 #include "pyro_algo_pid.h"
 #include "pyro_dji_motor_drv.h"
 #include "pyro_module_base.h"
+#include "large_launcher_config.h"
 #include <cmath>
 
 namespace pyro
@@ -121,7 +122,7 @@ struct tri_booster_context_t
     tri_deps_t::motor_deps_t motor;
     tri_deps_t::pid_deps_t pid;
     tri_booster_data_ctx_t data;
-    tri_booster_shoot_data_t shoot_data{16.3f, 15.6f};  // target_speed, fric_mps
+    tri_booster_shoot_data_t shoot_data{TARGET_BULLET_SPEED, INITIAL_FRIC_SPEED_MPS};  // target_speed, initial_fric_mps
     tri_booster_cmd_t *cmd{};
 };
 

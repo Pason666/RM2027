@@ -50,6 +50,7 @@ target_compile_definitions(PYRo PUBLIC
         DR16_UART=PYRO_UART5
         VT03_UART=PYRO_UART1
         REFEREE_UART=PYRO_UART1
+        JCOM_DEBUG_PORT=PYRO_UART10
 )
 
 # ===================== 链接依赖库 =====================

@@ -9,6 +9,9 @@
 // 发射机构测试应用
 extern "C" void large_launcher_init(void *argument);
 
+// JCOM任务
+extern "C" void pyro_jcom_task(void *arg);
+
 namespace pyro
 {
 extern "C"
@@ -64,6 +67,17 @@ extern "C"
                            UART_PARITY_NONE);
         REFEREE_UART.enable_rx_dma();
         referee_drv_t::get_instance()->init();
+#endif
+
+#ifdef JCOM_DEBUG_PORT
+        // 初始化JCOM调试串口
+        JCOM_DEBUG_PORT.reset(921600, UART_WORDLENGTH_8B, UART_STOPBITS_1,
+                              UART_PARITY_NONE);
+        JCOM_DEBUG_PORT.enable_rx_dma();
+
+        // 创建JCOM任务
+        xTaskCreate(pyro_jcom_task, "jcom", 512, nullptr,
+                    configMAX_PRIORITIES - 2, nullptr);
 #endif
 
         // 启动发射机构测试

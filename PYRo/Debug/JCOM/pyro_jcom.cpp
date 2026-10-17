@@ -7,6 +7,10 @@
 
 extern pyro::hybrid_chassis_t *hybrid_chassis_ptr;
 
+// 外部声明弹速数组
+extern float bullet_speed_array[];
+extern uint8_t bullet_speed_count;
+
 namespace pyro
 {
 jcom_drv_t::jcom_drv_t(uint8_t max_length, uart_drv_t *uart)
@@ -93,17 +97,36 @@ void jcom_drv_t::send()
 {
     _jcom_uart->write(reinterpret_cast<uint8_t *>(_data_pack),
                       (_length + 1) * 4);
+
+    // 发送回车换行
+    uint8_t crlf[] = {0x0D, 0x0A};
+    _jcom_uart->write(crlf, 2);
 }
 
 void jcom_drv_t::thread()
 {
-    add_data(&hybrid_chassis_ptr->_ctx.data.total_predicted_power);
-    add_data(&hybrid_chassis_ptr->_ctx.data.buf_energy);
+    uint8_t last_count = 0;
 
     while (true)
     {
-        update_data();
-        send();
+        // 检测是否有新的弹速数据
+        if (bullet_speed_count > last_count)
+        {
+            // 有新数据，添加弹速到数据包
+            float latest_speed = bullet_speed_array[bullet_speed_count - 1];
+            add_data(&latest_speed);
+
+            // 更新并发送
+            update_data();
+            send();
+
+            // 清空数据节点，准备下一次发送
+            _data_nodes.clear();
+            _length = 0;
+
+            last_count = bullet_speed_count;
+        }
+
         vTaskDelay(3);
     }
 }

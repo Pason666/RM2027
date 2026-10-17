@@ -33,6 +33,12 @@ extern "C" {
 // 裁判系统数据 (全局可见用于调试)
 referee_data_t referee_data;
 
+// 弹速记录数组
+constexpr uint8_t BULLET_SPEED_ARRAY_SIZE = 50;
+float bullet_speed_array[BULLET_SPEED_ARRAY_SIZE] = {0};
+uint8_t bullet_speed_count = 0;  // 当前数组中的弹速数量
+float last_bullet_speed = 0.0f;  // 上一次的弹速值，用于检测更新
+
 // ========== 函数声明 ==========
 static void booster_dr16_cmd(uint32_t notify_val);
 static void booster_vt03_cmd(uint32_t notify_val);
@@ -213,6 +219,29 @@ void booster_thread(void *argument)
         if (referee && referee->is_online())
         {
             referee_data = referee->get_data();
+
+            // 检测弹速是否有更新
+            float current_speed = referee_data.shoot.initial_speed;
+            if (current_speed != last_bullet_speed && current_speed > 0.0f)
+            {
+                // 弹速有更新且大于0，记录到数组中
+                if (bullet_speed_count < BULLET_SPEED_ARRAY_SIZE)
+                {
+                    // 数组未满，直接添加
+                    bullet_speed_array[bullet_speed_count++] = current_speed;
+                }
+                else
+                {
+                    // 数组已满，移动数据并添加到末尾
+                    for (uint8_t i = 0; i < BULLET_SPEED_ARRAY_SIZE - 1; i++)
+                    {
+                        bullet_speed_array[i] = bullet_speed_array[i + 1];
+                    }
+                    bullet_speed_array[BULLET_SPEED_ARRAY_SIZE - 1] = current_speed;
+                }
+
+                last_bullet_speed = current_speed;
+            }
         }
 
         // 更新拨弹盘转速监视

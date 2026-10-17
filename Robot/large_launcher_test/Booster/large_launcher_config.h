@@ -29,6 +29,9 @@ constexpr float TARGET_BULLET_SPEED = 16.3f;
 /// 初始摩擦轮线速度 (m/s)
 constexpr float INITIAL_FRIC_SPEED_MPS = 15.6f;
 
+/// 弹速闭环开关 (true=启用, false=禁用)
+constexpr bool BULLET_SPEED_LOOP_ENABLE = false;
+
 // ========== 拨弹盘参数 (DM4310) ==========
 /// 拨弹盘编码器偏移 (根据实际机械结构调整)
 constexpr float TRIGGER_OFFSET = 0.1f;

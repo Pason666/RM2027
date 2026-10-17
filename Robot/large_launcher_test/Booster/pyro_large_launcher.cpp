@@ -112,6 +112,12 @@ void tri_booster_t::_fsm_execute()
 
 void tri_booster_t::_speed_control()
 {
+    // 检查弹速闭环开关（从配置文件读取）
+    if (!BULLET_SPEED_LOOP_ENABLE)
+    {
+        return;  // 闭环未启用，直接返回
+    }
+
     static uint16_t last_launching_num = 0;
     auto *referee = referee_drv_t::get_instance();
 
